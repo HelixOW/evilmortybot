@@ -1,6 +1,7 @@
 import asyncio
 import json
 import random as ra
+import sqlite3 as sql
 from enum import Enum
 from io import BytesIO
 from typing import List
@@ -16,6 +17,7 @@ from discord.ext.commands import HelpCommand
 # Version 1.0
 # TODO:
 #   - maybe web interface for new units?
+#   - saving unit pull data in json file -> later DB
 
 with open("data/bot_token.txt", 'r') as file:
     TOKEN = file.read()
@@ -23,6 +25,8 @@ IMG_SIZE = 150
 STORAGE_FILE_PATH = "data/custom_units.json"
 LOADING_IMAGE_URL = \
     "https://raw.githubusercontent.com/dokkanart/SDSGC/master/Loading%20Screens/Gacha/loading_gacha_start_01.png"
+CONN = sql.connect('data/data.db')
+CURSOR = CONN.cursor()
 
 HELP_EMBED_1 = discord.Embed(
     title="Help 1/2",
@@ -30,11 +34,12 @@ HELP_EMBED_1 = discord.Embed(
                 __*Commands:*__
                     `..unit`
                     `..team`
-                    `..single [times=1] [banner="banner one"]`
-                    `..multi [times=1] [banner="banner one"]`
-                    `..shaft [times=1] [banner="banner one"]`
-                    `..summon`
-                    `..create <name> <attribute> <grade> <image url> [race=unknown] [affection=none]`
+                    `..pvp <@Enemy>`
+                    `..single [banner="banner one"] [times=1] [@For]`
+                    `..multi [banner="banner one"] [times=1] [@For]`
+                    `..shaft [banner="banner one"] [times=1] [@For]`
+                    `..summon [banner="banner one"]`
+                    `..create "<name>" "<simple_name>" <attribute> <grade> "<image url>" [race=unknown] [affection=none]`
 
                     __*Info:*__
                     You can use different attributes to narrow down the possibilities:
@@ -68,7 +73,7 @@ HELP_EMBED_2 = discord.Embed(
                             `..multi 2 "race two"` ~ does a 5x summon on the Demon/Fairy/Goddess banner 2x
                             `..multi 1 banner two` ~ does a 11x summon on the most recent banner 1x
                             `..multi 3 "banner two"` ~ does a 11x summon on the most recent banner 3x 
-                            `..create "[Demon Slayer] Tanjiro" red sr "URL to image" human` ~ Creates a Red SR Tanjiro
+                            `..create "[Demon Slayer] Tanjiro" "tanjiro" red sr "URL to image" human` ~ Creates a Red SR Tanjiro
                             """,
     colour=discord.Color.gold(),
 )
@@ -673,16 +678,6 @@ ALL_BANNERS = [
            ssr_unit_rate=0.25,
            sr_unit_rate=1.2759,
            bg_url="https://i.imgur.com/7ktNtcm.jpg"),
-    Banner(name=["banner 2", "banner two", "jericho", "roxy", "shin"],
-           pretty_name="Inherited Resolve",
-           units=units_by_id([
-               155, 90, 154, 155, 134, 145, 146, 124, 120, 114]),
-           rate_up_units=units_by_id([153]),
-           ssr_unit_rate=0.1667,
-           ssr_unit_rate_up=0.5,
-           sr_unit_rate=1.2759,
-           bg_url="https://i.imgur.com/jE0K0u7.png"),
-
     Banner(name=["part 1", "part one"],
            pretty_name="Part. 1",
            units=units_by_id([
@@ -763,6 +758,17 @@ ALL_BANNERS = [
 
 @BOT.event
 async def on_ready():
+    CURSOR.execute("""
+    CREATE TABLE IF NOT EXISTS "units" (
+        unit_id INTEGER PRIMARY KEY,
+        name Text,
+        simple_name Text,
+        type Text,
+        grade Text,
+        race Text,
+        affection Text
+    )""")
+    CONN.commit()
     for attr_key in FRAMES:
         for grade_key in FRAMES[attr_key]:
             FRAMES[attr_key][grade_key] = Image.open(FRAMES[attr_key][grade_key]).resize((IMG_SIZE, IMG_SIZE)).convert(
@@ -1242,7 +1248,9 @@ async def team(ctx, *, args: str = ""):
 
 # ..multi
 @BOT.command()
-async def multi(ctx, amount: int = 1, banner_name: str = "banner 1"):
+async def multi(ctx, banner_name: str = "banner 1", amount: int = 1, person: discord.Member = None):
+    if person is None:
+        person = ctx.message.author
     banner = banner_by_name(banner_name)
     if banner is None:
         return await ctx.send(content=f"{ctx.message.author.mention}",
@@ -1260,7 +1268,8 @@ async def multi(ctx, amount: int = 1, banner_name: str = "banner 1"):
         img = compose_multi_draw(banner=banner) if banner.banner_type == BannerType.ELEVEN \
             else compose_five_multi_draw(banner=banner)
         await ctx.send(file=image_to_discord(img, "units.png"),
-                       content=f"{ctx.message.author.mention} this is your multi",
+                       content=f"{person.mention} this is your multi" if person is ctx.message.author
+                       else f"{person.mention} this is your multi coming from {ctx.message.author.mention}",
                        embed=discord.Embed(title=f"{banner.pretty_name} "
                                                  f"({11 if banner.banner_type == BannerType.ELEVEN else 5}x summon)")
                        .set_image(url="attachment://units.png"))
@@ -1273,8 +1282,8 @@ async def multi(ctx, amount: int = 1, banner_name: str = "banner 1"):
         pending.append(
             {
                 "file": image_to_discord(img, "units.png"),
-                "content": f"{ctx.message.author.mention} this is your multi" if a == 0
-                else f"{a + 1}. {ctx.message.author.mention}",
+                "content": f"{person.mention} this is your {a+1}. multi" if person is ctx.message.author
+                else f"{person.mention} this is your {a+1}. multi coming from {ctx.message.author.mention}",
                 "embed-title": f"{banner.pretty_name} ({11 if banner.banner_type == BannerType.ELEVEN else 5}x summon)"
             }
         )
@@ -1409,7 +1418,9 @@ async def build_menu(ctx, prev_message, page: int = 0, action: str = ""):
 
 # ..single
 @BOT.command()
-async def single(ctx, amount: int = 1, banner_name: str = "banner 1"):
+async def single(ctx, banner_name: str = "banner 1", amount: int = 1, person: discord.Member = None):
+    if person is None:
+        person = ctx.message.author
     banner = banner_by_name(banner_name)
     if banner is None:
         return await ctx.send(content=f"{ctx.message.author.mention}",
@@ -1421,7 +1432,8 @@ async def single(ctx, amount: int = 1, banner_name: str = "banner 1"):
                               embed=SUMMON_THROTTLE_ERROR_EMBED)
     elif amount < 2:
         return await ctx.send(file=compose_draw(banner),
-                              content=f"{ctx.message.author.mention} this is your single",
+                              content=f"{person.mention} this is your single" if person is ctx.message.author
+                              else f"{person.mention} this is your single coming from {ctx.message.author.mention}",
                               embed=discord.Embed(title=f"{banner.pretty_name} (1x summon)").set_image(
                                   url="attachment://unit.png"))
 
@@ -1433,8 +1445,8 @@ async def single(ctx, amount: int = 1, banner_name: str = "banner 1"):
         pending.append(
             {
                 "file": image_to_discord(img, "unit.png"),
-                "content": f"{ctx.message.author.mention} this is your single" if a == 0
-                else f"{a + 1}. {ctx.message.author.mention}",
+                "content": f"{person.mention} this is your {a+1}. single" if person is ctx.message.author
+                else f"{person.mention} this is your {a+1}. single from {ctx.message.author}",
                 "embed-title": f"{banner.pretty_name} (1x summon)"
             }
         )
@@ -1449,7 +1461,9 @@ async def single(ctx, amount: int = 1, banner_name: str = "banner 1"):
 
 # ..shaft
 @BOT.command()
-async def shaft(ctx, amount: int = 1, banner_name: str = "banner 1"):
+async def shaft(ctx, banner_name: str = "banner 1", amount: int = 1, person: discord.Member = None):
+    if person is None:
+        person = ctx.message.author
     banner = banner_by_name(banner_name)
     if banner is None:
         return await ctx.send(content=f"{ctx.message.author.mention}",
@@ -1463,7 +1477,8 @@ async def shaft(ctx, amount: int = 1, banner_name: str = "banner 1"):
 
     async def do_shaft():
         i = 0
-        draw = await ctx.send(content=f"{ctx.message.author.mention} this is your multi",
+        draw = await ctx.send(content=f"{person.mention} this is your shaft" if person is ctx.message.author
+                              else f"{person.mention} this is your shaft coming from {ctx.message.author.mention}",
                               embed=discord.Embed(title="Shafting...").set_image(
                                   url=LOADING_IMAGE_URL))
 
@@ -1485,7 +1500,9 @@ async def shaft(ctx, amount: int = 1, banner_name: str = "banner 1"):
                 compose_unit_multi_draw(units=drawn_units) if banner.banner_type == BannerType.ELEVEN
                 else compose_unit_five_multi_draw(units=drawn_units),
                 "units.png"),
-            content=f"{ctx.message.author.mention}", embed=discord.Embed(
+            content=f"{person.mention}" if person is ctx.message.author
+                    else f"{person.mention} coming from {ctx.message.author.mention}",
+            embed=discord.Embed(
                 title=f"{banner.pretty_name} ({rang}x summon)",
                 description=f"Shafted {i} times \n This is your final pull").set_image(
                 url="attachment://units.png"))
@@ -1730,23 +1747,20 @@ def compose_icon(attribute: Type, grade: Grade, background: Image = None) -> Ima
 
 
 def read_units_from_json():
-    with open(STORAGE_FILE_PATH) as j_file:
-        data = json.load(j_file)
-        for u in data["units"]:
-            UNITS.append(Unit(unit_id=u["unit_id"],
-                              name=u["name"],
-                              type=map_attribute(u["attribute"]),
-                              grade=map_grade(u["grade"]),
-                              race=map_race(u["race"]),
-                              event=Event.CUS,
-                              affection=map_affection(u["affection"]),
-                              simple_name=u["simple_name"]))
+    for row in CURSOR.execute('SELECT * FROM units'):
+        UNITS.append(Unit(unit_id=row[0],
+                          name=row[1],
+                          simple_name=row[2],
+                          type=map_attribute(row[3]),
+                          grade=map_grade(row[4]),
+                          race=map_race(row[5]),
+                          affection=map_affection(row[6]),
+                          event=Event.CUS))
 
 
 def save_unit_to_json(attribute: Type, grade: Grade, icon: Image, name: str, simple_name: str,
                       race: Race = Race.UNKNOWN,
                       affection: Affection = Affection.NONE):
-    read_units_from_json()
     custom_units = list(filter(lambda x: x.event == Event.CUS, UNITS))
     icon.save(f"gc/icons/{-1 * len(custom_units)}.png", "PNG")
     u = Unit(unit_id=-1 * len(custom_units),
@@ -1758,21 +1772,13 @@ def save_unit_to_json(attribute: Type, grade: Grade, icon: Image, name: str, sim
              affection=affection,
              simple_name=simple_name)
 
-    with open(STORAGE_FILE_PATH, "r+") as j_file:
-        data = json.load(j_file)
-        data["units"].append({
-            "unit_id": u.unit_id,
-            "name": u.name,
-            "type": u.type.value,
-            "grade": u.grade.value,
-            "race": u.race.value,
-            "affection": u.affection.value
-        })
-        j_file.seek(0)
-        json.dump(data, j_file)
-        j_file.truncate()
-    UNITS.append(u)
+    i = (u.unit_id, u.name, u.simple_name, u.type.value, u.grade.value, u.race.value, u.affection.value)
+    CURSOR.execute('INSERT INTO units VALUES (?, ?, ?, ?, ?, ?, ?)', i)
+    CONN.commit()
 
 
 if __name__ == '__main__':
-    BOT.run(TOKEN)
+    try:
+        BOT.run(TOKEN)
+    finally:
+        CONN.close()
