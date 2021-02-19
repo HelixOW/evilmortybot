@@ -17,7 +17,7 @@ from discord.ext.commands import HelpCommand
 # Version 1.0
 # TODO:
 #   - maybe web interface for new units?
-#   - saving unit pull data in json file -> later DB
+#   - saving unit pull data
 
 with open("data/bot_token.txt", 'r') as file:
     TOKEN = file.read()
@@ -776,6 +776,11 @@ async def on_ready():
             event Text,
             affection Text
         )""")
+
+    for u in UNITS:
+        i = (u.unit_id, u.name, u.simple_name, u.type.value, u.grade.value, u.race.value, u.event.value, u.affection.value)
+        CURSOR.execute('INSERT INTO units VALUES (?, ?, ?, ?, ?, ?, ?, ?)', i)
+
     CONN.commit()
 
     for attr_key in FRAMES:
