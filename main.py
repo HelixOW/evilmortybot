@@ -1,5 +1,4 @@
 import asyncio
-import json
 import random as ra
 import sqlite3 as sql
 from enum import Enum
@@ -11,7 +10,7 @@ import requests
 from PIL import Image
 from PIL import ImageDraw
 from PIL import ImageFont
-from discord.ext import commands
+from discord.ext import commands, tasks
 from discord.ext.commands import HelpCommand
 
 # Version 1.0
@@ -764,8 +763,7 @@ async def on_ready():
         type Text,
         grade Text,
         race Text,
-        affection Text
-    )""")
+        affection Text)""")
     CURSOR.execute("""CREATE TABLE IF NOT EXISTS "units" (
             unit_id INTEGER PRIMARY KEY,
             name Text,
@@ -774,12 +772,22 @@ async def on_ready():
             grade Text,
             race Text,
             event Text,
-            affection Text
-        )""")
+            affection Text)""")
+    CURSOR.execute("""CREATE TABLE IF NOT EXISTS "user_pulls" (
+                user_id INTEGER,
+                ssr_amount INTEGER,
+                pull_amount INTEGER,
+                guild INTEGER
+    )""")
+    CURSOR.execute("""CREATE TABLE IF NOT EXISTS "channels" (
+                    channel INTEGER
+    )""")
 
     for u in UNITS:
-        i = (u.unit_id, u.name, u.simple_name, u.type.value, u.grade.value, u.race.value, u.event.value, u.affection.value)
-        CURSOR.execute('INSERT INTO units VALUES (?, ?, ?, ?, ?, ?, ?, ?)', i)
+        i = (
+            u.unit_id, u.name, u.simple_name, u.type.value, u.grade.value, u.race.value, u.event.value,
+            u.affection.value)
+        CURSOR.execute('INSERT OR IGNORE INTO units VALUES (?, ?, ?, ?, ?, ?, ?, ?)', i)
 
     CONN.commit()
 
@@ -793,11 +801,107 @@ async def on_ready():
     await BOT.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name="..help"))
 
     read_custom_units_from_db()
+    # leaderboard.start()
 
     print('Logged in as')
     print(BOT.user.name)
     print(BOT.user.id)
     print('--------')
+
+
+def get_user_pull(user: discord.Member) -> dict:
+    # user_id, ssr_amount, pull_amount
+    data = CURSOR.execute('SELECT * FROM user_pulls WHERE user_id=? AND guild=?', (user.id, user.guild.id)).fetchone()
+    if data is None:
+        return {}
+    return {"ssr_amount": data[1], "pull_amount": data[2]}
+
+
+async def get_top_users(guild: discord.Guild) -> List[dict]:
+    data = CURSOR.execute('SELECT * FROM user_pulls WHERE guild=?', (guild.id,)).fetchall()
+    if data is None:
+        return {}
+    data = sorted(data, key=lambda t: t[1] / t[2], reverse=True)
+    ret = []
+    for i in range(10):
+        if i == len(data):
+            break
+        user = await BOT.fetch_user(data[i][0])
+        ret.append({
+            "place": i + 1,
+            "name": user.display_name,
+            "luck": round((data[i][1] / data[i][2]) * 100, 2),
+            "pull-amount": data[i][2]
+        })
+    return ret
+
+
+def add_user_pull(user: discord.Member, got_ssr: bool):
+    data = get_user_pull(user)
+    if len(data) == 0:
+        if got_ssr:
+            CURSOR.execute('INSERT INTO user_pulls VALUES (?, ?, ?, ?)', (user.id, 1, 1, user.guild.id))
+        else:
+            CURSOR.execute('INSERT INTO user_pulls VALUES (?, ?, ?, ?)', (user.id, 0, 1, user.guild.id))
+    else:
+        if got_ssr:
+            CURSOR.execute('UPDATE user_pulls SET ssr_amount=?, pull_amount=? WHERE user_id=? AND guild=?',
+                           (data["ssr_amount"] + 1, data["pull_amount"] + 1, user.id, user.guild.id))
+        else:
+            CURSOR.execute('UPDATE user_pulls SET pull_amount=? WHERE user_id=? AND guild=?',
+                           (data["pull_amount"] + 1, user.id, user.guild.id))
+
+    CONN.commit()
+
+
+@BOT.command()
+async def luck(ctx, person: discord.Member = None):
+    print(ctx.message.channel.id)
+    if person is None:
+        person = ctx.message.author
+    data = get_user_pull(person)
+    ssrs = data["ssr_amount"]
+    pulls = data["pull_amount"]
+    percent = data["ssr_amount"] / data["pull_amount"] if len(data) != 0 else 0
+    percent = round(percent * 100, 2)
+    await ctx.send(
+        content=f"{person.mention}'s luck:" if person == ctx.message.author else f"{ctx.message.author.mention}: {person.display_name}'s luck:",
+        embed=discord.Embed(
+            description=f"**{person.display_name}** currently got a *{percent}%* SSR droprate in their pulls, with *{ssrs} SSRs* in *{pulls} Units*"))
+
+
+@BOT.command()
+async def top(ctx):
+    tops = await get_top_users(ctx.message.guild)
+    if len(tops) == 0:
+        return await ctx.send(
+            embed=discord.Embed(title="Nobody summoned yet", description="Use `..multi`, `..single` or `..shaft`"))
+    top_str = '\n'.join(["**{}.** {} with a *{}%* SSR droprate in their pulls. Total of {} Units".format(top["place"],
+                                                                                                         top["name"],
+                                                                                                         top["luck"],
+                                                                                                         top[
+                                                                                                             "pull-amount"])
+                         for top in tops])
+    await ctx.send(embed=discord.Embed(title=f"Luckiest Members in {ctx.message.guild.name}", description=top_str,
+                                       colour=discord.Colour.gold()))
+
+
+@tasks.loop(seconds=1800)
+async def leaderboard():
+    channels = CURSOR.execute('SELECT * FROM channels').fetchall()
+    for c_id in channels:
+        channel = BOT.get_channel(c_id)
+        tops = await get_top_users(channel.guild)
+        if len(tops) == 0:
+            return
+        top_str = '\n'.join(["**{}.** {} with a *{}%* SSR droprate in their pulls. Total of {} Units".format(top["place"],
+                                                                                                             top["name"],
+                                                                                                             top["luck"],
+                                                                                                             top[
+                                                                                                                 "pull-amount"])
+                             for top in tops])
+        await channel.send(embed=discord.Embed(title=f"Luckiest Members in {channel.guild.name}", description=top_str,
+                                               colour=discord.Colour.gold()))
 
 
 RACES = [Race.DEMON, Race.GIANT, Race.HUMAN, Race.FAIRY, Race.GODDESS, Race.UNKNOWN]
@@ -1281,8 +1385,8 @@ async def multi(ctx, banner_name: str = "banner 1", amount: int = 1, person: dis
         return await ctx.send(content=f"{ctx.message.author.mention}",
                               embed=SUMMON_THROTTLE_ERROR_EMBED)
     elif amount < 2:
-        img = compose_multi_draw(banner=banner) if banner.banner_type == BannerType.ELEVEN \
-            else compose_five_multi_draw(banner=banner)
+        img = compose_multi_draw(banner=banner, user=person) if banner.banner_type == BannerType.ELEVEN \
+            else compose_five_multi_draw(banner=banner, user=person)
         await ctx.send(file=image_to_discord(img, "units.png"),
                        content=f"{person.mention} this is your multi" if person is ctx.message.author
                        else f"{person.mention} this is your multi coming from {ctx.message.author.mention}",
@@ -1293,13 +1397,14 @@ async def multi(ctx, banner_name: str = "banner 1", amount: int = 1, person: dis
 
     pending = []
     for a in range(amount):
-        img = compose_multi_draw(banner=banner) if banner.banner_type == BannerType.ELEVEN else compose_five_multi_draw(
-            banner=banner)
+        img = compose_multi_draw(banner=banner,
+                                 user=person) if banner.banner_type == BannerType.ELEVEN else compose_five_multi_draw(
+            banner=banner, user=person)
         pending.append(
             {
                 "file": image_to_discord(img, "units.png"),
-                "content": f"{person.mention} this is your {a+1}. multi" if person is ctx.message.author
-                else f"{person.mention} this is your {a+1}. multi coming from {ctx.message.author.mention}",
+                "content": f"{person.mention} this is your {a + 1}. multi" if person is ctx.message.author
+                else f"{person.mention} this is your {a + 1}. multi coming from {ctx.message.author.mention}",
                 "embed-title": f"{banner.pretty_name} ({11 if banner.banner_type == BannerType.ELEVEN else 5}x summon)"
             }
         )
@@ -1322,7 +1427,7 @@ async def summon(ctx):
 async def build_menu(ctx, prev_message, page: int = 0, action: str = ""):
     if action == "single":
         return await ctx.send(content=f"{ctx.message.author.mention} this is your single",
-                              file=compose_draw(ALL_BANNERS[page]),
+                              file=compose_draw(ALL_BANNERS[page], ctx.message.author),
                               embed=discord.Embed(
                                   title=f"{ALL_BANNERS[page].pretty_name} (1x summon)")
                               .set_image(url="attachment://unit.png"))
@@ -1330,9 +1435,9 @@ async def build_menu(ctx, prev_message, page: int = 0, action: str = ""):
         await prev_message.edit(embed=LOADING_EMBED.set_image(url=LOADING_IMAGE_URL))
 
         await ctx.send(file=image_to_discord(
-            compose_multi_draw(banner=ALL_BANNERS[page]) if ALL_BANNERS[page].banner_type == BannerType.ELEVEN
-            else compose_five_multi_draw(
-                banner=ALL_BANNERS[page]), "units.png"),
+            compose_multi_draw(banner=ALL_BANNERS[page], user=ctx.message.author) if ALL_BANNERS[
+                                                                                         page].banner_type == BannerType.ELEVEN
+            else compose_five_multi_draw(banner=ALL_BANNERS[page], user=ctx.message.author), "units.png"),
             content=f"{ctx.message.author.mention} this is your multi",
             embed=discord.Embed(
                 title=f"{ALL_BANNERS[page].pretty_name} "
@@ -1355,7 +1460,7 @@ async def build_menu(ctx, prev_message, page: int = 0, action: str = ""):
                                   url=LOADING_IMAGE_URL))
 
         rang = 11 if ALL_BANNERS[page].banner_type == BannerType.ELEVEN else 5
-        drawn_units = [unit_with_chance(ALL_BANNERS[page]) for _ in range(rang)]
+        drawn_units = [unit_with_chance(ALL_BANNERS[page], ctx.message.author) for _ in range(rang)]
 
         def has_ssr(du: List[Unit]) -> bool:
             for u in du:
@@ -1365,7 +1470,7 @@ async def build_menu(ctx, prev_message, page: int = 0, action: str = ""):
 
         while not has_ssr(drawn_units):
             i += 1
-            drawn_units = [unit_with_chance(ALL_BANNERS[page]) for _ in range(rang)]
+            drawn_units = [unit_with_chance(ALL_BANNERS[page], ctx.message.author) for _ in range(rang)]
 
         await ctx.send(file=image_to_discord(
             compose_unit_multi_draw(units=drawn_units) if ALL_BANNERS[page].banner_type == BannerType.ELEVEN
@@ -1447,7 +1552,7 @@ async def single(ctx, banner_name: str = "banner 1", amount: int = 1, person: di
         return await ctx.send(content=f"{ctx.message.author.mention}",
                               embed=SUMMON_THROTTLE_ERROR_EMBED)
     elif amount < 2:
-        return await ctx.send(file=compose_draw(banner),
+        return await ctx.send(file=compose_draw(banner, person),
                               content=f"{person.mention} this is your single" if person is ctx.message.author
                               else f"{person.mention} this is your single coming from {ctx.message.author.mention}",
                               embed=discord.Embed(title=f"{banner.pretty_name} (1x summon)").set_image(
@@ -1457,12 +1562,12 @@ async def single(ctx, banner_name: str = "banner 1", amount: int = 1, person: di
 
     pending = []
     for a in range(amount):
-        img = unit_with_chance(banner).icon
+        img = unit_with_chance(banner, ctx.message.author).icon
         pending.append(
             {
                 "file": image_to_discord(img, "unit.png"),
-                "content": f"{person.mention} this is your {a+1}. single" if person is ctx.message.author
-                else f"{person.mention} this is your {a+1}. single from {ctx.message.author}",
+                "content": f"{person.mention} this is your {a + 1}. single" if person is ctx.message.author
+                else f"{person.mention} this is your {a + 1}. single from {ctx.message.author}",
                 "embed-title": f"{banner.pretty_name} (1x summon)"
             }
         )
@@ -1494,12 +1599,12 @@ async def shaft(ctx, banner_name: str = "banner 1", amount: int = 1, person: dis
     async def do_shaft():
         i = 0
         draw = await ctx.send(content=f"{person.mention} this is your shaft" if person is ctx.message.author
-                              else f"{person.mention} this is your shaft coming from {ctx.message.author.mention}",
+        else f"{person.mention} this is your shaft coming from {ctx.message.author.mention}",
                               embed=discord.Embed(title="Shafting...").set_image(
                                   url=LOADING_IMAGE_URL))
 
         rang = 11 if banner.banner_type == BannerType.ELEVEN else 5
-        drawn_units = [unit_with_chance(banner) for _ in range(rang)]
+        drawn_units = [unit_with_chance(banner, ctx.message.author) for _ in range(rang)]
 
         def has_ssr(du: List[Unit]) -> bool:
             for u in du:
@@ -1509,7 +1614,7 @@ async def shaft(ctx, banner_name: str = "banner 1", amount: int = 1, person: dis
 
         while not has_ssr(drawn_units):
             i += 1
-            drawn_units = [unit_with_chance(banner) for _ in range(rang)]
+            drawn_units = [unit_with_chance(banner, ctx.message.author) for _ in range(rang)]
 
         await ctx.send(
             file=image_to_discord(
@@ -1517,7 +1622,7 @@ async def shaft(ctx, banner_name: str = "banner 1", amount: int = 1, person: dis
                 else compose_unit_five_multi_draw(units=drawn_units),
                 "units.png"),
             content=f"{person.mention}" if person is ctx.message.author
-                    else f"{person.mention} coming from {ctx.message.author.mention}",
+            else f"{person.mention} coming from {ctx.message.author.mention}",
             embed=discord.Embed(
                 title=f"{banner.pretty_name} ({rang}x summon)",
                 description=f"Shafted {i} times \n This is your final pull").set_image(
@@ -1586,13 +1691,14 @@ async def resize(ctx, file_url=None, width=75, height=75):
                        embed=discord.Embed().set_image(url="attachment://resized.png"))
 
 
-def unit_with_chance(banner: Banner) -> Unit:
+def unit_with_chance(banner: Banner, user: discord.Member) -> Unit:
     u = banner.units[ra.randint(0, len(banner.units) - 1)]
     draw_chance = round(ra.uniform(0, 100), 4)
 
     if len(banner.r_units) == 0 and len(banner.sr_units) == 0:
         if banner.ssr_unit_rate < draw_chance < banner.ssr_unit_rate_up and u not in banner.rate_up_unit:
             u = banner.rate_up_unit[ra.randint(0, len(banner.rate_up_unit) - 1)]
+        add_user_pull(user, u.grade == Grade.SSR)
         return u
 
     chance = ra.randint(0, 100)
@@ -1602,9 +1708,11 @@ def unit_with_chance(banner: Banner) -> Unit:
             u = banner.r_units[ra.randint(0, len(banner.r_units) - 1)]
         else:
             u = banner.sr_units[ra.randint(0, len(banner.sr_units) - 1)]
-    elif banner.ssr_unit_rate < draw_chance < banner.ssr_unit_rate_up and u not in banner.rate_up_unit:
+    elif banner.ssr_unit_rate < draw_chance < banner.ssr_unit_rate_up and u not in banner.rate_up_unit and len(
+            banner.rate_up_unit) != 0:
         u = banner.rate_up_unit[ra.randint(0, len(banner.rate_up_unit) - 1)]
 
+    add_user_pull(user, u.grade == Grade.SSR)
     return u
 
 
@@ -1698,16 +1806,16 @@ def compose_pvp(player1: discord.Member, team1: List[Unit], player2: discord.Mem
     return compose_pvp_with_images(player1=player1, team1_img=left_team_img, player2=player2, team2_img=right_team_img)
 
 
-def compose_draw(banner: Banner) -> discord.File:
-    return unit_with_chance(banner).discord_icon()
+def compose_draw(banner: Banner, user: discord.Member) -> discord.File:
+    return unit_with_chance(banner, user).discord_icon()
 
 
-def compose_five_multi_draw(banner: Banner) -> Image:
-    return compose_unit_five_multi_draw([unit_with_chance(banner) for _ in range(5)])
+def compose_five_multi_draw(banner: Banner, user: discord.Member) -> Image:
+    return compose_unit_five_multi_draw([unit_with_chance(banner, user) for _ in range(5)])
 
 
-def compose_multi_draw(banner: Banner) -> Image:
-    return compose_unit_multi_draw([unit_with_chance(banner) for _ in range(11)])
+def compose_multi_draw(banner: Banner, user: discord.Member) -> Image:
+    return compose_unit_multi_draw([unit_with_chance(banner, user) for _ in range(11)])
 
 
 def compose_unit_five_multi_draw(units: List[Unit]) -> Image:
