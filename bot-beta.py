@@ -1,6 +1,7 @@
 import asyncio
 import json
 import random as ra
+import sqlite3 as sql
 from enum import Enum
 from io import BytesIO
 from typing import List
@@ -16,15 +17,15 @@ from discord.ext.commands import HelpCommand
 # Version 1.0
 # TODO:
 #   - maybe web interface for new units?
+#   - saving unit pull data in json file -> later DB
 
 with open("data/bot_token.txt", 'r') as file:
     TOKEN = file.read()
 IMG_SIZE = 150
-STORAGE_FILE_PATH = "data/custom_units.json"
-UNIT_STORAGE_FILE_PATH = "data/units.json"
-BANNER_STORAGE_FILE_PATH = "data/banners.json"
 LOADING_IMAGE_URL = \
     "https://raw.githubusercontent.com/dokkanart/SDSGC/master/Loading%20Screens/Gacha/loading_gacha_start_01.png"
+CONN = sql.connect('data/data.db')
+CURSOR = CONN.cursor()
 
 HELP_EMBED_1 = discord.Embed(
     title="Help 1/2",
@@ -32,11 +33,12 @@ HELP_EMBED_1 = discord.Embed(
                 __*Commands:*__
                     `..unit`
                     `..team`
-                    `..single [times=1] [banner="banner one"]`
-                    `..multi [times=1] [banner="banner one"]`
-                    `..shaft [times=1] [banner="banner one"]`
-                    `..summon`
-                    `..create <name> <attribute> <grade> <image url> [race=unknown] [affection=none]`
+                    `..pvp <@Enemy>`
+                    `..single [banner="banner one"] [times=1] [@For]`
+                    `..multi [banner="banner one"] [times=1] [@For]`
+                    `..shaft [banner="banner one"] [times=1] [@For]`
+                    `..summon [banner="banner one"]`
+                    `..create "<name>" "<simple_name>" <attribute> <grade> "<image url>" [race=unknown] [affection=none]`
 
                     __*Info:*__
                     You can use different attributes to narrow down the possibilities:
@@ -70,7 +72,7 @@ HELP_EMBED_2 = discord.Embed(
                             `..multi 2 "race two"` ~ does a 5x summon on the Demon/Fairy/Goddess banner 2x
                             `..multi 1 banner two` ~ does a 11x summon on the most recent banner 1x
                             `..multi 3 "banner two"` ~ does a 11x summon on the most recent banner 3x 
-                            `..create "[Demon Slayer] Tanjiro" red sr "URL to image" human` ~ Creates a Red SR Tanjiro
+                            `..create "[Demon Slayer] Tanjiro" "tanjiro" red sr "URL to image" human` ~ Creates a Red SR Tanjiro
                             """,
     colour=discord.Color.gold(),
 )
@@ -152,92 +154,6 @@ class Affection(Enum):
     NONE = "none"
 
 
-def strip_whitespace(arg: str) -> str:
-    return arg.replace(" ", "")
-
-
-def file_exists(file) -> bool:
-    try:
-        with open(file):
-            return True
-    except FileNotFoundError:
-        return False
-
-
-def map_attribute(raw_att: str) -> Type:
-    raw_att = raw_att.lower()
-    if raw_att in ["blue", "speed", "b"]:
-        return Type.BLUE
-    elif raw_att in ["red", "strength", "r"]:
-        return Type.RED
-    elif raw_att in ["green", "hp", "g"]:
-        return Type.GRE
-
-
-def map_grade(raw_grade: str) -> Grade:
-    raw_grade = raw_grade.lower()
-    if raw_grade == "r":
-        return Grade.R
-    elif raw_grade == "sr":
-        return Grade.SR
-    elif raw_grade == "ssr":
-        return Grade.SSR
-
-
-def map_race(raw_race: str) -> Race:
-    raw_race = raw_race.lower()
-    if raw_race in ["demon", "demons"]:
-        return Race.DEMON
-    elif raw_race in ["giant", "giants"]:
-        return Race.GIANT
-    elif raw_race in ["fairy", "fairies"]:
-        return Race.FAIRY
-    elif raw_race in ["human", "humans"]:
-        return Race.HUMAN
-    elif raw_race in ["goddess", "god", "gods"]:
-        return Race.GODDESS
-    else:
-        return Race.UNKNOWN
-
-
-def map_event(raw_event: str) -> Event:
-    raw_event = strip_whitespace(raw_event).lower()
-    if raw_event in ["slime", "tensura"]:
-        return Event.SLI
-    elif raw_event in ["aot", "attackontitan", "titan"]:
-        return Event.AOT
-    elif raw_event in ["kof", "kingoffighter", "kingoffighters"]:
-        return Event.KOF
-    elif raw_event in ["valentine", "val"]:
-        return Event.VAL
-    elif raw_event in ["newyears", "newyear", "ny"]:
-        return Event.NEY
-    elif raw_event in ["halloween", "hal", "hw"]:
-        return Event.HAL
-    elif raw_event in ["festival", "fes", "fest"]:
-        return Event.FES
-    elif raw_event in "custom":
-        return Event.CUS
-    else:
-        return Event.GC
-
-
-def map_affection(raw_affection: str) -> Affection:
-    raw_affection = strip_whitespace(raw_affection).lower()
-    if raw_affection in ["sins", "sin"]:
-        return Affection.SIN
-    elif raw_affection in ["holyknight", "holyknights", "knights", "knight"]:
-        return Affection.KNIGHT
-    elif raw_affection in ["commandments", "commandment", "command"]:
-        return Affection.COMMANDMENTS
-    elif raw_affection in ["catastrophes", "catastrophes"]:
-        return Affection.CATASTROPHE
-    elif raw_affection in ["arcangels", "angels", "angel", "arcangel"]:
-        return Affection.ANGEL
-    else:
-        return Affection.NONE
-
-
 class BannerType(Enum):
     ELEVEN = 11
     FIVE = 5
@@ -311,46 +227,314 @@ class Unit:
             return discord.Color.gold()
 
 
-UNITS = []
-
-
-def import_units_from_json():
-    with open(UNIT_STORAGE_FILE_PATH) as j_file:
-        data = json.load(j_file)
-        print(data)
-        for u in data["units"]:
-            UNITS.append(Unit(unit_id=u["unit_id"],
-                              name=u["name"],
-                              type=map_attribute(u["type"]),
-                              grade=map_grade(u["grade"]),
-                              race=map_race(u["race"]),
-                              event=map_event(u["event"]),
-                              affection=map_affection(u["affection"]),
-                              simple_name=u["simple_name"]))
-
-
-def export_units_to_json():
-    with open(UNIT_STORAGE_FILE_PATH, "r+") as j_file:
-        data = {"units": []}
-        for u in UNITS:
-            data["units"].append({
-                "unit_id": u.unit_id,
-                "name": u.name,
-                "simple_name": u.simple_name,
-                "event": u.event.value,
-                "type": u.type.value,
-                "grade": u.grade.value,
-                "race": u.race.value,
-                "affection": u.affection.value
-            })
-        j_file.seek(0)
-        json.dump(data, j_file)
-        j_file.truncate()
-
-
-import_units_from_json()
-
-
+UNITS = [
+    Unit(unit_id=1, name="[The Dragon Sin of Wrath] Demon Meliodas", type=Type.RED, grade=Grade.SSR,
+         race=Race.DEMON, affection=Affection.SIN, simple_name="meliodas"),
+    Unit(unit_id=2, name="[Explosion] Guila", type=Type.RED, grade=Grade.SSR, race=Race.HUMAN,
+         affection=Affection.KNIGHT, simple_name="guila"),
+    Unit(unit_id=3, name="[Iron-wall Knight] Griamore", type=Type.GRE, grade=Grade.SSR, race=Race.HUMAN,
+         affection=Affection.KNIGHT, simple_name="griamore"),
+    Unit(unit_id=4, name="[Liones's Hero] Gowther", type=Type.BLUE, grade=Grade.SSR, race=Race.UNKNOWN,
+         affection=Affection.SIN, simple_name="gowther"),
+    Unit(unit_id=5, name="[Snatch] Brawler Ban", type=Type.GRE, grade=Grade.SSR, race=Race.HUMAN,
+         affection=Affection.SIN, simple_name="ban"),
+    Unit(unit_id=6, name="[Tempest] Holy Knight Howzer", type=Type.RED, grade=Grade.SSR, race=Race.HUMAN,
+         affection=Affection.KNIGHT, simple_name="howzer"),
+    Unit(unit_id=7, name="[Godspeed Knight] Guardian Jericho", type=Type.GRE, grade=Grade.SSR, race=Race.HUMAN,
+         affection=Affection.KNIGHT, simple_name="jericho"),
+    Unit(unit_id=8, name="[The Grizzly Sin of Sloth] King the Fairy King", type=Type.BLUE, grade=Grade.SSR,
+         race=Race.FAIRY,
+         affection=Affection.SIN, simple_name="king"),
+    Unit(unit_id=9, name="[The Seven Deadly Sins] Captain Meliodas", type=Type.GRE, grade=Grade.SSR,
+         race=Race.DEMON, affection=Affection.SIN, simple_name="meliodas"),
+    Unit(unit_id=10, name="[Matrona] Fighter Diane", type=Type.BLUE, grade=Grade.SSR, race=Race.GIANT,
+         simple_name="diane"),
+    Unit(unit_id=11, name="[Outlaw] Brawler Ban", type=Type.BLUE, grade=Grade.SSR, race=Race.HUMAN,
+         affection=Affection.SIN, simple_name="ban"),
+    Unit(unit_id=12, name="[Protector of Dolls] Old Fart King", type=Type.GRE, grade=Grade.SSR, race=Race.FAIRY,
+         affection=Affection.SIN, simple_name="king"),
+    Unit(unit_id=13, name="[Forest Guardian] Fairy Helbram", type=Type.GRE, grade=Grade.SSR, race=Race.FAIRY,
+         simple_name="helbram"),
+    Unit(unit_id=14, name="[Melt] Grandmaster Hendrickson", type=Type.BLUE, grade=Grade.SSR, race=Race.HUMAN,
+         affection=Affection.KNIGHT, simple_name="hendrickson"),
+    Unit(unit_id=15, name="[Thunderbolt] Guardian Gilthunder", type=Type.RED, grade=Grade.SSR, race=Race.HUMAN,
+         affection=Affection.KNIGHT, simple_name="gilthunder"),
+    Unit(unit_id=16, name="[Overpower] Hunter Slater", type=Type.BLUE, grade=Grade.SSR, race=Race.HUMAN,
+         affection=Affection.KNIGHT, simple_name="slater"),
+    Unit(unit_id=17, name="[The Serpent Sin of Envy] Holy Knight Diane", type=Type.BLUE, grade=Grade.SSR,
+         race=Race.GIANT,
+         affection=Affection.SIN, simple_name="diane"),
+    Unit(unit_id=18, name="[The Fox Sin of Greed] Adventurer Ban", type=Type.GRE, grade=Grade.SSR,
+         race=Race.HUMAN, affection=Affection.SIN, simple_name="ban"),
+    Unit(unit_id=19, name="[Forest Guardian] King the Fairy King", type=Type.GRE, grade=Grade.SSR,
+         race=Race.FAIRY, affection=Affection.SIN, simple_name="king"),
+    Unit(unit_id=20, name="[Beard of the Mountain Cat] Member Alioni", type=Type.GRE, grade=Grade.R,
+         race=Race.HUMAN, simple_name="alioni"),
+    Unit(unit_id=21, name="[Undead] Prisoner Ban", type=Type.RED, grade=Grade.SR, race=Race.HUMAN,
+         affection=Affection.SIN, simple_name="ban"),
+    Unit(unit_id=22, name="[Burning Ember] Knight of Danafor Cain", type=Type.GRE, grade=Grade.SR,
+         race=Race.HUMAN, simple_name="cain"),
+    Unit(unit_id=23, name="[Wanted Man] Young Villager Gowther", type=Type.GRE, grade=Grade.SR, race=Race.UNKNOWN,
+         affection=Affection.SIN, simple_name="gowther"),
+    Unit(unit_id=25, name="[Omen of Chaos] Grandmaster Dreyfus", type=Type.RED, grade=Grade.SR, race=Race.HUMAN,
+         affection=Affection.KNIGHT, simple_name="dreyfus"),
+    Unit(unit_id=27, name="[Mascot] Hawk & Elizabeth", type=Type.GRE, grade=Grade.SR, race=Race.GODDESS,
+         affection=Affection.SIN, simple_name="liz"),
+    Unit(unit_id=28, name="[Mobile Tavern] Hawk & Elizabeth", type=Type.RED, grade=Grade.SR, race=Race.GODDESS,
+         affection=Affection.SIN, simple_name="liz"),
+    Unit(unit_id=30, name="[Weird Fangs] Holy Knight Freesia", type=Type.BLUE, grade=Grade.SR, race=Race.HUMAN,
+         affection=Affection.KNIGHT, simple_name="freesia"),
+    Unit(unit_id=31, name="[Chivalrous] Holy Knight Gilthunder", type=Type.GRE, grade=Grade.SR, race=Race.HUMAN,
+         affection=Affection.KNIGHT, simple_name="gilthunder"),
+    Unit(unit_id=32, name="[Star of the Kingdom] Holy Knight Gilthunder", type=Type.BLUE, grade=Grade.SR,
+         race=Race.HUMAN, affection=Affection.KNIGHT, simple_name="gilthunder"),
+    Unit(unit_id=33, name="[Adventurer] Ranger Griamore", type=Type.BLUE, grade=Grade.SR, race=Race.HUMAN,
+         affection=Affection.KNIGHT, simple_name="griamore"),
+    Unit(unit_id=34, name="[The Goat Sin of Lust] Holy Knight Gowther", type=Type.RED, grade=Grade.SSR,
+         race=Race.UNKNOWN, affection=Affection.SIN, simple_name="gowther"),
+    Unit(unit_id=35, name="[Champion] Ranger Griamore", type=Type.RED, grade=Grade.SR, race=Race.HUMAN,
+         affection=Affection.KNIGHT, simple_name="griamore"),
+    Unit(unit_id=36, name="[Rapier] Holy Knight Guila", type=Type.BLUE, grade=Grade.SR, race=Race.HUMAN,
+         affection=Affection.KNIGHT, simple_name="guila"),
+    Unit(unit_id=37, name="[Weird Fangs] Holy Knight Golgius", type=Type.BLUE, grade=Grade.R, race=Race.HUMAN,
+         affection=Affection.KNIGHT, simple_name="golgius"),
+    Unit(unit_id=38, name="[The Seven Deadly Sins] Old Fart King", type=Type.BLUE, grade=Grade.SSR,
+         race=Race.FAIRY, affection=Affection.SIN, simple_name="king"),
+    Unit(unit_id=39, name="[Adventurer] Holy Knight Jericho", type=Type.RED, grade=Grade.SR, race=Race.HUMAN,
+         affection=Affection.KNIGHT, simple_name="jericho"),
+    Unit(unit_id=40, name="[Star of the Kingdom] Ranger Howzer", type=Type.BLUE, grade=Grade.SR, race=Race.HUMAN,
+         affection=Affection.KNIGHT, simple_name="howzer"),
+    Unit(unit_id=41, name="[Liones Royalty] Ranger Howzer", type=Type.GRE, grade=Grade.SR, race=Race.HUMAN,
+         affection=Affection.KNIGHT, simple_name="howzer"),
+    Unit(unit_id=42, name="[Roars of Dawn] Holy Knight Hugo", type=Type.GRE, grade=Grade.R, race=Race.HUMAN,
+         affection=Affection.KNIGHT, simple_name="hugo"),
+    Unit(unit_id=43, name="[New Generation] Holy Knight Jericho", type=Type.BLUE, grade=Grade.SR,
+         race=Race.HUMAN, affection=Affection.KNIGHT, simple_name="jericho"),
+    Unit(unit_id=44, name="[Roars of Dawn] Holy Knight Jillian", type=Type.GRE, grade=Grade.SR, race=Race.HUMAN,
+         affection=Affection.KNIGHT, simple_name="jillian"),
+    Unit(unit_id=45, name="[Weird Fangs] Holy Knight Jude", type=Type.RED, grade=Grade.R, race=Race.HUMAN,
+         affection=Affection.KNIGHT, simple_name="jude"),
+    Unit(unit_id=46, name="[Boom Boom Pow] Holy Knight Marmas", type=Type.BLUE, grade=Grade.R, race=Race.HUMAN,
+         affection=Affection.KNIGHT, simple_name="marmas"),
+    Unit(unit_id=47, name="[Boar Hat Tavern] Master Meliodas", type=Type.BLUE, grade=Grade.SR, race=Race.DEMON,
+         affection=Affection.SIN, simple_name="meliodas"),
+    Unit(unit_id=49, name="[The Boar Sin of Gluttony] Great Mage Merlin", type=Type.GRE, grade=Grade.SSR,
+         race=Race.UNKNOWN, affection=Affection.SIN, simple_name="merlin"),
+    Unit(unit_id=51, name="[Weird Fangs] Holy Knight Ruin", type=Type.GRE, grade=Grade.R, race=Race.HUMAN,
+         affection=Affection.KNIGHT, simple_name="ruin"),
+    Unit(unit_id=52, name="[Roars of Dawn] Holy Knight Simon", type=Type.RED, grade=Grade.R, race=Race.HUMAN,
+         affection=Affection.KNIGHT, simple_name="simon"),
+    Unit(unit_id=53, name="[Roars of Dawn] Captain Slater", type=Type.RED, grade=Grade.SR, race=Race.HUMAN,
+         affection=Affection.KNIGHT, simple_name="slater"),
+    Unit(unit_id=54, name="[Confirmation] Apprentice Holy Knight Twigo", type=Type.RED, grade=Grade.R,
+         race=Race.HUMAN, simple_name="twigo"),
+    Unit(unit_id=55, name="[Vaizel Fight Festival] Champion Taizoo", type=Type.RED, grade=Grade.R,
+         race=Race.HUMAN, simple_name="taizoo"),
+    Unit(unit_id=57, name="[Roars of Dawn] Holy Knight Weinheidt", type=Type.BLUE, grade=Grade.SR,
+         race=Race.HUMAN, affection=Affection.KNIGHT, simple_name="weinheidt"),
+    Unit(unit_id=58, name="[Heart of the Land] Mercenary Diane", type=Type.RED, grade=Grade.SR, race=Race.GIANT,
+         affection=Affection.SIN, simple_name="diane"),
+    Unit(unit_id=59, name="[Kungfu Master] Fighter Diane", type=Type.RED, grade=Grade.SSR, race=Race.GIANT,
+         affection=Affection.SIN, simple_name="diane"),
+    Unit(unit_id=60, name="[Boar Hat Tavern] Hostess Elizabeth", type=Type.RED, grade=Grade.SR, race=Race.GODDESS,
+         affection=Affection.SIN, simple_name="liz"),
+    Unit(unit_id=61, name="[Liones] Princess Elizabeth", type=Type.GRE, grade=Grade.SSR, race=Race.GODDESS,
+         affection=Affection.SIN, simple_name="liz"),
+    Unit(unit_id=62, name="[Collector] Great Mage Merlin", type=Type.RED, grade=Grade.SSR, race=Race.UNKNOWN,
+         affection=Affection.SIN, simple_name="merlin"),
+    Unit(unit_id=63, name="[Reincarnation of Revenge] Fairy Helbram", type=Type.RED, grade=Grade.SSR,
+         race=Race.FAIRY, simple_name="helbram"),
+    Unit(unit_id=64, name="[Omen of Chaos] Druid Hendrickson", type=Type.GRE, grade=Grade.SR, race=Race.HUMAN,
+         affection=Affection.KNIGHT, simple_name="hendrickson"),
+    Unit(unit_id=65, name="[Break] Grandmaster Dreyfus", type=Type.GRE, grade=Grade.SR, race=Race.HUMAN,
+         affection=Affection.KNIGHT, simple_name="dreyfus"),
+    Unit(unit_id=66, name="[Knight of Ice] Holy Knight Gustav", type=Type.GRE, grade=Grade.SR, race=Race.HUMAN,
+         affection=Affection.KNIGHT, simple_name="gustav"),
+    Unit(unit_id=67, name="[Reverse] Guardian Hawk & Elizabeth", type=Type.BLUE, grade=Grade.SSR,
+         race=Race.GODDESS, affection=Affection.SIN, simple_name="liz"),
+    Unit(unit_id=68, name="[Slime] Rimuru Tempest", type=Type.GRE, grade=Grade.SR, race=Race.UNKNOWN,
+         event=Event.SLI, simple_name="rimuru"),
+    Unit(unit_id=69, name="[Ruler of Monsters] Rimuru Tempest", type=Type.BLUE, grade=Grade.SSR, race=Race.UNKNOWN,
+         event=Event.SLI, simple_name="rimuru"),
+    Unit(unit_id=70, name="[Kijin] Benimaru", type=Type.RED, grade=Grade.SSR, race=Race.UNKNOWN, event=Event.SLI,
+         simple_name="benimaru"),
+    Unit(unit_id=71, name="[Tyrant of Destruction] Milim Nava", type=Type.BLUE, grade=Grade.SSR, race=Race.UNKNOWN,
+         event=Event.SLI, simple_name="milim"),
+    Unit(unit_id=72, name="[Doombringer] Mage Lillia", type=Type.GRE, grade=Grade.SSR, race=Race.HUMAN,
+         affection=Affection.CATASTROPHE, simple_name="lillia"),
+    Unit(unit_id=73, name="[Fairy King's Forest] Guardian Elaine", type=Type.GRE, grade=Grade.SSR,
+         race=Race.FAIRY, simple_name="elaine"),
+    Unit(unit_id=74, name="[Camelot's Sword] New King Arthur", type=Type.RED, grade=Grade.SSR, race=Race.HUMAN,
+         simple_name="arthur"),
+    Unit(unit_id=75, name="[The Ten Commandments] Galland of Truth", type=Type.BLUE, grade=Grade.SSR,
+         race=Race.DEMON, affection=Affection.COMMANDMENTS, simple_name="galland"),
+    Unit(unit_id=76, name="[King of Prophecies] Adventurer Arthur", type=Type.BLUE, grade=Grade.SR,
+         race=Race.HUMAN, simple_name="arthur"),
+    Unit(unit_id=77, name="[A New Adventure] Princess Elizabeth", type=Type.BLUE, grade=Grade.SSR,
+         race=Race.GODDESS, affection=Affection.SIN, simple_name="liz"),
+    Unit(unit_id=78, name="[Nunchaku] Adventurer Ban", type=Type.RED, grade=Grade.SSR, race=Race.HUMAN,
+         affection=Affection.SIN, simple_name="ban"),
+    Unit(unit_id=79, name="[Sunshine] Holy Knight Escanor", type=Type.GRE, grade=Grade.SSR, race=Race.HUMAN,
+         affection=Affection.SIN, simple_name="escanor"),
+    Unit(unit_id=80, name="[Creation] Fighter Diane", type=Type.GRE, grade=Grade.SSR, race=Race.GIANT,
+         affection=Affection.SIN, simple_name="diane"),
+    Unit(unit_id=81, name="[Reincarnation of Obsession] Mage Vivian", type=Type.RED, grade=Grade.SR,
+         race=Race.HUMAN, simple_name="vivian"),
+    Unit(unit_id=82, name="[Halloween] Captain Meliodas", type=Type.RED, grade=Grade.SSR, race=Race.DEMON,
+         event=Event.HAL, affection=Affection.SIN, simple_name="meliodas"),
+    Unit(unit_id=83, name="[Halloween] Guardian Elaine", type=Type.BLUE, grade=Grade.SSR, race=Race.FAIRY,
+         event=Event.HAL, simple_name="elaine"),
+    Unit(unit_id=84, name="[Halloween] Guardian Guila", type=Type.GRE, grade=Grade.SSR, race=Race.HUMAN,
+         event=Event.HAL, affection=Affection.KNIGHT, simple_name="guila"),
+    Unit(unit_id=85, name="[Mastermind] Mage Lillia", type=Type.BLUE, grade=Grade.SSR, race=Race.HUMAN,
+         affection=Affection.CATASTROPHE, simple_name="lillia"),
+    Unit(unit_id=86, name="[The Ten Commandments] Monspeet of Reticence", type=Type.RED, grade=Grade.SSR,
+         race=Race.DEMON, affection=Affection.COMMANDMENTS, simple_name="monspeet"),
+    Unit(unit_id=87, name="[Knight of Wrath] Demon Meliodas", type=Type.BLUE, grade=Grade.SSR,
+         race=Race.DEMON, affection=Affection.SIN, simple_name="meliodas"),
+    Unit(unit_id=88, name="[The Pleiades of the Azure Sky] Holy Knight Dogedo", type=Type.RED, grade=Grade.SR,
+         race=Race.HUMAN, affection=Affection.KNIGHT, simple_name="dogedo"),
+    Unit(unit_id=89, name="[The Pleiades of the Azure Sky] Holy Knight Deathpierce", type=Type.GRE,
+         grade=Grade.SSR, race=Race.HUMAN, affection=Affection.KNIGHT, simple_name="deathpierce"),
+    Unit(unit_id=90, name="[Disaster] Old Fart King", type=Type.RED, grade=Grade.SSR, race=Race.FAIRY,
+         affection=Affection.SIN, simple_name="king"),
+    Unit(unit_id=91, name="[The Ten Commandments] Melascula of Faith", type=Type.BLUE, grade=Grade.SSR,
+         race=Race.DEMON, affection=Affection.COMMANDMENTS, simple_name="melascula"),
+    Unit(unit_id=92, name="[Infinity] Great Mage Merlin", type=Type.BLUE, grade=Grade.SSR, race=Race.UNKNOWN,
+         affection=Affection.SIN, simple_name="merlin"),
+    Unit(unit_id=93, name="[The Ten Commandments] Gloxinia of Repose", type=Type.GRE, grade=Grade.SSR,
+         race=Race.FAIRY, affection=Affection.COMMANDMENTS, simple_name="gloxinia"),
+    Unit(unit_id=94, name="[Earthshaker] Weapon Researcher Valenti", type=Type.GRE, grade=Grade.SSR,
+         race=Race.HUMAN, affection=Affection.CATASTROPHE, simple_name="valenti"),
+    Unit(unit_id=95, name="[The Pleiades of the Azure Sky] Holy Knight Deldry", type=Type.RED,
+         grade=Grade.SSR, race=Race.HUMAN, affection=Affection.KNIGHT, simple_name="deldry"),
+    Unit(unit_id=96, name="[The Pleiades of the Azure Sky] Holy Knight Arden", type=Type.BLUE, grade=Grade.SR,
+         race=Race.HUMAN, affection=Affection.KNIGHT, simple_name="arden"),
+    Unit(unit_id=97, name="[The Seven Deadly Sins] Holy Knight Diane", type=Type.GRE, grade=Grade.SSR,
+         race=Race.GIANT, affection=Affection.SIN, simple_name="diane"),
+    Unit(unit_id=98, name="[Ale Collector] Adventurer Ban", type=Type.BLUE, grade=Grade.SSR, race=Race.HUMAN,
+         affection=Affection.SIN, simple_name="ban"),
+    Unit(unit_id=99, name="[Wings of the Sky] Celestial Ellatte", type=Type.RED, grade=Grade.SSR,
+         race=Race.GODDESS, simple_name="ellatte"),
+    Unit(unit_id=100, name="[The Lion Sin of Pride] Holy Knight Escanor", type=Type.RED, grade=Grade.SSR,
+         race=Race.HUMAN, affection=Affection.SIN, simple_name="escanor"),
+    Unit(unit_id=101, name="[New Legend] Demon Meliodas", type=Type.GRE, grade=Grade.SSR,
+         race=Race.DEMON, event=Event.NEY, affection=Affection.SIN, simple_name="meliodas"),
+    Unit(unit_id=102, name="[New Legend] Princess Elizabeth", type=Type.RED, grade=Grade.SSR, race=Race.GODDESS,
+         event=Event.NEY, affection=Affection.SIN, simple_name="liz"),
+    Unit(unit_id=103, name="[New Legend] Guardian Jericho", type=Type.BLUE, grade=Grade.SSR, race=Race.HUMAN,
+         event=Event.NEY, affection=Affection.KNIGHT, simple_name="jericho"),
+    Unit(unit_id=104, name="[Elite Demon] Melascula of Faith", type=Type.RED, grade=Grade.SSR, race=Race.DEMON,
+         affection=Affection.COMMANDMENTS, simple_name="melascula"),
+    Unit(unit_id=105, name="[Harlequin] King the Fairy King", type=Type.RED, grade=Grade.SSR, race=Race.FAIRY,
+         affection=Affection.SIN, simple_name="king"),
+    Unit(unit_id=106, name="[Elite Demon] Galland of Truth", type=Type.RED, grade=Grade.SSR, race=Race.DEMON,
+         affection=Affection.COMMANDMENTS, simple_name="galland"),
+    Unit(unit_id=107, name="[Cadet Corps] Eren Jaeger", type=Type.BLUE, grade=Grade.SR, race=Race.HUMAN,
+         event=Event.AOT, simple_name="eren"),
+    Unit(unit_id=108, name="[Titan Form] Eren Jaeger", type=Type.GRE, grade=Grade.SSR, race=Race.HUMAN,
+         event=Event.AOT, simple_name="eren"),
+    Unit(unit_id=109, name="[Greatest Soldier] Levi", type=Type.RED, grade=Grade.SSR, race=Race.HUMAN,
+         event=Event.AOT, simple_name="levi"),
+    Unit(unit_id=110, name="[Greatest Soldier] Mikasa Ackermann", type=Type.BLUE, grade=Grade.SSR,
+         race=Race.HUMAN, event=Event.AOT, simple_name="mikasa"),
+    Unit(unit_id=111, name="[The Ten Commandments] Estarossa of Love", type=Type.RED, grade=Grade.SSR,
+         race=Race.DEMON, affection=Affection.COMMANDMENTS, simple_name="estarossa"),
+    Unit(unit_id=112, name="[Elite Demon] Estarossa of Love", type=Type.GRE, grade=Grade.SSR, race=Race.DEMON,
+         affection=Affection.COMMANDMENTS, simple_name="estarossa"),
+    Unit(unit_id=113, name="[Elite Demon] Monspeet of Reticence", type=Type.GRE, grade=Grade.SSR,
+         race=Race.DEMON, affection=Affection.COMMANDMENTS, simple_name="monspeet"),
+    Unit(unit_id=114, name="[The Ten Commandments] Derieri of Purity", type=Type.RED, grade=Grade.SSR,
+         race=Race.DEMON, affection=Affection.COMMANDMENTS, simple_name="derieri"),
+    Unit(unit_id=115, name="[Elite Demon] Derieri of Purity", type=Type.GRE, grade=Grade.SSR, race=Race.DEMON,
+         affection=Affection.COMMANDMENTS, simple_name="derieri"),
+    Unit(unit_id=116, name="[Virtual Body Doubles] Lostvayne Meliodas", type=Type.RED, grade=Grade.SSR,
+         race=Race.DEMON, event=Event.FES, affection=Affection.SIN, simple_name="meliodas"),
+    Unit(unit_id=117, name="[Destined Heir] New King Arthur", type=Type.BLUE, grade=Grade.SSR, race=Race.HUMAN,
+         simple_name="arthur"),
+    Unit(unit_id=118, name="[Shepherd of Death] Human Weapon Mono", type=Type.RED, grade=Grade.SSR,
+         race=Race.HUMAN, affection=Affection.CATASTROPHE, simple_name="mono"),
+    Unit(unit_id=119, name="[Ruler of Stormy Seas] Noblesse Eastin", type=Type.BLUE, grade=Grade.SSR,
+         race=Race.HUMAN, affection=Affection.CATASTROPHE, simple_name="eastin"),
+    Unit(unit_id=120, name="[The Ten Commandments] Fraudrin of Selflessness", type=Type.GRE, grade=Grade.SSR,
+         race=Race.DEMON, affection=Affection.COMMANDMENTS, simple_name="dreyfus"),
+    Unit(unit_id=121, name="[Sweet Temptation] Guardian Elaine", type=Type.RED, grade=Grade.SSR,
+         race=Race.FAIRY, event=Event.VAL, simple_name="elaine"),
+    Unit(unit_id=122, name="[Sweet Temptation] Druid Jenna", type=Type.BLUE, grade=Grade.SSR, race=Race.HUMAN,
+         event=Event.VAL, simple_name="jenna"),
+    Unit(unit_id=123, name="[Sweet Temptation] Druid Zaneri", type=Type.GRE, grade=Grade.SSR, race=Race.HUMAN,
+         event=Event.VAL, simple_name="zaneri"),
+    Unit(unit_id=124, name="[The Ten Commandments] Zeldris of Piety", type=Type.BLUE, grade=Grade.SSR,
+         race=Race.DEMON, affection=Affection.COMMANDMENTS, simple_name="zeldris"),
+    Unit(unit_id=125, name="[Elite Demon] Zeldris of Piety", type=Type.RED, grade=Grade.SSR, race=Race.DEMON,
+         affection=Affection.COMMANDMENTS, simple_name="zeldris"),
+    Unit(unit_id=126, name="[Elite Demon] Gloxinia of Repose", type=Type.RED, grade=Grade.SSR, race=Race.FAIRY,
+         affection=Affection.COMMANDMENTS, simple_name="gloxinia"),
+    Unit(unit_id=127, name="[Reincarnation of Conviction] Grandmaster Zaratras", type=Type.GRE,
+         grade=Grade.SSR, race=Race.HUMAN, affection=Affection.KNIGHT, simple_name="zaratras"),
+    Unit(unit_id=128, name="[Dungeon Raider] Gamer Shin", type=Type.GRE, grade=Grade.SSR, race=Race.HUMAN,
+         affection=Affection.CATASTROPHE, simple_name="shin"),
+    Unit(unit_id=129, name="[Mad Destroyer] Queen of Explosions Roxy", type=Type.RED, grade=Grade.SSR,
+         race=Race.HUMAN, affection=Affection.CATASTROPHE, simple_name="roxy"),
+    Unit(unit_id=130, name="[KOF' 98] Athena Asamiya", type=Type.GRE, grade=Grade.SSR, race=Race.HUMAN,
+         event=Event.KOF, simple_name="athena"),
+    Unit(unit_id=131, name="[KOF' 98] Kyo Kusanagi", type=Type.RED, grade=Grade.SSR, race=Race.HUMAN,
+         event=Event.KOF, simple_name="kyo"),
+    Unit(unit_id=132, name="[KOF' 98] Mei Shiranui", type=Type.BLUE, grade=Grade.SSR, race=Race.HUMAN,
+         event=Event.KOF, simple_name="mei"),
+    Unit(unit_id=133, name="[KOF' 98] Omega Rugal", type=Type.GRE, grade=Grade.SSR, race=Race.HUMAN,
+         event=Event.KOF, simple_name="rugal"),
+    Unit(unit_id=134, name="[Halloween] Holy Knight Gowther", type=Type.GRE, grade=Grade.SSR, race=Race.UNKNOWN,
+         event=Event.HAL, affection=Affection.SIN, simple_name="gowther"),
+    Unit(unit_id=135, name="[Fang of the Land] Mercenary Matrona", type=Type.BLUE, grade=Grade.SSR,
+         race=Race.GIANT, simple_name="matrona"),
+    Unit(unit_id=136, name="[Executor of Darkness] Guardian Deity Camila", type=Type.RED, grade=Grade.SSR,
+         race=Race.UNKNOWN, affection=Affection.CATASTROPHE, simple_name="camilla"),
+    Unit(unit_id=137, name="[Holy Warrior] Goddess Elizabeth", type=Type.BLUE, grade=Grade.SSR, race=Race.GODDESS,
+         event=Event.FES, affection=Affection.SIN, simple_name="liz"),
+    Unit(unit_id=138, name="[Knighthood of Scraps Disposal] Captain Hawk", type=Type.GRE, grade=Grade.SSR,
+         race=Race.UNKNOWN, event=Event.FES, affection=Affection.SIN, simple_name="hawk"),
+    Unit(unit_id=139, name="[Eternal Promise] Holy Knight Diane", type=Type.RED, grade=Grade.SSR,
+         race=Race.GIANT, affection=Affection.SIN, simple_name="diane"),
+    Unit(unit_id=140, name="[Knight of Scraps Disposal] Oslo & Hawk", type=Type.RED, grade=Grade.SSR,
+         race=Race.UNKNOWN, affection=Affection.SIN, simple_name="hawk"),
+    Unit(unit_id=141, name="[Elite Demon] Fraudrin of Selflessness", type=Type.BLUE, grade=Grade.SSR,
+         race=Race.DEMON, affection=Affection.COMMANDMENTS, simple_name="dreyfus"),
+    Unit(unit_id=142, name="[Elite Demon] Drole of Patience", type=Type.BLUE, grade=Grade.SSR, race=Race.GIANT,
+         affection=Affection.COMMANDMENTS, simple_name="drole"),
+    Unit(unit_id=143, name="[The Ten Commandments] Drole of Patience", type=Type.GRE, grade=Grade.SSR,
+         race=Race.GIANT, affection=Affection.COMMANDMENTS, simple_name="drole"),
+    Unit(unit_id=144, name="[The Six Knights of Black] Captain Bellion", type=Type.BLUE, grade=Grade.SSR,
+         race=Race.DEMON, simple_name="bellion"),
+    Unit(unit_id=145, name="[The Four Archangels] Ludociel of Flash", type=Type.BLUE, grade=Grade.SSR,
+         race=Race.GODDESS, affection=Affection.ANGEL, simple_name="ludociel"),
+    Unit(unit_id=146, name="[Three Millennia of Memories] Aide Gerharde", type=Type.GRE, grade=Grade.SSR,
+         race=Race.FAIRY, simple_name="gerharde"),
+    Unit(unit_id=147, name="[Royalty] Fairy Helbram", type=Type.BLUE, grade=Grade.SSR, race=Race.FAIRY,
+         simple_name="helbram"),
+    Unit(unit_id=148, name="[Signs of Maturity] New Wings King", type=Type.BLUE, grade=Grade.SSR,
+         race=Race.FAIRY, event=Event.FES, affection=Affection.SIN, simple_name="king"),
+    Unit(unit_id=149, name="[Ashen Desire] Demon Hendrickson", type=Type.GRE, grade=Grade.SSR, race=Race.DEMON,
+         affection=Affection.KNIGHT, simple_name="hendrickson"),
+    Unit(unit_id=150, name="[Advent of Destruction] Lillia of Desire", type=Type.RED, grade=Grade.SSR,
+         race=Race.HUMAN, affection=Affection.CATASTROPHE, simple_name="lillia"),
+    Unit(unit_id=151, name="[The Four Archangels] Sariel of Tornado", type=Type.RED, grade=Grade.SSR,
+         race=Race.GODDESS, affection=Affection.ANGEL, simple_name="sariel"),
+    Unit(unit_id=152, name="[The Four Archangels] Tarmiel of Ocean", type=Type.BLUE, grade=Grade.SSR,
+         race=Race.GODDESS, affection=Affection.ANGEL, simple_name="tarmiel"),
+    Unit(unit_id=153, name="[Fairy of Blessings] Golden Wings Elaine", type=Type.RED, grade=Grade.SSR,
+         race=Race.FAIRY, simple_name="elaine"),
+    Unit(unit_id=154, name="[Halloween] Gamer Shin", type=Type.RED, grade=Grade.SSR,
+         race=Race.HUMAN, simple_name="shin", affection=Affection.CATASTROPHE, event=Event.HAL),
+    Unit(unit_id=155, name="[Halloween] Queen of Explosions Roxy", type=Type.GRE, grade=Grade.SSR,
+         race=Race.HUMAN, simple_name="roxy", affection=Affection.CATASTROPHE, event=Event.HAL),
+    Unit(unit_id=156, name="[Knight of Frost] Guardian Jericho", type=Type.RED, grade=Grade.SSR,
+         race=Race.HUMAN, simple_name="jericho", affection=Affection.KNIGHT),
+    Unit(unit_id=157, name="[Invincible Avatar] \"The One\" Escanor", type=Type.BLUE, grade=Grade.SSR,
+         race=Race.HUMAN, simple_name="escanor", affection=Affection.SIN),
+    Unit(unit_id=158, name="[Light of Hope] New King Arthur", type=Type.GRE, grade=Grade.SSR,
+         race=Race.HUMAN, simple_name="arthur")
+]
 R_UNITS = list(filter(lambda x: x.grade == Grade.R, UNITS))
 SR_UNITS = list(filter(lambda x: x.grade == Grade.SR and x.event == Event.GC, UNITS))
 RACE_COUNTER = {
@@ -360,6 +544,50 @@ RACE_COUNTER = {
     Race.UNKNOWN: len(list(filter(lambda x: x.race == Race.UNKNOWN, UNITS))),
     Race.GODDESS: len(list(filter(lambda x: x.race == Race.GODDESS, UNITS))),
     Race.GIANT: len(list(filter(lambda x: x.race == Race.GIANT, UNITS))),
+}
+TEAMS = {
+    "the one": {
+        1: [157],
+        2: [151, 137, 116],
+        3: [134],
+        4: [137, 116]
+    },
+    "the archangels": {
+        1: [151],
+        2: [152],
+        3: [145, 125],
+        4: [137]
+    },
+    "lv goddess": {
+        1: [116],
+        2: [8, 34, 120, 134],
+        3: [137],
+        4: [49]
+    },
+    "lv ult rush": {
+        1: [116],
+        2: [8, 79, 100],
+        3: [134, 34, 137],
+        4: [49, 105]
+    },
+    "3 debuffs": {
+        1: [148],
+        2: [149],
+        3: [137, 131, 145, 150],
+        4: [49, 153]
+    },
+    "pierce": {
+        1: [133, 79, 145],
+        2: [85],
+        3: [87],
+        4: [105, 35, 130]
+    },
+    "zeldris": {
+        1: [125],
+        2: [145],
+        3: [143],
+        4: [49, 105]
+    }
 }
 
 
@@ -420,8 +648,28 @@ def banners_by_name(names: List[str]) -> List[Banner]:
     return found
 
 
+def strip_whitespace(arg: str) -> str:
+    return arg.replace(" ", "")
+
+
+def file_exists(file) -> bool:
+    try:
+        with open(file):
+            return True
+    except FileNotFoundError:
+        return False
+
+
 ALL_BANNERS = [
-    Banner(name=["banner 1", "banner one", "homecoming"],
+    Banner(name=["banner 1", "banner one", "t1", "the one", "escanor"],
+           pretty_name="1st 7DS Anniversary The One Festival Draw",
+           units=units_by_id([
+               157, 158, 116, 137, 148, 149, 1, 49, 100, 112, 125, 142, 129, 136, 118, 128
+           ]),
+           ssr_unit_rate=0.25,
+           sr_unit_rate=1.2414,
+           bg_url="https://i.imgur.com/txERVKP.jpg"),
+    Banner(name=["banner 2", "banner two", "homecoming"],
            pretty_name="7DS Homecoming Special",
            units=units_by_id([
                94, 73, 72, 74, 16, 13, 14, 3, 6, 15, 7, 2
@@ -429,16 +677,6 @@ ALL_BANNERS = [
            ssr_unit_rate=0.25,
            sr_unit_rate=1.2759,
            bg_url="https://i.imgur.com/7ktNtcm.jpg"),
-    Banner(name=["banner 2", "banner two", "jericho", "roxy", "shin"],
-           pretty_name="Inherited Resolve",
-           units=units_by_id([
-               155, 90, 154, 155, 134, 145, 146, 124, 120, 114]),
-           rate_up_units=units_by_id([153]),
-           ssr_unit_rate=0.1667,
-           ssr_unit_rate_up=0.5,
-           sr_unit_rate=1.2759,
-           bg_url="https://i.imgur.com/jE0K0u7.png"),
-
     Banner(name=["part 1", "part one"],
            pretty_name="Part. 1",
            units=units_by_id([
@@ -517,32 +755,19 @@ ALL_BANNERS = [
 ]
 
 
-# def import_bannerss_from_json():
-#     with open(BANNER_STORAGE_FILE_PATH) as j_file:
-#         data = json.load(j_file)
-#         for b in data["banners"]:
-#             UNITS.append(Unit(unit_id=u["unit_id"],
-#                               name=u["name"],
-#                               type=map_attribute(u["type"]),
-#                               grade=map_grade(u["grade"]),
-#                               race=map_race(u["race"]),
-#                               event=map_event(u["event"]),
-#                               affection=map_affection(u["affection"]),
-#                               simple_name=u["simple_name"]))
-
-
-def export_banners_to_json():
-    with open(BANNER_STORAGE_FILE_PATH, "r+") as j_file:
-        data = {"banners": []}
-        for b in ALL_BANNERS:
-            data["banners"].append(b)
-        j_file.seek(0)
-        json.dump(data, j_file)
-        j_file.truncate()
-
-
 @BOT.event
 async def on_ready():
+    CURSOR.execute("""
+    CREATE TABLE IF NOT EXISTS "units" (
+        unit_id INTEGER PRIMARY KEY,
+        name Text,
+        simple_name Text,
+        type Text,
+        grade Text,
+        race Text,
+        affection Text
+    )""")
+    CONN.commit()
     for attr_key in FRAMES:
         for grade_key in FRAMES[attr_key]:
             FRAMES[attr_key][grade_key] = Image.open(FRAMES[attr_key][grade_key]).resize((IMG_SIZE, IMG_SIZE)).convert(
@@ -591,6 +816,80 @@ def create_random_unit(grades: List[Grade] = None,
         raise LookupError
 
     return possible_units[ra.randint(0, len(possible_units) - 1)]
+
+
+def map_attribute(raw_att: str) -> Type:
+    raw_att = raw_att.lower()
+    if raw_att in ["blue", "speed", "b"]:
+        return Type.BLUE
+    elif raw_att in ["red", "strength", "r"]:
+        return Type.RED
+    elif raw_att in ["green", "hp", "g"]:
+        return Type.GRE
+
+
+def map_grade(raw_grade: str) -> Grade:
+    raw_grade = raw_grade.lower()
+    if raw_grade == "r":
+        return Grade.R
+    elif raw_grade == "sr":
+        return Grade.SR
+    elif raw_grade == "ssr":
+        return Grade.SSR
+
+
+def map_race(raw_race: str) -> Race:
+    raw_race = raw_race.lower()
+    if raw_race in ["demon", "demons"]:
+        return Race.DEMON
+    elif raw_race in ["giant", "giants"]:
+        return Race.GIANT
+    elif raw_race in ["fairy", "fairies"]:
+        return Race.FAIRY
+    elif raw_race in ["human", "humans"]:
+        return Race.HUMAN
+    elif raw_race in ["goddess", "god", "gods"]:
+        return Race.GODDESS
+    else:
+        return Race.UNKNOWN
+
+
+def map_event(raw_event: str) -> Event:
+    raw_event = strip_whitespace(raw_event).lower()
+    if raw_event in ["slime", "tensura"]:
+        return Event.SLI
+    elif raw_event in ["aot", "attackontitan", "titan"]:
+        return Event.AOT
+    elif raw_event in ["kof", "kingoffighter", "kingoffighters"]:
+        return Event.KOF
+    elif raw_event in ["valentine", "val"]:
+        return Event.VAL
+    elif raw_event in ["newyears", "newyear", "ny"]:
+        return Event.NEY
+    elif raw_event in ["halloween", "hal", "hw"]:
+        return Event.HAL
+    elif raw_event in ["festival", "fes", "fest"]:
+        return Event.FES
+    elif raw_event in "custom":
+        return Event.CUS
+    else:
+        return Event.GC
+
+
+def map_affection(raw_affection: str) -> Affection:
+    raw_affection = strip_whitespace(raw_affection).lower()
+    if raw_affection in ["sins", "sin"]:
+        return Affection.SIN
+    elif raw_affection in ["holyknight", "holyknights", "knights", "knight"]:
+        return Affection.KNIGHT
+    elif raw_affection in ["commandments", "commandment", "command"]:
+        return Affection.COMMANDMENTS
+    elif raw_affection in ["catastrophes", "catastrophes"]:
+        return Affection.CATASTROPHE
+    elif raw_affection in ["arcangels", "angels", "angel", "arcangel"]:
+        return Affection.ANGEL
+    else:
+        return Affection.NONE
 
 
 def lookup_possible_units(arg: str):
@@ -948,7 +1247,9 @@ async def team(ctx, *, args: str = ""):
 
 # ..multi
 @BOT.command()
-async def multi(ctx, amount: int = 1, banner_name: str = "banner 1"):
+async def multi(ctx, banner_name: str = "banner 1", amount: int = 1, person: discord.Member = None):
+    if person is None:
+        person = ctx.message.author
     banner = banner_by_name(banner_name)
     if banner is None:
         return await ctx.send(content=f"{ctx.message.author.mention}",
@@ -966,7 +1267,8 @@ async def multi(ctx, amount: int = 1, banner_name: str = "banner 1"):
         img = compose_multi_draw(banner=banner) if banner.banner_type == BannerType.ELEVEN \
             else compose_five_multi_draw(banner=banner)
         await ctx.send(file=image_to_discord(img, "units.png"),
-                       content=f"{ctx.message.author.mention} this is your multi",
+                       content=f"{person.mention} this is your multi" if person is ctx.message.author
+                       else f"{person.mention} this is your multi coming from {ctx.message.author.mention}",
                        embed=discord.Embed(title=f"{banner.pretty_name} "
                                                  f"({11 if banner.banner_type == BannerType.ELEVEN else 5}x summon)")
                        .set_image(url="attachment://units.png"))
@@ -979,8 +1281,8 @@ async def multi(ctx, amount: int = 1, banner_name: str = "banner 1"):
         pending.append(
             {
                 "file": image_to_discord(img, "units.png"),
-                "content": f"{ctx.message.author.mention} this is your multi" if a == 0
-                else f"{a + 1}. {ctx.message.author.mention}",
+                "content": f"{person.mention} this is your {a+1}. multi" if person is ctx.message.author
+                else f"{person.mention} this is your {a+1}. multi coming from {ctx.message.author.mention}",
                 "embed-title": f"{banner.pretty_name} ({11 if banner.banner_type == BannerType.ELEVEN else 5}x summon)"
             }
         )
@@ -1115,7 +1417,9 @@ async def build_menu(ctx, prev_message, page: int = 0, action: str = ""):
 
 # ..single
 @BOT.command()
-async def single(ctx, amount: int = 1, banner_name: str = "banner 1"):
+async def single(ctx, banner_name: str = "banner 1", amount: int = 1, person: discord.Member = None):
+    if person is None:
+        person = ctx.message.author
     banner = banner_by_name(banner_name)
     if banner is None:
         return await ctx.send(content=f"{ctx.message.author.mention}",
@@ -1127,7 +1431,8 @@ async def single(ctx, amount: int = 1, banner_name: str = "banner 1"):
                               embed=SUMMON_THROTTLE_ERROR_EMBED)
     elif amount < 2:
         return await ctx.send(file=compose_draw(banner),
-                              content=f"{ctx.message.author.mention} this is your single",
+                              content=f"{person.mention} this is your single" if person is ctx.message.author
+                              else f"{person.mention} this is your single coming from {ctx.message.author.mention}",
                               embed=discord.Embed(title=f"{banner.pretty_name} (1x summon)").set_image(
                                   url="attachment://unit.png"))
 
@@ -1139,8 +1444,8 @@ async def single(ctx, amount: int = 1, banner_name: str = "banner 1"):
         pending.append(
             {
                 "file": image_to_discord(img, "unit.png"),
-                "content": f"{ctx.message.author.mention} this is your single" if a == 0
-                else f"{a + 1}. {ctx.message.author.mention}",
+                "content": f"{person.mention} this is your {a+1}. single" if person is ctx.message.author
+                else f"{person.mention} this is your {a+1}. single from {ctx.message.author}",
                 "embed-title": f"{banner.pretty_name} (1x summon)"
             }
         )
@@ -1155,7 +1460,9 @@ async def single(ctx, amount: int = 1, banner_name: str = "banner 1"):
 
 # ..shaft
 @BOT.command()
-async def shaft(ctx, amount: int = 1, banner_name: str = "banner 1"):
+async def shaft(ctx, banner_name: str = "banner 1", amount: int = 1, person: discord.Member = None):
+    if person is None:
+        person = ctx.message.author
     banner = banner_by_name(banner_name)
     if banner is None:
         return await ctx.send(content=f"{ctx.message.author.mention}",
@@ -1169,7 +1476,8 @@ async def shaft(ctx, amount: int = 1, banner_name: str = "banner 1"):
 
     async def do_shaft():
         i = 0
-        draw = await ctx.send(content=f"{ctx.message.author.mention} this is your multi",
+        draw = await ctx.send(content=f"{person.mention} this is your shaft" if person is ctx.message.author
+                              else f"{person.mention} this is your shaft coming from {ctx.message.author.mention}",
                               embed=discord.Embed(title="Shafting...").set_image(
                                   url=LOADING_IMAGE_URL))
 
@@ -1191,7 +1499,9 @@ async def shaft(ctx, amount: int = 1, banner_name: str = "banner 1"):
                 compose_unit_multi_draw(units=drawn_units) if banner.banner_type == BannerType.ELEVEN
                 else compose_unit_five_multi_draw(units=drawn_units),
                 "units.png"),
-            content=f"{ctx.message.author.mention}", embed=discord.Embed(
+            content=f"{person.mention}" if person is ctx.message.author
+                    else f"{person.mention} coming from {ctx.message.author.mention}",
+            embed=discord.Embed(
                 title=f"{banner.pretty_name} ({rang}x summon)",
                 description=f"Shafted {i} times \n This is your final pull").set_image(
                 url="attachment://units.png"))
@@ -1436,23 +1746,20 @@ def compose_icon(attribute: Type, grade: Grade, background: Image = None) -> Ima
 
 
 def read_units_from_json():
-    with open(STORAGE_FILE_PATH) as j_file:
-        data = json.load(j_file)
-        for u in data["units"]:
-            UNITS.append(Unit(unit_id=u["unit_id"],
-                              name=u["name"],
-                              type=map_attribute(u["attribute"]),
-                              grade=map_grade(u["grade"]),
-                              race=map_race(u["race"]),
-                              event=Event.CUS,
-                              affection=map_affection(u["affection"]),
-                              simple_name=u["simple_name"]))
+    for row in CURSOR.execute('SELECT * FROM units'):
+        UNITS.append(Unit(unit_id=row[0],
+                          name=row[1],
+                          simple_name=row[2],
+                          type=map_attribute(row[3]),
+                          grade=map_grade(row[4]),
+                          race=map_race(row[5]),
+                          affection=map_affection(row[6]),
+                          event=Event.CUS))
 
 
 def save_unit_to_json(attribute: Type, grade: Grade, icon: Image, name: str, simple_name: str,
                       race: Race = Race.UNKNOWN,
                       affection: Affection = Affection.NONE):
-    read_units_from_json()
     custom_units = list(filter(lambda x: x.event == Event.CUS, UNITS))
     icon.save(f"gc/icons/{-1 * len(custom_units)}.png", "PNG")
     u = Unit(unit_id=-1 * len(custom_units),
@@ -1464,22 +1771,13 @@ def save_unit_to_json(attribute: Type, grade: Grade, icon: Image, name: str, sim
              affection=affection,
              simple_name=simple_name)
 
-    with open(STORAGE_FILE_PATH, "r+") as j_file:
-        data = json.load(j_file)
-        data["units"].append({
-            "unit_id": u.unit_id,
-            "name": u.name,
-            "type": u.type.value,
-            "grade": u.grade.value,
-            "race": u.race.value,
-            "affection": u.affection.value
-        })
-        j_file.seek(0)
-        json.dump(data, j_file)
-        j_file.truncate()
-    UNITS.append(u)
+    i = (u.unit_id, u.name, u.simple_name, u.type.value, u.grade.value, u.race.value, u.affection.value)
+    CURSOR.execute('INSERT INTO units VALUES (?, ?, ?, ?, ?, ?, ?)', i)
+    CONN.commit()
 
 
 if __name__ == '__main__':
-    export_banners_to_json()
-    # BOT.run(TOKEN)
+    try:
+        BOT.run(TOKEN)
+    finally:
+        CONN.close()

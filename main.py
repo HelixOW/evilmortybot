@@ -22,7 +22,6 @@ from discord.ext.commands import HelpCommand
 with open("data/bot_token.txt", 'r') as file:
     TOKEN = file.read()
 IMG_SIZE = 150
-STORAGE_FILE_PATH = "data/custom_units.json"
 LOADING_IMAGE_URL = \
     "https://raw.githubusercontent.com/dokkanart/SDSGC/master/Loading%20Screens/Gacha/loading_gacha_start_01.png"
 CONN = sql.connect('data/data.db')
@@ -758,8 +757,7 @@ ALL_BANNERS = [
 
 @BOT.event
 async def on_ready():
-    CURSOR.execute("""
-    CREATE TABLE IF NOT EXISTS "units" (
+    CURSOR.execute("""CREATE TABLE IF NOT EXISTS "custom_units" (
         unit_id INTEGER PRIMARY KEY,
         name Text,
         simple_name Text,
@@ -768,7 +766,18 @@ async def on_ready():
         race Text,
         affection Text
     )""")
+    CURSOR.execute("""CREATE TABLE IF NOT EXISTS "units" (
+            unit_id INTEGER PRIMARY KEY,
+            name Text,
+            simple_name Text,
+            type Text,
+            grade Text,
+            race Text,
+            event Text,
+            affection Text
+        )""")
     CONN.commit()
+
     for attr_key in FRAMES:
         for grade_key in FRAMES[attr_key]:
             FRAMES[attr_key][grade_key] = Image.open(FRAMES[attr_key][grade_key]).resize((IMG_SIZE, IMG_SIZE)).convert(
@@ -777,7 +786,9 @@ async def on_ready():
         FRAME_BACKGROUNDS[grade_key] = Image.open(FRAME_BACKGROUNDS[grade_key]).resize((IMG_SIZE, IMG_SIZE)).convert(
             "RGBA")
     await BOT.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name="..help"))
-    read_units_from_json()
+
+    read_custom_units_from_db()
+
     print('Logged in as')
     print(BOT.user.name)
     print(BOT.user.id)
@@ -1539,7 +1550,7 @@ async def create(ctx, name="", simple_name="", attribute="red", grade="ssr", fil
                 else discord.Color.blue() if atr == Type.BLUE
                 else discord.Color.green()
             ).set_image(url="attachment://unit.png"))
-        save_unit_to_json(icon=icon, attribute=atr, grade=grd, name=name, race=rac, affection=affection,
+        save_custom_units(icon=icon, attribute=atr, grade=grd, name=name, race=rac, affection=affection,
                           simple_name=simple_name)
 
 
@@ -1746,7 +1757,7 @@ def compose_icon(attribute: Type, grade: Grade, background: Image = None) -> Ima
     return background_frame
 
 
-def read_units_from_json():
+def read_custom_units_from_db():
     for row in CURSOR.execute('SELECT * FROM units'):
         UNITS.append(Unit(unit_id=row[0],
                           name=row[1],
@@ -1758,7 +1769,7 @@ def read_units_from_json():
                           event=Event.CUS))
 
 
-def save_unit_to_json(attribute: Type, grade: Grade, icon: Image, name: str, simple_name: str,
+def save_custom_units(attribute: Type, grade: Grade, icon: Image, name: str, simple_name: str,
                       race: Race = Race.UNKNOWN,
                       affection: Affection = Affection.NONE):
     custom_units = list(filter(lambda x: x.event == Event.CUS, UNITS))
