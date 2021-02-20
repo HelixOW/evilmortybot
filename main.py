@@ -1,6 +1,7 @@
 import asyncio
 import random as ra
 import sqlite3 as sql
+import typing
 from enum import Enum
 from io import BytesIO
 from typing import List
@@ -30,13 +31,15 @@ HELP_EMBED_1 = discord.Embed(
     title="Help 1/2",
     description="""
                 __*Commands:*__
-                    `..unit`
-                    `..team`
-                    `..pvp <@Enemy>`
-                    `..single [banner="banner one"] [times=1] [@For]`
-                    `..multi [banner="banner one"] [times=1] [@For]`
-                    `..shaft [banner="banner one"] [times=1] [@For]`
+                    `..unit` -> `Check Info`
+                    `..team` -> `Check Info`
+                    `..pvp <@Enemy>` -> `Check Info`
+                    `..single [@For] [banner="banner one"]` 
+                    `..multi [@For] [banner="banner one"]`
+                    `..shaft [@For] [banner="banner one"]`
                     `..summon [banner="banner one"]`
+                    `..stats <luck, ssrs, units, shafts>`
+                    `..top <luck, ssrs, units, shafts>`
                     `..create "<name>" "<simple_name>" <attribute> <grade> "<image url>" [race=unknown] [affection=none]`
 
                     __*Info:*__
@@ -54,7 +57,7 @@ HELP_EMBED_1 = discord.Embed(
                     `[]`, that means you **can provide** this argument
                     `=` inside a argument means, whatever comes after the equals is the **default value**
 
-                    __Available banners:__ banner 1, part 1, part 2, gssr part 1, gssr part 2, race 1, race 2, humans
+                    __Available banners:__ banner 1, banner 2, part 1, part 2, gssr part 1, gssr part 2, race 1, race 2, humans
                             """,
     colour=discord.Color.gold(),
 )
@@ -65,12 +68,11 @@ HELP_EMBED_2 = discord.Embed(
                             `..unit race: demons, giants & type: red` ~ returns a random red demon or red giant
                             `..team` ~ returns a random pvp team
                             `..team race: demons` ~ returns a random pvp team with only demons
-                            `..single 1 "part two"` ~ does a single summon on the Part 2 banner
-                            `..single 2 "part two"` ~ does a single summon on the Part 2 banner 2x
-                            `..multi 1 "race two"` ~ does a 5x summon on the Demon/Fairy/Goddess banner
-                            `..multi 2 "race two"` ~ does a 5x summon on the Demon/Fairy/Goddess banner 2x
-                            `..multi 1 banner two` ~ does a 11x summon on the most recent banner 1x
-                            `..multi 3 "banner two"` ~ does a 11x summon on the most recent banner 3x 
+                            `..single part two` ~ does a single summon on the Part 2 banner
+                            `..multi race two` ~ does a 5x summon on the Demon/Fairy/Goddess banner
+                            `..multi banner two` ~ does a 11x summon on the most recent banner                    
+                            `..shaft` ~ does a 11x summon until you get a SSR
+                            `..shaft race two` ~ does a 5x summon on the Demon/Fairy/Goddess banner until you get a SSR
                             `..create "[Demon Slayer] Tanjiro" "tanjiro" red sr "URL to image" human` ~ Creates a Red SR Tanjiro
                             """,
     colour=discord.Color.gold(),
@@ -629,7 +631,10 @@ class Banner:
         self.sr_units: List[Unit] = list(filter(lambda x: x.grade == Grade.SR, self.units))
         self.ssr_units: List[Unit] = list(
             filter(lambda x: x.grade == Grade.SSR and x not in self.rate_up_unit, self.units))
-        self.ssr_chance: float = (self.ssr_unit_rate_up * len(self.rate_up_unit)) + (self.ssr_unit_rate * (len(self.ssr_units)))
+        self.ssr_chance: float = (self.ssr_unit_rate_up * len(self.rate_up_unit)) + (
+                self.ssr_unit_rate * (len(self.ssr_units)))
+        self.ssr_rate_up_chance: float = (self.ssr_unit_rate_up * len(self.rate_up_unit)) if len(
+            self.rate_up_unit) != 0 else 0
         self.sr_chance: float = (self.sr_unit_rate * len(self.sr_units))
         self.background: str = bg_url
 
@@ -676,7 +681,7 @@ ALL_BANNERS = [
            ]),
            ssr_unit_rate=0.25,
            sr_unit_rate=1.2414,
-           bg_url="https://i.imgur.com/txERVKP.jpg"),
+           bg_url="https://raw.githubusercontent.com/WhoIsAlphaHelix/evilmortybot/master/gc/banners/t1.jpg"),
     Banner(name=["banner 2", "banner two", "homecoming"],
            pretty_name="7DS Homecoming Special",
            units=units_by_id([
@@ -684,7 +689,7 @@ ALL_BANNERS = [
            ]),
            ssr_unit_rate=0.25,
            sr_unit_rate=1.2759,
-           bg_url="https://i.imgur.com/7ktNtcm.jpg"),
+           bg_url="https://raw.githubusercontent.com/WhoIsAlphaHelix/evilmortybot/master/gc/banners/home.jpg"),
     Banner(name=["part 1", "part one"],
            pretty_name="Part. 1",
            units=units_by_id([
@@ -692,7 +697,7 @@ ALL_BANNERS = [
            ssr_unit_rate=0.0991,
            ssr_unit_rate_up=0.35,
            sr_unit_rate=1.3704,
-           bg_url="https://i.imgur.com/s1083TM.png"),
+           bg_url="https://raw.githubusercontent.com/WhoIsAlphaHelix/evilmortybot/master/gc/banners/403E1A87-FE5D-42A7-92BD-680504A56D2D_1_105_c.jpeg"),
 
     Banner(name=["part 2", "part two"],
            pretty_name="Part. 2",
@@ -702,7 +707,7 @@ ALL_BANNERS = [
            ssr_unit_rate=0.09,
            ssr_unit_rate_up=0.35,
            sr_unit_rate=1.3704,
-           bg_url="https://i.imgur.com/cTzcHfg.png"),
+           bg_url="https://raw.githubusercontent.com/WhoIsAlphaHelix/evilmortybot/master/gc/banners/3DDF50EB-B6A2-4550-BAE2-EB41016FD610_1_105_c.jpeg"),
 
     Banner(name=["gssr part 1", "gssr part one", "gssr part I"],
            pretty_name="Guaranteed SSR Part. 1",
@@ -712,7 +717,7 @@ ALL_BANNERS = [
            sr_unit_rate=0,
            r_unit_rate=0,
            banner_type=BannerType.FIVE,
-           bg_url="https://i.imgur.com/YEZD0mx.png"),
+           bg_url="https://raw.githubusercontent.com/WhoIsAlphaHelix/evilmortybot/master/gc/banners/4C82ECC5-4A2C-4943-BCE7-3E90EE8F3125_1_105_c.jpeg"),
 
     Banner(name=["gssr part 2", "gssr part two", "gssr part II"],
            pretty_name="Guaranteed SSR Part 2.",
@@ -723,7 +728,7 @@ ALL_BANNERS = [
            sr_unit_rate=0,
            r_unit_rate=0,
            banner_type=BannerType.FIVE,
-           bg_url="https://i.imgur.com/QXcBm3K.png"),
+           bg_url="https://raw.githubusercontent.com/WhoIsAlphaHelix/evilmortybot/master/gc/banners/95C66338-CDF0-4BB6-86A4-584B588B215F_1_105_c.jpeg"),
 
     Banner(name=["race 1", "race one", "race I"],
            pretty_name="[Race Draw I] Human/Giant/Unknown",
@@ -735,7 +740,7 @@ ALL_BANNERS = [
            sr_unit_rate=3.9167,
            r_unit_rate=0,
            banner_type=BannerType.FIVE,
-           bg_url="https://i.imgur.com/0YobFo4.png"),
+           bg_url="https://raw.githubusercontent.com/WhoIsAlphaHelix/evilmortybot/master/gc/banners/5B5EEAA6-751E-485C-92CF-6EA54209140E_1_105_c.jpeg"),
 
     Banner(name=["race 2", "race two", "race II"],
            pretty_name="[Race Draw II] Demon/Fairy/Goddess",
@@ -748,7 +753,7 @@ ALL_BANNERS = [
            sr_unit_rate=23.5,
            r_unit_rate=0,
            banner_type=BannerType.FIVE,
-           bg_url="https://i.imgur.com/WVEIzFP.png"),
+           bg_url="https://raw.githubusercontent.com/WhoIsAlphaHelix/evilmortybot/master/gc/banners/CAD1999D-5D15-4C31-8754-0A251A6DA38B_1_105_c.jpeg"),
 
     Banner(name=["humans", "human"],
            pretty_name="Grade R-SSR Human Heroes",
@@ -759,7 +764,7 @@ ALL_BANNERS = [
            sr_unit_rate=0.8636,
            r_unit_rate=8.8889,
            banner_type=BannerType.FIVE,
-           bg_url="https://i.imgur.com/P67MIY6.png")
+           bg_url="https://raw.githubusercontent.com/WhoIsAlphaHelix/evilmortybot/master/gc/banners/A9619A31-B793-4E12-8DF6-D0FCC706DEF2_1_105_c.jpeg")
 ]
 
 
@@ -936,7 +941,8 @@ async def top(ctx, action="luck"):
 def add_user_pull(user: discord.Member, got_ssr: bool):
     data = get_user_pull(user)
     if len(data) == 0:
-        CURSOR.execute('INSERT INTO user_pulls VALUES (?, ?, ?, ?, ?)', (user.id, 1 if got_ssr else 0, 1, user.guild.id, 0))
+        CURSOR.execute('INSERT INTO user_pulls VALUES (?, ?, ?, ?, ?)',
+                       (user.id, 1 if got_ssr else 0, 1, user.guild.id, 0))
     else:
         if got_ssr:
             CURSOR.execute('UPDATE user_pulls SET ssr_amount=?, pull_amount=? WHERE user_id=? AND guild=?',
@@ -956,8 +962,9 @@ def add_shaft(user: discord.Member, amount: int):
                        (user.id, 0, 0, user.guild.id, amount))
 
 
+# ..stats
 @BOT.command()
-async def stats(ctx, action="luck", person: discord.Member = None):
+async def stats(ctx, person: typing.Optional[discord.Member], *, action="luck"):
     action = map_leaderboard(action)
     if person is None:
         person = ctx.message.author
@@ -1447,9 +1454,10 @@ async def team(ctx, *, args: str = ""):
 
 # ..multi
 @BOT.command()
-async def multi(ctx, banner_name: str = "banner 1", amount: int = 1, person: discord.Member = None):
+async def multi(ctx, person: typing.Optional[discord.Member], *, banner_name: str = "banner 1"):
     if person is None:
         person = ctx.message.author
+
     banner = banner_by_name(banner_name)
     if banner is None:
         return await ctx.send(content=f"{ctx.message.author.mention}",
@@ -1460,40 +1468,15 @@ async def multi(ctx, banner_name: str = "banner 1", amount: int = 1, person: dis
 
     draw = await ctx.send(embed=LOADING_EMBED.set_image(url=LOADING_IMAGE_URL))
 
-    if amount > 5:
-        return await ctx.send(content=f"{ctx.message.author.mention}",
-                              embed=SUMMON_THROTTLE_ERROR_EMBED)
-    elif amount < 2:
-        img = compose_multi_draw(banner=banner, user=person) if banner.banner_type == BannerType.ELEVEN \
-            else compose_five_multi_draw(banner=banner, user=person)
-        await ctx.send(file=image_to_discord(img, "units.png"),
-                       content=f"{person.mention} this is your multi" if person is ctx.message.author
-                       else f"{person.mention} this is your multi coming from {ctx.message.author.mention}",
-                       embed=discord.Embed(title=f"{banner.pretty_name} "
-                                                 f"({11 if banner.banner_type == BannerType.ELEVEN else 5}x summon)")
-                       .set_image(url="attachment://units.png"))
-        return await draw.delete()
-
-    pending = []
-    for a in range(amount):
-        img = compose_multi_draw(banner=banner,
-                                 user=person) if banner.banner_type == BannerType.ELEVEN else compose_five_multi_draw(
-            banner=banner, user=person)
-        pending.append(
-            {
-                "file": image_to_discord(img, "units.png"),
-                "content": f"{person.mention} this is your {a + 1}. multi" if person is ctx.message.author
-                else f"{person.mention} this is your {a + 1}. multi coming from {ctx.message.author.mention}",
-                "embed-title": f"{banner.pretty_name} ({11 if banner.banner_type == BannerType.ELEVEN else 5}x summon)"
-            }
-        )
-    await draw.edit(embed=IMAGES_LOADED_EMBED)
-
-    for pend in pending:
-        await ctx.send(file=pend["file"],
-                       content=pend["content"],
-                       embed=discord.Embed(title=pend["embed-title"]).set_image(url="attachment://units.png"))
-    await draw.delete()
+    img = compose_multi_draw(banner=banner, user=person) if banner.banner_type == BannerType.ELEVEN \
+        else compose_five_multi_draw(banner=banner, user=person)
+    await ctx.send(file=image_to_discord(img, "units.png"),
+                   content=f"{person.mention} this is your multi" if person is ctx.message.author
+                   else f"{person.mention} this is your multi coming from {ctx.message.author.mention}",
+                   embed=discord.Embed(title=f"{banner.pretty_name} "
+                                             f"({11 if banner.banner_type == BannerType.ELEVEN else 5}x summon)")
+                   .set_image(url="attachment://units.png"))
+    return await draw.delete()
 
 
 # ..summon
@@ -1503,7 +1486,7 @@ async def summon(ctx):
     await build_menu(ctx, prev_message=draw)
 
 
-async def build_menu(ctx, prev_message, page: int = 0, action: str = ""):
+async def build_menu(ctx, prev_message, page: int = 0):
     summon_menu_emojis = ["⬅️", "1️⃣", "🔟" if ALL_BANNERS[page].banner_type == BannerType.ELEVEN else "5️⃣", "🐋",
                           "➡️"]
     await prev_message.clear_reactions()
@@ -1548,18 +1531,21 @@ async def build_menu(ctx, prev_message, page: int = 0, action: str = ""):
         elif "⬅️" in str(reaction.emoji):
             await build_menu(ctx, prev_message=draw, page=page - 1)
         elif ("🔟" if ALL_BANNERS[page].banner_type == BannerType.ELEVEN else "5️⃣") in str(reaction.emoji):
-            await multi(ctx, banner_name=ALL_BANNERS[page].name[0])
+            await draw.delete()
+            await multi(ctx, person=ctx.message.author, banner_name=ALL_BANNERS[page].name[0])
         elif "1️⃣" in str(reaction.emoji):
-            await single(ctx, banner_name=ALL_BANNERS[page].name[0])
+            await draw.delete()
+            await single(ctx, person=ctx.message.author, banner_name=ALL_BANNERS[page].name[0])
         elif "🐋" in str(reaction.emoji):
-            await shaft(ctx, banner_name=ALL_BANNERS[page].name[0])
+            await draw.delete()
+            await shaft(ctx, person=ctx.message.author, banner_name=ALL_BANNERS[page].name[0])
     except asyncio.TimeoutError:
         pass
 
 
 # ..single
 @BOT.command()
-async def single(ctx, banner_name: str = "banner 1", amount: int = 1, person: discord.Member = None):
+async def single(ctx, person: typing.Optional[discord.Member], *, banner_name: str = "banner 1"):
     if person is None:
         person = ctx.message.author
     banner = banner_by_name(banner_name)
@@ -1568,42 +1554,19 @@ async def single(ctx, banner_name: str = "banner 1", amount: int = 1, person: di
                               embed=discord.Embed(title="Error", colour=discord.Color.dark_red(),
                                                   description=f"Can't find the \"{banner_name}\" banner"))
 
-    if amount > 5:
-        return await ctx.send(content=f"{ctx.message.author.mention}",
-                              embed=SUMMON_THROTTLE_ERROR_EMBED)
-    elif amount < 2:
-        return await ctx.send(file=compose_draw(banner, person),
-                              content=f"{person.mention} this is your single" if person is ctx.message.author
-                              else f"{person.mention} this is your single coming from {ctx.message.author.mention}",
-                              embed=discord.Embed(title=f"{banner.pretty_name} (1x summon)").set_image(
-                                  url="attachment://unit.png"))
-
-    draw = await ctx.send(embed=LOADING_EMBED.set_image(url=LOADING_IMAGE_URL))
-
-    pending = []
-    for a in range(amount):
-        pending.append(
-            {
-                "file": compose_draw(banner, person),
-                "content": f"{person.mention} this is your {a + 1}. single" if person is ctx.message.author
-                else f"{person.mention} this is your {a + 1}. single from {ctx.message.author}",
-                "embed-title": f"{banner.pretty_name} (1x summon)"
-            }
-        )
-    await draw.edit(embed=IMAGES_LOADED_EMBED)
-
-    for pend in pending:
-        await ctx.send(file=pend["file"],
-                       content=pend["content"],
-                       embed=discord.Embed(title=pend["embed-title"]).set_image(url="attachment://unit.png"))
-    await draw.delete()
+    return await ctx.send(file=compose_draw(banner, person),
+                          content=f"{person.mention} this is your single" if person is ctx.message.author
+                          else f"{person.mention} this is your single coming from {ctx.message.author.mention}",
+                          embed=discord.Embed(title=f"{banner.pretty_name} (1x summon)").set_image(
+                              url="attachment://unit.png"))
 
 
 # ..shaft
 @BOT.command()
-async def shaft(ctx, banner_name: str = "banner 1", person: discord.Member = None):
+async def shaft(ctx, person: typing.Optional[discord.Member], *, banner_name: str = "banner 1"):
     if person is None:
         person = ctx.message.author
+
     banner = banner_by_name(banner_name)
     if banner is None:
         return await ctx.send(content=f"{ctx.message.author.mention}",
@@ -1702,19 +1665,13 @@ async def resize(ctx, file_url=None, width=75, height=75):
 
 
 def unit_with_chance(banner: Banner, user: discord.Member) -> Unit:
-    u = banner.units[ra.randint(0, len(banner.units) - 1)]
     draw_chance = round(ra.uniform(0, 100), 4)
 
-    if len(banner.r_units) == 0 and len(banner.sr_units) == 0:
-        if banner.ssr_unit_rate < draw_chance < banner.ssr_unit_rate_up and u not in banner.rate_up_unit:
-            u = banner.rate_up_unit[ra.randint(0, len(banner.rate_up_unit) - 1)]
-        return u
-
-    if banner.ssr_unit_rate_up * len(banner.rate_up_unit) >= draw_chance and len(banner.rate_up_unit) != 0:
-        u = banner.rate_up_unit[ra.randint(0, len(banner.rate_up_unit) - 1)]
-    elif banner.ssr_chance >= draw_chance:
+    if banner.ssr_chance >= draw_chance:
         u = banner.ssr_units[ra.randint(0, len(banner.ssr_units) - 1)]
-    elif banner.sr_chance >= draw_chance:
+    elif banner.ssr_rate_up_chance >= draw_chance:
+        u = banner.rate_up_unit[ra.randint(0, len(banner.rate_up_unit) - 1)]
+    elif banner.sr_chance >= draw_chance or len(banner.r_units) == 0:
         u = banner.sr_units[ra.randint(0, len(banner.sr_units) - 1)]
     else:
         u = banner.r_units[ra.randint(0, len(banner.r_units) - 1)]
