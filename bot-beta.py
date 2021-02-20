@@ -16,7 +16,7 @@ from discord.ext.commands import HelpCommand
 # Version 1.0
 # TODO:
 #   - maybe web interface for new units?
-#   - saving unit pull data
+#   - box
 
 with open("data/bot_token.txt", 'r') as file:
     TOKEN = file.read()
@@ -156,6 +156,13 @@ class Affection(Enum):
 class BannerType(Enum):
     ELEVEN = 11
     FIVE = 5
+
+
+class LeaderboardType(Enum):
+    LUCK = "luck"
+    MOST_SSR = "ssrs"
+    MOST_UNITS = "units"
+    MOST_SHAFTS = "shafts"
 
 
 FRAMES = {
@@ -622,6 +629,8 @@ class Banner:
         self.sr_units: List[Unit] = list(filter(lambda x: x.grade == Grade.SR, self.units))
         self.ssr_units: List[Unit] = list(
             filter(lambda x: x.grade == Grade.SSR and x not in self.rate_up_unit, self.units))
+        self.ssr_chance: float = (self.ssr_unit_rate_up * len(self.rate_up_unit)) + (self.ssr_unit_rate * (len(self.ssr_units)))
+        self.sr_chance: float = (self.sr_unit_rate * len(self.sr_units))
         self.background: str = bg_url
 
 
@@ -777,17 +786,12 @@ async def on_ready():
                 user_id INTEGER,
                 ssr_amount INTEGER,
                 pull_amount INTEGER,
-                guild INTEGER
+                guild INTEGER,
+                shafts INTEGER
     )""")
     CURSOR.execute("""CREATE TABLE IF NOT EXISTS "channels" (
                     channel INTEGER
     )""")
-
-    for u in UNITS:
-        i = (
-            u.unit_id, u.name, u.simple_name, u.type.value, u.grade.value, u.race.value, u.event.value,
-            u.affection.value)
-        CURSOR.execute('INSERT OR IGNORE INTO units VALUES (?, ?, ?, ?, ?, ?, ?, ?)', i)
 
     CONN.commit()
 
@@ -801,7 +805,6 @@ async def on_ready():
     await BOT.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name="..help"))
 
     read_custom_units_from_db()
-    # leaderboard.start()
 
     print('Logged in as')
     print(BOT.user.name)
@@ -809,40 +812,131 @@ async def on_ready():
     print('--------')
 
 
+def map_leaderboard(raw_leaderboard: str) -> LeaderboardType:
+    raw_leaderboard = raw_leaderboard.lower().replace(" ", "")
+    if raw_leaderboard in ["ssrs", "ssrs", "mostssr", "mostssrs"]:
+        return LeaderboardType.MOST_SSR
+    elif raw_leaderboard in ["units", "unit", "mostunits", "mostunit"]:
+        return LeaderboardType.MOST_UNITS
+    elif raw_leaderboard in ["shaft", "shafts", "mostshafts", "mostshaft"]:
+        return LeaderboardType.MOST_SHAFTS
+    return LeaderboardType.LUCK
+
+
 def get_user_pull(user: discord.Member) -> dict:
     # user_id, ssr_amount, pull_amount
+    CONN.commit()
     data = CURSOR.execute('SELECT * FROM user_pulls WHERE user_id=? AND guild=?', (user.id, user.guild.id)).fetchone()
     if data is None:
         return {}
-    return {"ssr_amount": data[1], "pull_amount": data[2]}
+    return {"ssr_amount": data[1], "pull_amount": data[2], "guild": data[3], "shafts": data[4]}
 
 
-async def get_top_users(guild: discord.Guild) -> List[dict]:
+async def get_top_users(guild: discord.Guild, action: LeaderboardType = LeaderboardType.LUCK) -> List[dict]:
+    CONN.commit()
     data = CURSOR.execute('SELECT * FROM user_pulls WHERE guild=?', (guild.id,)).fetchall()
     if data is None:
         return {}
-    data = sorted(data, key=lambda t: t[1] / t[2], reverse=True)
-    ret = []
-    for i in range(10):
-        if i == len(data):
-            break
-        user = await BOT.fetch_user(data[i][0])
-        ret.append({
-            "place": i + 1,
-            "name": user.display_name,
-            "luck": round((data[i][1] / data[i][2]) * 100, 2),
-            "pull-amount": data[i][2]
-        })
-    return ret
+    if action == LeaderboardType.MOST_SHAFTS:
+        data = sorted(data, key=lambda t: t[4], reverse=True)
+        ret = []
+        for i in range(10):
+            if i == len(data):
+                break
+            user = await BOT.fetch_user(data[i][0])
+            ret.append({
+                "place": i + 1,
+                "name": user.display_name,
+                "shafts": data[i][4]
+            })
+        return ret
+    if action == LeaderboardType.LUCK:
+        data = sorted(data, key=lambda t: t[1] / t[2], reverse=True)
+        ret = []
+        for i in range(10):
+            if i == len(data):
+                break
+            user = await BOT.fetch_user(data[i][0])
+            ret.append({
+                "place": i + 1,
+                "name": user.display_name,
+                "luck": round((data[i][1] / data[i][2]) * 100, 2),
+                "pull-amount": data[i][2]
+            })
+        return ret
+    elif action == LeaderboardType.MOST_SSR:
+        data = sorted(data, key=lambda t: t[1], reverse=True)
+        ret = []
+        for i in range(10):
+            if i == len(data):
+                break
+            user = await BOT.fetch_user(data[i][0])
+            ret.append({
+                "place": i + 1,
+                "name": user.display_name,
+                "ssrs": data[i][1],
+                "pull-amount": data[i][2]
+            })
+        return ret
+    elif action == LeaderboardType.MOST_UNITS:
+        data = sorted(data, key=lambda t: t[2], reverse=True)
+        ret = []
+        for i in range(10):
+            if i == len(data):
+                break
+            user = await BOT.fetch_user(data[i][0])
+            ret.append({
+                "place": i + 1,
+                "name": user.display_name,
+                "pull-amount": data[i][2]
+            })
+        return ret
+
+
+@BOT.command()
+async def top(ctx, action="luck"):
+    action = map_leaderboard(action)
+    tops = await get_top_users(ctx.message.guild, action)
+    if len(tops) == 0:
+        return await ctx.send(
+            embed=discord.Embed(title="Nobody summoned yet", description="Use `..multi`, `..single` or `..shaft`"))
+
+    if action == LeaderboardType.LUCK:
+        top_str = '\n'.join(
+            ["**{}.** {} with a *{}%* SSR droprate in their pulls. Total of {} Units".format(top["place"],
+                                                                                             top["name"],
+                                                                                             top["luck"],
+                                                                                             top["pull-amount"])
+             for top in tops])
+        await ctx.send(embed=discord.Embed(title=f"Luckiest Members in {ctx.message.guild.name}", description=top_str,
+                                           colour=discord.Colour.gold()).set_thumbnail(url=ctx.message.guild.icon_url))
+    elif action == LeaderboardType.MOST_SSR:
+        top_str = '\n'.join(["**{}.** {} with *{} SSRs*. Total of *{} Units*".format(
+            top["place"], top["name"], top["ssrs"], top["pull-amount"])
+            for top in tops])
+        await ctx.send(embed=discord.Embed(title=f"Members with most drawn SSRs in {ctx.message.guild.name}",
+                                           description=top_str, colour=discord.Colour.gold())
+                       .set_thumbnail(url=ctx.message.guild.icon_url))
+    elif action == LeaderboardType.MOST_UNITS:
+        top_str = '\n'.join(["**{}.** {} with *{} Units*".format(
+            top["place"], top["name"], top["pull-amount"])
+            for top in tops])
+        await ctx.send(embed=discord.Embed(title=f"Members with most drawn Units in {ctx.message.guild.name}",
+                                           description=top_str, colour=discord.Colour.gold())
+                       .set_thumbnail(url=ctx.message.guild.icon_url))
+    elif action == LeaderboardType.MOST_SHAFTS:
+        top_str = '\n'.join(["**{}.** {} with *{} Shafts*".format(
+            top["place"], top["name"], top["shafts"])
+            for top in tops])
+        await ctx.send(embed=discord.Embed(title=f"Most Shafted Members in {ctx.message.guild.name}",
+                                           description=top_str, colour=discord.Colour.gold())
+                       .set_thumbnail(url=ctx.message.guild.icon_url))
 
 
 def add_user_pull(user: discord.Member, got_ssr: bool):
     data = get_user_pull(user)
     if len(data) == 0:
-        if got_ssr:
-            CURSOR.execute('INSERT INTO user_pulls VALUES (?, ?, ?, ?)', (user.id, 1, 1, user.guild.id))
-        else:
-            CURSOR.execute('INSERT INTO user_pulls VALUES (?, ?, ?, ?)', (user.id, 0, 1, user.guild.id))
+        CURSOR.execute('INSERT INTO user_pulls VALUES (?, ?, ?, ?, ?)', (user.id, 1 if got_ssr else 0, 1, user.guild.id, 0))
     else:
         if got_ssr:
             CURSOR.execute('UPDATE user_pulls SET ssr_amount=?, pull_amount=? WHERE user_id=? AND guild=?',
@@ -851,57 +945,42 @@ def add_user_pull(user: discord.Member, got_ssr: bool):
             CURSOR.execute('UPDATE user_pulls SET pull_amount=? WHERE user_id=? AND guild=?',
                            (data["pull_amount"] + 1, user.id, user.guild.id))
 
-    CONN.commit()
+
+def add_shaft(user: discord.Member, amount: int):
+    data = get_user_pull(user)
+    if len(data) != 0:
+        CURSOR.execute('UPDATE user_pulls SET shafts=? WHERE user_id=? AND guild=?',
+                       (data["shafts"] + amount, user.id, user.guild.id))
+    else:
+        CURSOR.execute('INSERT INTO user_pulls VALUES (?, ?, ?, ?, ?)',
+                       (user.id, 0, 0, user.guild.id, amount))
 
 
 @BOT.command()
-async def luck(ctx, person: discord.Member = None):
-    print(ctx.message.channel.id)
+async def stats(ctx, action="luck", person: discord.Member = None):
+    action = map_leaderboard(action)
     if person is None:
         person = ctx.message.author
     data = get_user_pull(person)
-    ssrs = data["ssr_amount"]
-    pulls = data["pull_amount"]
+    ssrs = data["ssr_amount"] if len(data) != 0 else 0
+    pulls = data["pull_amount"] if len(data) != 0 else 0
     percent = data["ssr_amount"] / data["pull_amount"] if len(data) != 0 else 0
     percent = round(percent * 100, 2)
-    await ctx.send(
-        content=f"{person.mention}'s luck:" if person == ctx.message.author else f"{ctx.message.author.mention}: {person.display_name}'s luck:",
-        embed=discord.Embed(
-            description=f"**{person.display_name}** currently got a *{percent}%* SSR droprate in their pulls, with *{ssrs} SSRs* in *{pulls} Units*"))
-
-
-@BOT.command()
-async def top(ctx):
-    tops = await get_top_users(ctx.message.guild)
-    if len(tops) == 0:
-        return await ctx.send(
-            embed=discord.Embed(title="Nobody summoned yet", description="Use `..multi`, `..single` or `..shaft`"))
-    top_str = '\n'.join(["**{}.** {} with a *{}%* SSR droprate in their pulls. Total of {} Units".format(top["place"],
-                                                                                                         top["name"],
-                                                                                                         top["luck"],
-                                                                                                         top[
-                                                                                                             "pull-amount"])
-                         for top in tops])
-    await ctx.send(embed=discord.Embed(title=f"Luckiest Members in {ctx.message.guild.name}", description=top_str,
-                                       colour=discord.Colour.gold()))
-
-
-@tasks.loop(seconds=1800)
-async def leaderboard():
-    channels = CURSOR.execute('SELECT * FROM channels').fetchall()
-    for c_id in channels:
-        channel = BOT.get_channel(c_id)
-        tops = await get_top_users(channel.guild)
-        if len(tops) == 0:
-            return
-        top_str = '\n'.join(["**{}.** {} with a *{}%* SSR droprate in their pulls. Total of {} Units".format(top["place"],
-                                                                                                             top["name"],
-                                                                                                             top["luck"],
-                                                                                                             top[
-                                                                                                                 "pull-amount"])
-                             for top in tops])
-        await channel.send(embed=discord.Embed(title=f"Luckiest Members in {channel.guild.name}", description=top_str,
-                                               colour=discord.Colour.gold()))
+    if action == LeaderboardType.LUCK:
+        await ctx.send(
+            content=f"{person.mention}'s luck:" if person == ctx.message.author else f"{ctx.message.author.mention}: {person.display_name}'s luck:",
+            embed=discord.Embed(
+                description=f"**{person.display_name}** currently got a *{percent}%* SSR droprate in their pulls, with *{ssrs} SSRs* in *{pulls} Units*"))
+    elif action == LeaderboardType.MOST_SSR:
+        await ctx.send(
+            content=f"{person.mention}'s SSRs:" if person == ctx.message.author else f"{ctx.message.author.mention}: {person.display_name}'s SSRs:",
+            embed=discord.Embed(
+                description=f"**{person.display_name}** currently has *{ssrs} SSRs*"))
+    elif action == LeaderboardType.MOST_UNITS:
+        await ctx.send(
+            content=f"{person.mention}'s Units:" if person == ctx.message.author else f"{ctx.message.author.mention}: {person.display_name}'s Units:",
+            embed=discord.Embed(
+                description=f"**{person.display_name}** currently has *{pulls} Units*"))
 
 
 RACES = [Race.DEMON, Race.GIANT, Race.HUMAN, Race.FAIRY, Race.GODDESS, Race.UNKNOWN]
@@ -1425,65 +1504,6 @@ async def summon(ctx):
 
 
 async def build_menu(ctx, prev_message, page: int = 0, action: str = ""):
-    if action == "single":
-        return await ctx.send(content=f"{ctx.message.author.mention} this is your single",
-                              file=compose_draw(ALL_BANNERS[page], ctx.message.author),
-                              embed=discord.Embed(
-                                  title=f"{ALL_BANNERS[page].pretty_name} (1x summon)")
-                              .set_image(url="attachment://unit.png"))
-    elif action == "multi":
-        await prev_message.edit(embed=LOADING_EMBED.set_image(url=LOADING_IMAGE_URL))
-
-        await ctx.send(file=image_to_discord(
-            compose_multi_draw(banner=ALL_BANNERS[page], user=ctx.message.author) if ALL_BANNERS[
-                                                                                         page].banner_type == BannerType.ELEVEN
-            else compose_five_multi_draw(banner=ALL_BANNERS[page], user=ctx.message.author), "units.png"),
-            content=f"{ctx.message.author.mention} this is your multi",
-            embed=discord.Embed(
-                title=f"{ALL_BANNERS[page].pretty_name} "
-                      f"({11 if ALL_BANNERS[page].banner_type == BannerType.ELEVEN else 5}x summon)"
-            ).set_image(url="attachment://units.png"))
-        return await prev_message.delete()
-    elif action == "shaft":
-        for bN in ALL_BANNERS[page].name:
-            if "gssr" in bN:
-                return await prev_message.edit(content=f"{ctx.message.author.mention}",
-                                               embed=discord.Embed(
-                                                   title="Error",
-                                                   colour=discord.Color.dark_red(),
-                                                   description=f"Can't get shafted on the \"{ALL_BANNERS[page].pretty_name}\" banner "
-                                               )
-                                               )
-        i = 0
-        draw = await ctx.send(content=f"{ctx.message.author.mention} this is your multi",
-                              embed=discord.Embed(title="Shafting...").set_image(
-                                  url=LOADING_IMAGE_URL))
-
-        rang = 11 if ALL_BANNERS[page].banner_type == BannerType.ELEVEN else 5
-        drawn_units = [unit_with_chance(ALL_BANNERS[page], ctx.message.author) for _ in range(rang)]
-
-        def has_ssr(du: List[Unit]) -> bool:
-            for u in du:
-                if u.grade == Grade.SSR:
-                    return True
-            return False
-
-        while not has_ssr(drawn_units):
-            i += 1
-            drawn_units = [unit_with_chance(ALL_BANNERS[page], ctx.message.author) for _ in range(rang)]
-
-        await ctx.send(file=image_to_discord(
-            compose_unit_multi_draw(units=drawn_units) if ALL_BANNERS[page].banner_type == BannerType.ELEVEN
-            else compose_unit_five_multi_draw(units=drawn_units), "units.png"),
-            content=f"{ctx.message.author.mention}",
-            embed=discord.Embed(
-                title=f"{ALL_BANNERS[page].pretty_name} ({rang}x summon)",
-                description=f"Shafted {i} times \n This is your final pull"
-            ).set_image(url="attachment://units.png")
-        )
-        await prev_message.delete()
-        return await draw.delete()
-
     summon_menu_emojis = ["⬅️", "1️⃣", "🔟" if ALL_BANNERS[page].banner_type == BannerType.ELEVEN else "5️⃣", "🐋",
                           "➡️"]
     await prev_message.clear_reactions()
@@ -1528,11 +1548,11 @@ async def build_menu(ctx, prev_message, page: int = 0, action: str = ""):
         elif "⬅️" in str(reaction.emoji):
             await build_menu(ctx, prev_message=draw, page=page - 1)
         elif ("🔟" if ALL_BANNERS[page].banner_type == BannerType.ELEVEN else "5️⃣") in str(reaction.emoji):
-            await build_menu(ctx, prev_message=draw, page=page, action="multi")
+            await multi(ctx, banner_name=ALL_BANNERS[page].name[0])
         elif "1️⃣" in str(reaction.emoji):
-            await build_menu(ctx, prev_message=draw, page=page, action="single")
+            await single(ctx, banner_name=ALL_BANNERS[page].name[0])
         elif "🐋" in str(reaction.emoji):
-            await build_menu(ctx, prev_message=draw, page=page, action="shaft")
+            await shaft(ctx, banner_name=ALL_BANNERS[page].name[0])
     except asyncio.TimeoutError:
         pass
 
@@ -1562,10 +1582,9 @@ async def single(ctx, banner_name: str = "banner 1", amount: int = 1, person: di
 
     pending = []
     for a in range(amount):
-        img = unit_with_chance(banner, ctx.message.author).icon
         pending.append(
             {
-                "file": image_to_discord(img, "unit.png"),
+                "file": compose_draw(banner, person),
                 "content": f"{person.mention} this is your {a + 1}. single" if person is ctx.message.author
                 else f"{person.mention} this is your {a + 1}. single from {ctx.message.author}",
                 "embed-title": f"{banner.pretty_name} (1x summon)"
@@ -1582,7 +1601,7 @@ async def single(ctx, banner_name: str = "banner 1", amount: int = 1, person: di
 
 # ..shaft
 @BOT.command()
-async def shaft(ctx, banner_name: str = "banner 1", amount: int = 1, person: discord.Member = None):
+async def shaft(ctx, banner_name: str = "banner 1", person: discord.Member = None):
     if person is None:
         person = ctx.message.author
     banner = banner_by_name(banner_name)
@@ -1596,47 +1615,38 @@ async def shaft(ctx, banner_name: str = "banner 1", amount: int = 1, person: dis
                                   embed=discord.Embed(title="Error", colour=discord.Color.dark_red(),
                                                       description=f"Can't get shafted on the \"{banner.pretty_name}\" banner"))
 
-    async def do_shaft():
-        i = 0
-        draw = await ctx.send(content=f"{person.mention} this is your shaft" if person is ctx.message.author
-        else f"{person.mention} this is your shaft coming from {ctx.message.author.mention}",
-                              embed=discord.Embed(title="Shafting...").set_image(
-                                  url=LOADING_IMAGE_URL))
+    i = 0
+    draw = await ctx.send(content=f"{person.mention} this is your shaft" if person is ctx.message.author
+    else f"{person.mention} this is your shaft coming from {ctx.message.author.mention}",
+                          embed=discord.Embed(title="Shafting...").set_image(
+                              url=LOADING_IMAGE_URL))
 
-        rang = 11 if banner.banner_type == BannerType.ELEVEN else 5
-        drawn_units = [unit_with_chance(banner, ctx.message.author) for _ in range(rang)]
+    rang = 11 if banner.banner_type == BannerType.ELEVEN else 5
+    drawn_units = [unit_with_chance(banner, person) for _ in range(rang)]
 
-        def has_ssr(du: List[Unit]) -> bool:
-            for u in du:
-                if u.grade == Grade.SSR:
-                    return True
-            return False
+    def has_ssr(du: List[Unit]) -> bool:
+        for u in du:
+            if u.grade == Grade.SSR:
+                return True
+        return False
 
-        while not has_ssr(drawn_units):
-            i += 1
-            drawn_units = [unit_with_chance(banner, ctx.message.author) for _ in range(rang)]
+    while not has_ssr(drawn_units) and i < 100000:
+        i += 1
+        drawn_units = [unit_with_chance(banner, person) for _ in range(rang)]
 
-        await ctx.send(
-            file=image_to_discord(
-                compose_unit_multi_draw(units=drawn_units) if banner.banner_type == BannerType.ELEVEN
-                else compose_unit_five_multi_draw(units=drawn_units),
-                "units.png"),
-            content=f"{person.mention}" if person is ctx.message.author
-            else f"{person.mention} coming from {ctx.message.author.mention}",
-            embed=discord.Embed(
-                title=f"{banner.pretty_name} ({rang}x summon)",
-                description=f"Shafted {i} times \n This is your final pull").set_image(
-                url="attachment://units.png"))
-        await draw.delete()
-
-    if amount > 5:
-        return await ctx.send(content=f"{ctx.message.author.mention}",
-                              embed=SUMMON_THROTTLE_ERROR_EMBED)
-    elif amount < 2:
-        return await do_shaft()
-
-    for a in range(amount):
-        await do_shaft()
+    await ctx.send(
+        file=image_to_discord(
+            compose_unit_multi_draw(units=drawn_units) if banner.banner_type == BannerType.ELEVEN
+            else compose_unit_five_multi_draw(units=drawn_units),
+            "units.png"),
+        content=f"{person.mention}" if person is ctx.message.author
+        else f"{person.mention} coming from {ctx.message.author.mention}",
+        embed=discord.Embed(
+            title=f"{banner.pretty_name} ({rang}x summon)",
+            description=f"Shafted {i} times \n This is your final pull").set_image(
+            url="attachment://units.png"))
+    await draw.delete()
+    add_shaft(person, i)
 
 
 # ..create
@@ -1698,21 +1708,19 @@ def unit_with_chance(banner: Banner, user: discord.Member) -> Unit:
     if len(banner.r_units) == 0 and len(banner.sr_units) == 0:
         if banner.ssr_unit_rate < draw_chance < banner.ssr_unit_rate_up and u not in banner.rate_up_unit:
             u = banner.rate_up_unit[ra.randint(0, len(banner.rate_up_unit) - 1)]
-        add_user_pull(user, u.grade == Grade.SSR)
         return u
 
-    chance = ra.randint(0, 100)
-    if chance > (banner.ssr_unit_rate_up * len(banner.rate_up_unit)) + (
-            banner.ssr_unit_rate * (len(banner.ssr_units))):
-        if chance > (banner.sr_unit_rate * len(banner.sr_units)):
-            u = banner.r_units[ra.randint(0, len(banner.r_units) - 1)]
-        else:
-            u = banner.sr_units[ra.randint(0, len(banner.sr_units) - 1)]
-    elif banner.ssr_unit_rate < draw_chance < banner.ssr_unit_rate_up and u not in banner.rate_up_unit and len(
-            banner.rate_up_unit) != 0:
+    if banner.ssr_unit_rate_up * len(banner.rate_up_unit) >= draw_chance and len(banner.rate_up_unit) != 0:
         u = banner.rate_up_unit[ra.randint(0, len(banner.rate_up_unit) - 1)]
+    elif banner.ssr_chance >= draw_chance:
+        u = banner.ssr_units[ra.randint(0, len(banner.ssr_units) - 1)]
+    elif banner.sr_chance >= draw_chance:
+        u = banner.sr_units[ra.randint(0, len(banner.sr_units) - 1)]
+    else:
+        u = banner.r_units[ra.randint(0, len(banner.r_units) - 1)]
 
-    add_user_pull(user, u.grade == Grade.SSR)
+    if user is not None:
+        add_user_pull(user, u.grade == Grade.SSR)
     return u
 
 
@@ -1807,15 +1815,18 @@ def compose_pvp(player1: discord.Member, team1: List[Unit], player2: discord.Mem
 
 
 def compose_draw(banner: Banner, user: discord.Member) -> discord.File:
-    return unit_with_chance(banner, user).discord_icon()
+    f = unit_with_chance(banner, user).discord_icon()
+    return f
 
 
 def compose_five_multi_draw(banner: Banner, user: discord.Member) -> Image:
-    return compose_unit_five_multi_draw([unit_with_chance(banner, user) for _ in range(5)])
+    i = compose_unit_five_multi_draw([unit_with_chance(banner, user) for _ in range(5)])
+    return i
 
 
 def compose_multi_draw(banner: Banner, user: discord.Member) -> Image:
-    return compose_unit_multi_draw([unit_with_chance(banner, user) for _ in range(11)])
+    i = compose_unit_multi_draw([unit_with_chance(banner, user) for _ in range(11)])
+    return i
 
 
 def compose_unit_five_multi_draw(units: List[Unit]) -> Image:
@@ -1871,7 +1882,8 @@ def compose_icon(attribute: Type, grade: Grade, background: Image = None) -> Ima
 
 
 def read_custom_units_from_db():
-    for row in CURSOR.execute('SELECT * FROM units'):
+    CONN.commit()
+    for row in CURSOR.execute('SELECT * FROM custom_units'):
         UNITS.append(Unit(unit_id=row[0],
                           name=row[1],
                           simple_name=row[2],
@@ -1897,7 +1909,7 @@ def save_custom_units(attribute: Type, grade: Grade, icon: Image, name: str, sim
              simple_name=simple_name)
 
     i = (u.unit_id, u.name, u.simple_name, u.type.value, u.grade.value, u.race.value, u.affection.value)
-    CURSOR.execute('INSERT INTO units VALUES (?, ?, ?, ?, ?, ?, ?)', i)
+    CURSOR.execute('INSERT INTO custom_units VALUES (?, ?, ?, ?, ?, ?, ?)', i)
     CONN.commit()
 
 
