@@ -11,7 +11,7 @@ import requests
 from PIL import Image
 from PIL import ImageDraw
 from PIL import ImageFont
-from discord.ext import commands, tasks
+from discord.ext import commands
 from discord.ext.commands import HelpCommand
 
 # Version 1.0
@@ -40,7 +40,7 @@ HELP_EMBED_1 = discord.Embed(
                     `..summon [banner="banner one"]`
                     `..stats <luck, ssrs, units, shafts>`
                     `..top <luck, ssrs, units, shafts>`
-                    `..create "<name>" "<simple_name>" <attribute> <grade> "<image url>" [race=unknown] [affection=none]`
+                    `..create "<name>" <attribute> <grade> "<image url>" [race=unknown] [affection=none]`
 
                     __*Info:*__
                     You can use different attributes to narrow down the possibilities:
@@ -73,7 +73,7 @@ HELP_EMBED_2 = discord.Embed(
                             `..multi banner two` ~ does a 11x summon on the most recent banner                    
                             `..shaft` ~ does a 11x summon until you get a SSR
                             `..shaft race two` ~ does a 5x summon on the Demon/Fairy/Goddess banner until you get a SSR
-                            `..create "[Demon Slayer] Tanjiro" "tanjiro" red sr "URL to image" human` ~ Creates a Red SR Tanjiro
+                            `..create "[Demon Slayer] Tanjiro" red sr "URL to image" human` ~ Creates a Red SR Tanjiro
                             """,
     colour=discord.Color.gold(),
 )
@@ -89,7 +89,7 @@ SUMMON_THROTTLE_ERROR_EMBED = discord.Embed(title="Error", colour=discord.Color.
                                             description="Please don't summon more then 5x at once")
 UNIT_CREATE_COMMAND_USAGE_ERROR_EMBED = discord.Embed(title="Error", colour=discord.Color.dark_red(),
                                                       description="""
-                                                      `..create <name> <simple_name> <attribute> <grade> <file_url>`
+                                                      `..create <name> <attribute> <grade> <file_url> [race] [affection]`
 
                                                       For more info please do `..help`
                                                       """)
@@ -773,7 +773,6 @@ async def on_ready():
     CURSOR.execute("""CREATE TABLE IF NOT EXISTS "custom_units" (
         unit_id INTEGER PRIMARY KEY,
         name Text,
-        simple_name Text,
         type Text,
         grade Text,
         race Text,
@@ -810,6 +809,7 @@ async def on_ready():
     await BOT.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name="..help"))
 
     read_custom_units_from_db()
+    add_custom_units_to_banner()
 
     print('Logged in as')
     print(BOT.user.name)
@@ -839,11 +839,12 @@ def get_user_pull(user: discord.Member) -> dict:
 
 async def get_top_users(guild: discord.Guild, action: LeaderboardType = LeaderboardType.LUCK) -> List[dict]:
     CONN.commit()
-    data = CURSOR.execute('SELECT * FROM user_pulls WHERE guild=?', (guild.id,)).fetchall()
+    data = CURSOR.execute('SELECT * FROM user_pulls WHERE guild=? LIMIT 1', (guild.id,)).fetchone()
     if data is None:
         return {}
     if action == LeaderboardType.MOST_SHAFTS:
-        data = sorted(data, key=lambda t: t[4], reverse=True)
+        data = CURSOR.execute('SELECT * FROM user_pulls WHERE guild=? ORDER BY shafts DESC LIMIT 10',
+                              (guild.id,)).fetchall()
         ret = []
         for i in range(10):
             if i == len(data):
@@ -856,7 +857,9 @@ async def get_top_users(guild: discord.Guild, action: LeaderboardType = Leaderbo
             })
         return ret
     if action == LeaderboardType.LUCK:
-        data = sorted(data, key=lambda t: t[1] / t[2], reverse=True)
+        data = CURSOR.execute(
+            'SELECT *, round((CAST(ssr_amount as REAL)/CAST(pull_amount as REAL)), 4) percent FROM user_pulls WHERE guild=? ORDER BY percent DESC LIMIT 10',
+            (guild.id,)).fetchall()
         ret = []
         for i in range(10):
             if i == len(data):
@@ -870,7 +873,9 @@ async def get_top_users(guild: discord.Guild, action: LeaderboardType = Leaderbo
             })
         return ret
     elif action == LeaderboardType.MOST_SSR:
-        data = sorted(data, key=lambda t: t[1], reverse=True)
+        data = CURSOR.execute(
+            'SELECT * FROM user_pulls WHERE guild=? ORDER BY ssr_amount DESC LIMIT 10',
+            (guild.id,)).fetchall()
         ret = []
         for i in range(10):
             if i == len(data):
@@ -884,7 +889,9 @@ async def get_top_users(guild: discord.Guild, action: LeaderboardType = Leaderbo
             })
         return ret
     elif action == LeaderboardType.MOST_UNITS:
-        data = sorted(data, key=lambda t: t[2], reverse=True)
+        data = CURSOR.execute(
+            'SELECT * FROM user_pulls WHERE guild=? ORDER BY pull_amount DESC LIMIT 10',
+            (guild.id,)).fetchall()
         ret = []
         for i in range(10):
             if i == len(data):
@@ -998,11 +1005,11 @@ AFFECTIONS = [Affection.SIN, Affection.COMMANDMENTS, Affection.CATASTROPHE, Affe
               Affection.NONE]
 
 
-def create_random_unit(grades: List[Grade] = None,
+def get_matching_units(grades: List[Grade] = None,
                        types: List[Type] = None,
                        races: List[Race] = None,
                        events: List[Event] = None,
-                       affections: List[Affection] = None) -> Unit:
+                       affections: List[Affection] = None) -> List[Unit]:
     if races is None or races == []:
         races = RACES.copy()
     if grades is None or grades == []:
@@ -1022,6 +1029,19 @@ def create_random_unit(grades: List[Grade] = None,
     if len(possible_units) == 0:
         raise LookupError
 
+    return possible_units
+
+
+def create_random_unit(grades: List[Grade] = None,
+                       types: List[Type] = None,
+                       races: List[Race] = None,
+                       events: List[Event] = None,
+                       affections: List[Affection] = None) -> Unit:
+    possible_units = get_matching_units(grades=grades,
+                                        types=types,
+                                        races=races,
+                                        events=events,
+                                        affections=affections)
     return possible_units[ra.randint(0, len(possible_units) - 1)]
 
 
@@ -1077,7 +1097,7 @@ def map_event(raw_event: str) -> Event:
         return Event.HAL
     elif raw_event in ["festival", "fes", "fest"]:
         return Event.FES
-    elif raw_event in "custom":
+    elif raw_event in ["custom"]:
         return Event.CUS
     else:
         return Event.GC
@@ -1614,8 +1634,8 @@ async def shaft(ctx, person: typing.Optional[discord.Member], *, banner_name: st
 
 # ..create
 @BOT.command()
-async def create(ctx, name="", simple_name="", attribute="red", grade="ssr", file_url="", race="", affection=""):
-    if file_url == "" or name == "" or simple_name == "":
+async def create(ctx, name="", attribute="red", grade="ssr", file_url="", race="", affection=""):
+    if file_url == "" or name == "":
         return await ctx.send(content=f"{ctx.message.author.mention}",
                               embed=UNIT_CREATE_COMMAND_USAGE_ERROR_EMBED)
     with BytesIO(requests.get(file_url).content) as url:
@@ -1633,8 +1653,7 @@ async def create(ctx, name="", simple_name="", attribute="red", grade="ssr", fil
                 else discord.Color.blue() if atr == Type.BLUE
                 else discord.Color.green()
             ).set_image(url="attachment://unit.png"))
-        save_custom_units(icon=icon, attribute=atr, grade=grd, name=name, race=rac, affection=affection,
-                          simple_name=simple_name)
+        save_custom_units(icon=icon, attribute=atr, grade=grd, name=name, race=rac, affection=affection)
 
 
 # ..crop
@@ -1667,7 +1686,7 @@ async def resize(ctx, file_url=None, width=75, height=75):
 def unit_with_chance(banner: Banner, user: discord.Member) -> Unit:
     draw_chance = round(ra.uniform(0, 100), 4)
 
-    if banner.ssr_chance >= draw_chance:
+    if banner.ssr_chance >= draw_chance or len(banner.sr_units) == 0:
         u = banner.ssr_units[ra.randint(0, len(banner.ssr_units) - 1)]
     elif banner.ssr_rate_up_chance >= draw_chance:
         u = banner.rate_up_unit[ra.randint(0, len(banner.rate_up_unit) - 1)]
@@ -1826,7 +1845,7 @@ def compose_unit_multi_draw(units: List[Unit]) -> Image:
 
 
 def compose_icon(attribute: Type, grade: Grade, background: Image = None) -> Image:
-    background_frame = FRAME_BACKGROUNDS[grade]
+    background_frame = FRAME_BACKGROUNDS[grade].copy()
     if background is None:
         background = background_frame
     else:
@@ -1838,20 +1857,77 @@ def compose_icon(attribute: Type, grade: Grade, background: Image = None) -> Ima
     return background_frame
 
 
+def compose_unit_list(cus_units: List[Unit]) -> Image:
+    font = ImageFont.truetype("pvp.ttf", 24)
+    text_dim = get_text_dimensions(sorted(cus_units, key=lambda k: len(k.name), reverse=True)[0].name, font=font)
+    i = Image.new('RGBA', (IMG_SIZE + text_dim[0] + 5, (IMG_SIZE * len(cus_units)) + (5 * len(cus_units))))
+    draw = ImageDraw.Draw(i)
+
+    offset = 0
+    for cus_unit in cus_units:
+        i.paste(cus_unit.icon, (0, offset))
+        draw.text((5 + IMG_SIZE, offset + (IMG_SIZE / 2) - (text_dim[1] / 2)), cus_unit.name, (255, 255, 255),
+                  font=font)
+        offset += IMG_SIZE + 5
+
+    return i
+
+
+@BOT.command()
+async def unitlist(ctx, *, criteria: str = "event: custom"):
+    attr = lookup_possible_units(criteria)
+    await ctx.send(file=image_to_discord(compose_unit_list(
+        get_matching_units(races=attr["race"], grades=attr["grade"], types=attr["type"], events=attr["event"],
+                           affections=attr["affection"])),
+                                         "units.png"),
+                   embed=discord.Embed().set_image(url="attachment://units.png"))
+
+
+@BOT.command()
+async def banner(ctx, *, banner_name: str = "banner one"):
+    banner = banner_by_name(banner_name)
+    if banner is None:
+        return await ctx.send(content=f"{ctx.message.author.mention}",
+                              embed=discord.Embed(title="Error", colour=discord.Color.dark_red(),
+                                                  description=f"Can't find the \"{banner_name}\" banner"
+                                                  )
+                              )
+
+    await ctx.send(file=image_to_discord(compose_unit_list(banner.ssr_units + banner.rate_up_unit), "units.png"),
+                   embed=discord.Embed(title=f"SSRs in {banner.pretty_name}").set_image(url="attachment://units.png"))
+
+
 def read_custom_units_from_db():
     CONN.commit()
     for row in CURSOR.execute('SELECT * FROM custom_units'):
-        UNITS.append(Unit(unit_id=row[0],
-                          name=row[1],
-                          simple_name=row[2],
-                          type=map_attribute(row[3]),
-                          grade=map_grade(row[4]),
-                          race=map_race(row[5]),
-                          affection=map_affection(row[6]),
-                          event=Event.CUS))
+        u = Unit(unit_id=row[0],
+                 name=row[1],
+                 simple_name="custom",
+                 type=map_attribute(row[2]),
+                 grade=map_grade(row[3]),
+                 race=map_race(row[4]),
+                 affection=map_affection(row[5]),
+                 event=Event.CUS)
+        UNITS.append(u)
 
 
-def save_custom_units(attribute: Type, grade: Grade, icon: Image, name: str, simple_name: str,
+def add_custom_units_to_banner():
+    cus_units = list(filter(lambda x: x.event == Event.CUS, UNITS))
+    if banner_by_name("custom") is not None:
+        ALL_BANNERS.remove(banner_by_name("custom"))
+    ALL_BANNERS.append(
+        Banner(name=["customs", "custom"],
+               pretty_name="Custom Created Units",
+               units=cus_units,
+               ssr_unit_rate=(3 / len(cus_units)) if len(cus_units) > 0 else -1,
+               sr_unit_rate=1.2414,
+               includes_all_r=False,
+               includes_all_sr=False,
+               bg_url="https://raw.githubusercontent.com/WhoIsAlphaHelix/evilmortybot/master/gc/banners/A9619A31-B793-4E12-8DF6-D0FCC706DEF2_1_105_c.jpeg")
+    )
+
+
+def save_custom_units(attribute: Type, grade: Grade, icon: Image, name: str,
                       race: Race = Race.UNKNOWN,
                       affection: Affection = Affection.NONE):
     custom_units = list(filter(lambda x: x.event == Event.CUS, UNITS))
@@ -1863,10 +1939,13 @@ def save_custom_units(attribute: Type, grade: Grade, icon: Image, name: str, sim
              race=race,
              event=Event.CUS,
              affection=affection,
-             simple_name=simple_name)
+             simple_name="custom")
 
-    i = (u.unit_id, u.name, u.simple_name, u.type.value, u.grade.value, u.race.value, u.affection.value)
-    CURSOR.execute('INSERT INTO custom_units VALUES (?, ?, ?, ?, ?, ?, ?)', i)
+    UNITS.append(u)
+    add_custom_units_to_banner()
+
+    i = (u.unit_id, u.name, u.type.value, u.grade.value, u.race.value, u.affection.value)
+    CURSOR.execute('INSERT INTO custom_units VALUES (?, ?, ?, ?, ?, ?)', i)
     CONN.commit()
 
 
