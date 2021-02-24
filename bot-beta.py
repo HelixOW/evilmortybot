@@ -20,7 +20,7 @@ from discord.ext.commands import HelpCommand
 #   - box
 #   - jp units
 
-with open("data/bot_token.txt", 'r') as file:
+with open("data/beta_token.txt", 'r') as file:
     TOKEN = file.read()
 IMG_SIZE = 150
 LOADING_IMAGE_URL = \
@@ -163,9 +163,14 @@ AFFECTION_HELP_EMBED = discord.Embed(title="Help for ..affection", colour=discor
                                      description="""
                                      `..affection <action> <name>`
 
-                                     *__actions__*: `add, remove, list, help`
-
-                                     `add` & `remove` need the `name` argument""")
+                                     *__actions__*: 
+                                     `add <name>`,
+                                     `remove <name>`,
+                                     `edit <name> name: <new name>`, 
+                                     `transfer <name> owner: @<new owner>`,
+                                     `list`,
+                                     `help`
+                                      """)
 AFFECTION_ADDED_EMBED = discord.Embed(title="Success", colour=discord.Color.green(), description="Affection added!")
 AFFECTION_EDITED_EMBED = discord.Embed(title="Success", colour=discord.Color.green(), description="Affection edited!")
 AFFECTION_REMOVED_EMBED = discord.Embed(title="Success", colour=discord.Color.red(), description="Affection removed!")
@@ -183,6 +188,14 @@ CUSTOM_ADD_COMMAND_USAGE_EMBED = discord.Embed(title="Error with ..custom create
 CUSTOM_EDIT_COMMAND_USAGE_EMBED = discord.Embed(title="Error with ..custom edit", colour=discord.Color.dark_red(),
                                                 description="""
                                                `..custom edit name:<name> & criteria:<value1> & criteria2:<value2>`
+                                               
+                                               **__Criteria__**:
+                                               `type: <type>`,
+                                               `grade: <grade>`,
+                                               `url: <image url>`,
+                                               `race: <race>`,
+                                               `affection: <affection>`
+                                               `updated_name: <new name>`
                                                """)
 CUSTOM_EDIT_COMMAND_SUCCESS_EMBED = discord.Embed(title="Success", colour=discord.Color.green(),
                                                   description="Unit successfully edited!")
@@ -213,6 +226,9 @@ AFFECTIONS = [Affection.SIN.value, Affection.COMMANDMENTS.value, Affection.CATAS
               Affection.ANGEL.value, Affection.KNIGHT.value, Affection.NONE.value]
 
 UNITS = []
+R_UNITS = []
+SR_UNITS = []
+CUSTOM_UNITS = []
 ALL_BANNERS = []
 
 TEAM_TIME_CHECK = []
@@ -392,9 +408,6 @@ class Unit:
             img = Image.new('RGBA', (IMG_SIZE, IMG_SIZE))
             img.paste(Image.open(icon.format(unit_id)).resize((IMG_SIZE, IMG_SIZE)), (0, 0))
             self.icon: Image = img
-        else:
-            with BytesIO(requests.get(icon).content) as url:
-                self.icon: Image = compose_icon(attribute=self.type, grade=self.grade, background=Image.open(url))
 
     def discord_icon(self) -> discord.File:
         return image_to_discord(self.icon, "unit.png")
@@ -417,9 +430,14 @@ class Unit:
 
 def read_units_from_db():
     UNITS.clear()
+    R_UNITS.clear()
+    SR_UNITS.clear()
+    CUSTOM_UNITS.clear()
     CONN.commit()
+
     for row in CURSOR.execute('SELECT * FROM units'):
-        u = Unit(
+        print(f"Registering Unit with id= {row[0]}")
+        UNITS.append(Unit(
             unit_id=row[0],
             name=row[1],
             simple_name=row[2],
@@ -428,33 +446,38 @@ def read_units_from_db():
             race=map_race(row[5]),
             event=map_event(row[6]),
             affection=map_affection(row[7])
+        ))
+
+    for row in CURSOR.execute('SELECT rowid, * FROM custom_units'):
+        print(f"Registering Unit with id= {-1 * row[0]}")
+
+        u = Unit(
+            unit_id=-1 * row[0],
+            name=row[1],
+            icon=row[2],
+            type=map_attribute(row[3]),
+            grade=map_grade(row[4]),
+            race=map_race(row[5]),
+            affection=map_affection(row[6]),
+            simple_name=str(row[7]),
+            event=Event.CUS
         )
         UNITS.append(u)
-    for row in CURSOR.execute('SELECT rowid, * FROM custom_units'):
-        print(f"Creating Unit with id={-1 * row[0]}")
-        u = Unit(unit_id=-1 * row[0],
-                 name=row[1],
-                 icon=row[2],
-                 type=map_attribute(row[3]),
-                 grade=map_grade(row[4]),
-                 race=map_race(row[5]),
-                 affection=map_affection(row[6]),
-                 simple_name=str(row[7]),
-                 event=Event.CUS)
-        UNITS.append(u)
+        CUSTOM_UNITS.append(u)
+
+    R_UNITS.extend(list(filter(lambda x: x.grade == Grade.R and x.event != Event.CUS, UNITS)))
+    SR_UNITS.extend(list(filter(lambda x: x.grade == Grade.SR and x.event == Event.GC, UNITS)))
 
 
 def read_affections_from_db():
     CONN.commit()
     for row in CURSOR.execute('SELECT * FROM affections'):
+        print(f"Loaded {row[0]} - affection")
         AFFECTIONS.append(row[0])
 
 
-read_affections_from_db()
-read_units_from_db()
-
-R_UNITS = list(filter(lambda x: x.grade == Grade.R and x.event != Event.CUS, UNITS))
-SR_UNITS = list(filter(lambda x: x.grade == Grade.SR and x.event == Event.GC, UNITS))
+# loop.run_until_complete(read_affections_from_db())
+# loop.run_until_complete(read_units_from_db())
 
 
 class Banner:
@@ -571,9 +594,6 @@ def read_banners_from_db():
             rate_up_units=rate_up_unit_list
         )
         ALL_BANNERS.append(b)
-
-
-read_banners_from_db()
 
 
 def get_user_pull(user: discord.Member) -> dict:
@@ -929,7 +949,16 @@ def lookup_custom_units(arg: str):
     url = ""
 
     for i in range(len(args)):
-        if args[i].startswith("name:"):
+        if args[i].startswith("updated_name:"):
+            updated_name = args[i].replace("updated_name:", "")
+
+            while updated_name.endswith(" "):
+                updated_name = updated_name[:-1]
+
+            while updated_name.startswith(" "):
+                updated_name = updated_name[1:]
+
+        elif args[i].startswith("name:"):
             name = args[i].replace("name:", "")
 
             while name.startswith(" "):
@@ -937,14 +966,9 @@ def lookup_custom_units(arg: str):
 
             while name.endswith(" "):
                 name = name[:-1]
-        elif args[i].startswith("updated_name:"):
-            if args[i].endswith(" "):
-                updated_name = args[i].replace("updated_name:", "")[:-1]
-            else:
-                updated_name = args[i].replace("updated_name:", "")
 
         elif strip_whitespace(args[i]).startswith("url:"):
-            url = strip_whitespace(args[i]).lower().replace("url:", "")
+            url = strip_whitespace(args[i]).replace("url:", "")
 
         elif strip_whitespace(args[i]).lower().startswith("race:"):
             race = strip_whitespace(args[i]).lower().replace("race:", "")
@@ -1144,6 +1168,7 @@ def compose_unit_list(cus_units: List[Unit]) -> Image:
 
     offset = 0
     for cus_unit in cus_units:
+        cus_unit.refresh_icon()
         i.paste(cus_unit.icon, (0, offset))
         draw.text((5 + IMG_SIZE, offset + (IMG_SIZE / 2) - (text_dim[1] / 2)), cus_unit.name, (255, 255, 255),
                   font=font)
@@ -1169,12 +1194,14 @@ def compose_banner_list(b: Banner, include_all: bool = False) -> Image:
 
     offset = 0
     for rated_unit in b.rate_up_units:
+        rated_unit.refresh_icon()
         i.paste(rated_unit.icon, (0, offset))
         draw.text((5 + IMG_SIZE, offset + (IMG_SIZE / 2) - (text_dim[1] / 2)),
                   f"{rated_unit.name} - {b.ssr_unit_rate_up}%", (255, 255, 255),
                   font=font)
         offset += IMG_SIZE + 5
     for cus_unit in b.ssr_units:
+        cus_unit.refresh_icon()
         i.paste(cus_unit.icon, (0, offset))
         draw.text((5 + IMG_SIZE, offset + (IMG_SIZE / 2) - (text_dim[1] / 2)), f"{cus_unit.name} - {b.ssr_unit_rate}%",
                   (255, 255, 255),
@@ -1182,6 +1209,7 @@ def compose_banner_list(b: Banner, include_all: bool = False) -> Image:
         offset += IMG_SIZE + 5
     if include_all:
         for cus_unit in b.sr_units:
+            cus_unit.refresh_icon()
             i.paste(cus_unit.icon, (0, offset))
             draw.text((5 + IMG_SIZE, offset + (IMG_SIZE / 2) - (text_dim[1] / 2)),
                       f"{cus_unit.name} - {b.sr_unit_rate}%",
@@ -1189,6 +1217,7 @@ def compose_banner_list(b: Banner, include_all: bool = False) -> Image:
                       font=font)
             offset += IMG_SIZE + 5
         for cus_unit in b.r_units:
+            cus_unit.refresh_icon()
             i.paste(cus_unit.icon, (0, offset))
             draw.text((5 + IMG_SIZE, offset + (IMG_SIZE / 2) - (text_dim[1] / 2)),
                       f"{cus_unit.name} - {b.r_unit_rate}%",
@@ -1415,6 +1444,8 @@ async def unit(ctx, *, args: str = ""):
                                          events=attributes["event"],
                                          affections=attributes["affection"],
                                          names=attributes["name"])
+        random_unit.refresh_icon()
+
         await ctx.send(content=f"{ctx.message.author.mention} this is your unit",
                        embed=discord.Embed(title=random_unit.name, colour=random_unit.discord_color())
                        .set_image(url="attachment://unit.png"),
@@ -1918,27 +1949,77 @@ async def affection(ctx, action: str = "help", *, name: typing.Optional[str]):
         await ctx.send(content=f"{ctx.message.author.mention}",
                        embed=AFFECTION_ADDED_EMBED)
     elif action in ["edit"]:
+        new_name = name.lower()
+        if "new:" in name.lower():
+            new_name = name.split("new:")[1]
+            name = name.split("new:")[0]
+
+            while new_name.startswith(" "):
+                new_name = new_name[1:]
+
+            while new_name.endswith(" "):
+                new_name = new_name[:-1]
+
+            while name.startswith(" "):
+                name = name[:1]
+
+            while name.endswith(" "):
+                name = name[:-1]
+
         if name.lower() not in AFFECTIONS:
             return await ctx.send(content=f"{ctx.message.author.mention}",
                                   embed=AFFECTION_EDITED_EMBED)
 
-        if int(CURSOR.execute('SELECT creator FROM affections where name=?', (name.lower(), )).fetchone()[0]) != ctx.message.author.id:
+        if int(CURSOR.execute('SELECT creator FROM affections where name=?', (name.lower(),)).fetchone()[
+                   0]) != ctx.message.author.id:
             return await ctx.send(content=f"{ctx.message.author.mention}",
-                                  embed=discord.Embed(title="Error with ..affections edit", colour=discord.Color.dark_red(),
+                                  embed=discord.Embed(title="Error with ..affections edit",
+                                                      colour=discord.Color.dark_red(),
                                                       description=f"**{name.lower()}** is not your affection!"))
 
-        CURSOR.execute('UPDATE affections SET name=? WHERE name=?', (name.lower(), name.lower()))
+        CURSOR.execute('UPDATE affections SET name=? WHERE name=?', (new_name, name.lower()))
         AFFECTIONS.append(name.lower())
         await ctx.send(content=f"{ctx.message.author.mention}",
                        embed=AFFECTION_EDITED_EMBED)
-    elif action in ["remove", "minus", "-"] and name in AFFECTIONS:
+    elif action in ["move", ">", "transfer"]:
+        new_owner = ctx.message.author.id
+        if "owner:" in name.lower():
+            new_owner = name.split("owner:")[1]
+            name = name.split("owner:")[0]
+
+            while name.endswith(" "):
+                name = name[:-1]
+
+            while new_owner.startswith(" "):
+                new_owner = new_owner[1:]
+
+            while new_owner.endswith(" "):
+                new_owner = new_owner[:-1]
+
+            new_owner = int(new_owner[3:-1])
+        if name.lower() not in AFFECTIONS:
+            return await ctx.send(content=f"{ctx.message.author.mention}",
+                                  embed=AFFECTION_EDITED_EMBED)
+        if int(CURSOR.execute('SELECT creator FROM affections where name=?', (name.lower(),)).fetchone()[
+                   0]) != ctx.message.author.id:
+            return await ctx.send(content=f"{ctx.message.author.mention}",
+                                  embed=discord.Embed(title="Error with ..affections edit",
+                                                      colour=discord.Color.dark_red(),
+                                                      description=f"**{name.lower()}** is not your affection!"))
+
+        CURSOR.execute('UPDATE affections SET creator=? WHERE name=?', (new_owner, name.lower()))
+        await ctx.send(content=f"{ctx.message.author.mention}",
+                       embed=AFFECTION_EDITED_EMBED)
+    elif action in ["remove", "delete", "minus", "-"]:
         if name.lower() not in AFFECTIONS:
             return await ctx.send(content=f"{ctx.message.author.mention}",
                                   embed=AFFECTION_REMOVED_EMBED)
 
-        if int(CURSOR.execute('SELECT creator FROM affections where name=?', (name.lower(), )).fetchone()[0]) != ctx.message.author.id:
+        if int(CURSOR.execute('SELECT creator FROM affections where name=?', (name.lower(),)).fetchone()[
+                   0]) != ctx.message.author.id:
             return await ctx.send(content=f"{ctx.message.author.mention}",
-                                  embed=discord.Embed(title="Error with ..affections edit", colour=discord.Color.dark_red(),
+                                  embed=discord.Embed(title="Error with ..affections edit",
+                                                      colour=discord.Color.dark_red(),
                                                       description=f"**{name.lower()}** is not your affection!"))
         CURSOR.execute('DELETE FROM affections WHERE name=?', (name.lower(),))
         AFFECTIONS.remove(name.lower())
@@ -1955,6 +2036,10 @@ async def affection(ctx, action: str = "help", *, name: typing.Optional[str]):
 
 if __name__ == '__main__':
     try:
+        read_affections_from_db()
+        read_units_from_db()
+        read_banners_from_db()
+
         BOT.run(TOKEN)
     finally:
         CONN.close()
