@@ -145,7 +145,7 @@ HELP_EMBED_2 = discord.Embed(
                             `..custom create name:[Demon Slayer] Tanjiro & type: red & grade; sr & url: <URL to image> & race: human` ~ Creates a Red SR Tanjiro
                             """,
     colour=discord.Color.gold(),
-)
+).set_footer(text="Ping <@!204150777608929280> for additional help!")
 UNIT_LOOKUP_ERROR_EMBED = discord.Embed(title="Error", colour=discord.Color.dark_red(),
                                         description="Can't find any unit which meets those requirements")
 
@@ -2159,7 +2159,6 @@ async def affection(ctx, action: str = "help", *, name: typing.Optional[str]):
 
 @BOT.command(no_pm=True)
 async def box(ctx, user: typing.Optional[discord.Member]):
-    print("Cmd reg.")
     if user is None:
         user = ctx.message.author
     box_d = await read_box(user)
@@ -2203,8 +2202,27 @@ async def find(ctx, *, units=""):
     await loading.delete()
 
 
-@BOT.command(no_pm=True)
+@BOT.command(no_pm=True, aliases=["bj", "jack", "blackj"])
 async def blackjack(ctx, action="", person: typing.Optional[discord.Member] = None):
+    if action.lower() in ["top", "leaderboard"]:
+        data = CURSOR.execute('SELECT user, highest_streak FROM blackjack_record ORDER BY highest_streak DESC LIMIT 10').fetchall()
+        if data is None:
+            return await ctx.send(content="Nobody played Blackjack yet!")
+
+        async def map_id(x):
+            return (await BOT.fetch_user(x)).display_name
+
+        top_l = []
+        i = 0
+        for row in data:
+            i += 1
+            top_l.append(f"**{i}.** *{await map_id(row[0])}* ~ Streak of {row[1]} wins")
+
+        return await ctx.send(content=f"{ctx.message.author.mention}",
+                              embed=discord.Embed(
+                                  title=f"Blackjack Leaderboard in {ctx.message.guild.name} (Highest Winning Streaks)",
+                                  description=",\n".join(top_l)
+                              ).set_thumbnail(url=ctx.message.guild.icon_url))
     if action.lower() in ["record", "stats"]:
         if person is None:
             person = ctx.message.author
