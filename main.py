@@ -19,6 +19,7 @@ from discord.ext.commands import HelpCommand
 #   - maybe web interface for new units?
 #   - jp units
 #   - daily currency for box pulls
+#   - no case sensitive unit lookup
 
 
 with open("data/bot_token.txt", 'r') as file:
@@ -1831,7 +1832,7 @@ async def shaft(ctx, person: typing.Optional[discord.Member], unit_name: typing.
                     return True
         return False
 
-    while not has_ssr(drawn_units) and i < 50:
+    while not has_ssr(drawn_units) and i < 5000:
         i += 1
         drawn_units = [(await unit_with_chance(banner, person)) for _ in range(rang)]
 
