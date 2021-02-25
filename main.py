@@ -145,7 +145,7 @@ HELP_EMBED_2 = discord.Embed(
                             `..custom create name:[Demon Slayer] Tanjiro & type: red & grade; sr & url: <URL to image> & race: human` ~ Creates a Red SR Tanjiro
                             """,
     colour=discord.Color.gold(),
-).set_footer(text="Ping <@!204150777608929280> for additional help!")
+).set_footer(text="Ping `Helix Sama#0001` for additional help!")
 UNIT_LOOKUP_ERROR_EMBED = discord.Embed(title="Error", colour=discord.Color.dark_red(),
                                         description="Can't find any unit which meets those requirements")
 
