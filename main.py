@@ -574,8 +574,8 @@ def read_banners_from_db():
             bg_url=row[4],
             r_unit_rate=row[5],
             ssr_unit_rate_up=row[6],
-            includes_all_sr=True if row[7] == 1 else False,
-            includes_all_r=True if row[8] == 1 else False,
+            includes_all_sr=row[7] == 1,
+            includes_all_r=row[8] == 1,
             banner_type=map_bannertype(row[9]),
             units=unit_list,
             rate_up_units=rate_up_unit_list
@@ -1179,8 +1179,8 @@ async def compose_unit_multi_draw(units: List[Unit]) -> Image:
         x_offset = 0
         for icon in icons:
             i.paste(icon, (x_offset, y_offset))
-            x_offset += icon.size[0] + complete_offset
-        y_offset += icon.size[1] + complete_offset
+            x_offset += IMG_SIZE + complete_offset
+        y_offset += IMG_SIZE + complete_offset
 
     return i
 
@@ -2058,7 +2058,7 @@ async def banner(ctx, *, banner_name: str = "banner one"):
                               )
     loading = await ctx.send(content=f"{ctx.message.author.mention} -> Loading Banner", embed=LOADING_EMBED)
     await ctx.send(
-        file=await image_to_discord(await compose_banner_list(banner, True if "custom" in banner.name else False),
+        file=await image_to_discord(await compose_banner_list(banner, "custom" in banner.name),
                                     "banner.png"),
         embed=discord.Embed(title=f"SSRs in {banner.pretty_name} ({banner.ssr_chance}%)").set_image(
             url="attachment://banner.png"),
