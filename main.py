@@ -22,7 +22,7 @@ from discord.ext.commands import HelpCommand
 #   - no case sensitive unit lookup
 
 
-with open("data/beta_token.txt", 'r') as file:
+with open("data/bot_token.txt", 'r') as file:
     TOKEN = file.read()
 IMG_SIZE = 150
 LOADING_IMAGE_URL = \
@@ -1055,7 +1055,7 @@ def get_text_dimensions(text_string, font):
 
 async def compose_rerolled_team(team: List[Unit], re_units) -> Image:
     if re_units[0] == 0 and re_units[1] == 0 and re_units[2] == 0 and re_units[3] == 0:
-        icons = list(map(lambda x: x.resize([IMG_SIZE, IMG_SIZE]), [i for i in list(map(lambda x: x.icon, team))]))
+        icons = list(map(lambda x: x.resize([IMG_SIZE, IMG_SIZE]), list(map(lambda x: x.icon, team))))
         img = Image.new('RGBA', ((IMG_SIZE * 4) + 6, IMG_SIZE))
         x_offset = 0
         for icon in icons:
@@ -1064,7 +1064,7 @@ async def compose_rerolled_team(team: List[Unit], re_units) -> Image:
 
         return img
 
-    icons = list(map(lambda x: x.resize([IMG_SIZE, IMG_SIZE]), [i for i in list(map(lambda x: x.icon, team))]))
+    icons = list(map(lambda x: x.resize([IMG_SIZE, IMG_SIZE]), list(map(lambda x: x.icon, team))))
     font = ImageFont.truetype("pvp.ttf", 12)
     dummy_height = get_text_dimensions("[Dummy] Bot", font)[1]
     all_re_units_len = 0
@@ -1115,8 +1115,8 @@ async def compose_pvp_with_images(player1: discord.Member, team1_img: Image, pla
 
 
 async def compose_pvp(player1: discord.Member, team1: List[Unit], player2: discord.Member, team2: List[Unit]) -> Image:
-    left_icons = list(map(lambda x: x.resize((IMG_SIZE, IMG_SIZE)), [i for i in list(map(lambda x: x.icon, team1))]))
-    right_icons = list(map(lambda x: x.resize((IMG_SIZE, IMG_SIZE)), [i for i in list(map(lambda x: x.icon, team2))]))
+    left_icons = list(map(lambda x: x.resize((IMG_SIZE, IMG_SIZE)), list(map(lambda x: x.icon, team1))))
+    right_icons = list(map(lambda x: x.resize((IMG_SIZE, IMG_SIZE)), list(map(lambda x: x.icon, team2))))
     right_team_img = Image.new('RGBA', (IMG_SIZE * 4 + 4, IMG_SIZE))
     left_team_img = Image.new('RGBA', (IMG_SIZE * 4 + 4, IMG_SIZE))
 
@@ -1539,7 +1539,7 @@ async def unit(ctx, *, args: str = ""):
         await ctx.send(content=f"{ctx.message.author.mention} this is your unit",
                        embed=discord.Embed(title=random_unit.name, colour=random_unit.discord_color())
                        .set_image(url="attachment://unit.png"),
-                       file=random_unit.discord_icon())
+                       file=await random_unit.discord_icon())
     except LookupError:
         await ctx.send(content=f"{ctx.message.author.mention}",
                        embed=UNIT_LOOKUP_ERROR_EMBED)
