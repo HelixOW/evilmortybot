@@ -1,13 +1,13 @@
 import asyncio
+import aiohttp
+import discord
 import random as ra
 import sqlite3 as sql
 import typing
+
 from enum import Enum
 from io import BytesIO
 from typing import List
-
-import aiohttp
-import discord
 from PIL import Image
 from PIL import ImageDraw
 from PIL import ImageFont
@@ -22,7 +22,7 @@ from discord.ext.commands import HelpCommand
 #   - no case sensitive unit lookup
 
 
-with open("data/bot_token.txt", 'r') as file:
+with open("data/beta_token.txt", 'r') as file:
     TOKEN = file.read()
 IMG_SIZE = 150
 LOADING_IMAGE_URL = \
@@ -534,6 +534,10 @@ def unit_by_name(name: str) -> Unit:
     return next((x for x in UNITS if name == x.name), None)
 
 
+def unit_by_vague_name(name: str) -> List[Unit]:
+    return list(x for x in UNITS if name.lower() in x.name.lower())
+
+
 def banner_by_name(name: str) -> Banner:
     return next((x for x in ALL_BANNERS if name in x.name), None)
 
@@ -707,6 +711,7 @@ async def add_shaft(user: discord.Member, amount: int):
     else:
         CURSOR.execute('INSERT INTO user_pulls VALUES (?, ?, ?, ?, ?)',
                        (user.id, 0, 0, user.guild.id, amount))
+    CONN.commit()
 
 
 def get_matching_units(grades: List[Grade] = None,
@@ -1220,7 +1225,7 @@ async def compose_box(units_dict: dict) -> Image:
 
 async def compose_unit_list(cus_units: List[Unit]) -> Image:
     font = ImageFont.truetype("pvp.ttf", 24)
-    text_dim = get_text_dimensions(sorted(cus_units, key=lambda k: len(k.name), reverse=True)[0].name, font=font)
+    text_dim = get_text_dimensions(sorted(cus_units, key=lambda k: len(k.name), reverse=True)[0].name + " (Nr. 999)", font=font)
     i = Image.new('RGBA', (IMG_SIZE + text_dim[0] + 5, (IMG_SIZE * len(cus_units)) + (5 * len(cus_units))))
     draw = ImageDraw.Draw(i)
 
@@ -1228,7 +1233,7 @@ async def compose_unit_list(cus_units: List[Unit]) -> Image:
     for cus_unit in cus_units:
         await cus_unit.set_icon()
         i.paste(cus_unit.icon, (0, offset))
-        draw.text((5 + IMG_SIZE, offset + (IMG_SIZE / 2) - (text_dim[1] / 2)), cus_unit.name, (255, 255, 255),
+        draw.text((5 + IMG_SIZE, offset + (IMG_SIZE / 2) - (text_dim[1] / 2)), cus_unit.name + f" (Nr. {cus_unit.unit_id})", (255, 255, 255),
                   font=font)
         offset += IMG_SIZE + 5
 
@@ -1409,7 +1414,7 @@ async def add_blackjack_game(user: discord.Member, won: bool):
                         1 if won else 0))
     else:
         if won:
-            if data[4] is 1:  # last was won
+            if data[4] == 1:  # last was won
                 CURSOR.execute(
                     'UPDATE blackjack_record SET won=?, win_streak=?, highest_streak=?, last_result=1 WHERE user=? AND guild=?',
                     (data[0] + 1, data[2] + 1, data[2] + 1 if data[2] + 1 > data[3] else data[3], user.id,
@@ -1800,9 +1805,17 @@ async def shaft(ctx, person: typing.Optional[discord.Member], unit_name: typing.
                 banner_name: str = "banner 1"):
     if person is None:
         person = ctx.message.author
-    unit_to_draw = None if unit_name == "none" else unit_by_name(unit_name)
-    if unit_to_draw is None and unit_name != "none":
-        banner_name = unit_name + " " + banner_name
+
+    unit_ssr = False
+    if unit_name.startswith("ssr:"):
+        unit_ssr = True
+        unit_name = unit_name.replace("ssr:", "")
+    unit_to_draw = None if unit_name == "none" else list(map(lambda x: x.unit_id, unit_by_vague_name(unit_name)))
+
+    if unit_to_draw is not None:
+        if len(unit_to_draw) == 0:
+            unit_to_draw = None
+
     banner = banner_by_name(banner_name)
     if banner is None:
         return await ctx.send(content=f"{ctx.message.author.mention}",
@@ -1814,43 +1827,63 @@ async def shaft(ctx, person: typing.Optional[discord.Member], unit_name: typing.
                                   embed=discord.Embed(title="Error", colour=discord.Color.dark_red(),
                                                       description=f"Can't get shafted on the \"{banner.pretty_name}\" banner"))
 
-    i = 0
+    banner_unit_ids = list(map(lambda x: x.unit_id, banner.units))
+    if unit_to_draw is not None:
+        for u_draw in unit_to_draw:
+            if u_draw not in banner_unit_ids:
+                unit_to_draw.remove(u_draw)
+
+    if unit_to_draw is not None:
+        if len(unit_to_draw) == 0:
+            unit_to_draw = None
+
     draw = await ctx.send(content=f"{person.mention} this is your shaft" if person is ctx.message.author
     else f"{person.mention} this is your shaft coming from {ctx.message.author.mention}",
                           embed=discord.Embed(title="Shafting...").set_image(
                               url=LOADING_IMAGE_URL))
 
     rang = 11 if banner.banner_type == BannerType.ELEVEN else 5
-    drawn_units = [(await unit_with_chance(banner, person)) for _ in range(rang)]
 
-    def has_ssr(du: List[Unit]) -> bool:
-        for u in du:
-            if u.grade == Grade.SSR:
-                if unit_to_draw is None:
-                    return True
-                elif unit_to_draw.unit_id == u.unit_id:
-                    return True
-        return False
-
-    while not has_ssr(drawn_units) and i < 5000:
-        i += 1
+    async def loop():
+        i = 0
         drawn_units = [(await unit_with_chance(banner, person)) for _ in range(rang)]
 
-    CONN.commit()
+        async def has_ssr(du: List[Unit]) -> bool:
+            for u in du:
+                if u.grade == Grade.SSR:
+                    if unit_to_draw is None:
+                        return True
+
+                if unit_to_draw is not None:
+                    if unit_ssr:
+                        if u.unit_id in unit_to_draw and u.grade == Grade.SSR:
+                            return True
+                    else:
+                        if u.unit_id in unit_to_draw:
+                            return True
+            return False
+
+        while not await has_ssr(drawn_units) and i < 1000:
+            i += 1
+            drawn_units = [(await unit_with_chance(banner, person)) for _ in range(rang)]
+
+        return i, drawn_units
+
+    shafts_and_units = await loop()
 
     await ctx.send(
         file=await image_to_discord(
-            await compose_unit_multi_draw(units=drawn_units) if banner.banner_type == BannerType.ELEVEN
-            else await compose_unit_five_multi_draw(units=drawn_units),
+            await compose_unit_multi_draw(units=shafts_and_units[1]) if banner.banner_type == BannerType.ELEVEN
+            else await compose_unit_five_multi_draw(units=shafts_and_units[1]),
             "units.png"),
         content=f"{person.mention}" if person is ctx.message.author
         else f"{person.mention} coming from {ctx.message.author.mention}",
         embed=discord.Embed(
             title=f"{banner.pretty_name} ({rang}x summon)",
-            description=f"Shafted {i} times \n This is your final pull").set_image(
+            description=f"Shafted {shafts_and_units[0]} times \n This is your final pull").set_image(
             url="attachment://units.png"))
     await draw.delete()
-    await add_shaft(person, i)
+    await add_shaft(person, shafts_and_units[0])
 
 
 # ..custom
@@ -2191,8 +2224,7 @@ async def find(ctx, *, units=""):
         while unit_vague_name_list[i].endswith(" "):
             unit_vague_name_list[i] = unit_vague_name_list[i][:-1]
 
-        found.extend(list(
-            x for x in UNITS if strip_whitespace(unit_vague_name_list[i].lower()) in strip_whitespace(x.name.lower())))
+        found.extend(unit_by_vague_name(unit_vague_name_list[i]))
 
     if len(found) == 0:
         return await ctx.send(content=f"{ctx.message.author.mention} -> No units found!")
@@ -2242,7 +2274,7 @@ async def blackjack(ctx, action="", person: typing.Optional[discord.Member] = No
                                   
                                   **Lost**: `{data[1]}`
                                   
-                                  **Win Streak**: `{"No" if data[3] is 0 else data[2]}`
+                                  **Win Streak**: `{"No" if data[3] == 0 else data[2]}`
                                   
                                   **Highest Winning Streak**: `{data[4]}`
                                   """
