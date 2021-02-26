@@ -460,8 +460,8 @@ def read_units_from_db():
             icon_path=row[8] if row[0] < 0 else "gc/icons/{}.png"
         ))
 
-    R_UNITS.extend(list(filter(lambda x: x.grade == Grade.R and x.event == Event.GC, UNITS)))
-    SR_UNITS.extend(list(filter(lambda x: x.grade == Grade.SR and x.event == Event.GC, UNITS)))
+    R_UNITS.extend(list(x for x in UNITS if x.grade == Grade.R and x.event == Event.GC))
+    SR_UNITS.extend(list(x for x in UNITS if x.grade == Grade.SR and x.event == Event.GC))
 
 
 def read_affections_from_db():
@@ -507,10 +507,9 @@ class Banner:
         self.sr_unit_rate: float = sr_unit_rate
         self.r_unit_rate: float = r_unit_rate
         self.banner_type: BannerType = banner_type
-        self.r_units: List[Unit] = list(filter(lambda x: x.grade == Grade.R, self.units))
-        self.sr_units: List[Unit] = list(filter(lambda x: x.grade == Grade.SR, self.units))
-        self.ssr_units: List[Unit] = list(
-            filter(lambda x: x.grade == Grade.SSR and x not in self.rate_up_units, self.units))
+        self.r_units: List[Unit] = list(x for x in self.units if x.grade == Grade.R)
+        self.sr_units: List[Unit] = list(x for x in self.units if x.grade == Grade.SR)
+        self.ssr_units: List[Unit] = list(x for x in self.units if x.grade == Grade.SSR and x not in self.rate_up_units)
         self.ssr_chance: float = (self.ssr_unit_rate_up * len(self.rate_up_units)) + (
                 self.ssr_unit_rate * (len(self.ssr_units)))
         self.ssr_rate_up_chance: float = (self.ssr_unit_rate_up * len(self.rate_up_units)) if len(
@@ -520,7 +519,7 @@ class Banner:
 
 
 def units_by_id(ids: List[int]) -> List[Unit]:
-    found = list(filter(lambda x: x.unit_id in ids, UNITS))
+    found = list(x for x in UNITS if x.unit_id in ids)
     if len(found) == 0:
         raise LookupError
     return found
@@ -543,7 +542,7 @@ def banner_by_name(name: str) -> Banner:
 
 
 def banners_by_name(names: List[str]) -> List[Banner]:
-    found = list(filter(lambda x: not set(x.name).isdisjoint(names), ALL_BANNERS))
+    found = list(x for x in ALL_BANNERS if not set(x.name).isdisjoint(names))
     if len(found) == 0:
         raise ValueError
     return found
@@ -729,15 +728,15 @@ def get_matching_units(grades: List[Grade] = None,
     if events is None or events == []:
         events = EVENTS.copy()
     if affections is None or affections == []:
-        affections = list(map(lambda x: strip_whitespace(x.lower()), AFFECTIONS))
+        affections = list(strip_whitespace(x.lower()) for x in AFFECTIONS)
     if names is None or names == []:
-        names = list(map(lambda x: strip_whitespace(x.name.lower()), UNITS))
+        names = list(strip_whitespace(x.name.lower()) for x in UNITS)
 
     def test(x):
         return x.race in races and x.type in types and x.grade in grades and x.event in events and strip_whitespace(
             x.affection.lower()) in affections and strip_whitespace(x.name.lower()) in names
 
-    possible_units = list(filter(test, UNITS))
+    possible_units = list(x for x in UNITS if test(x))
 
     if len(possible_units) == 0:
         raise LookupError
@@ -790,7 +789,7 @@ def lookup_possible_units(arg: str):
 
             if race_str.startswith("!"):
                 inv_race = map_race(race_str.replace("!", "")).value
-                race = list(filter(lambda x: x != inv_race, list(map(lambda x: x.value, RACES))))
+                race = [x.value for x in RACES if x.value != inv_race]
             else:
                 pre_race = race_str.split(",")
                 for ii in range(len(pre_race)):
@@ -804,28 +803,28 @@ def lookup_possible_units(arg: str):
             grade_str = args[i].replace("grade:", "")
             if grade_str.startswith("!"):
                 inv_grade = grade_str.replace("!", "")
-                grade = list(filter(lambda x: x != inv_grade, list(map(lambda x: x.value, GRADES))))
+                grade = [x.value for x in GRADES if x.value != inv_grade]
             else:
                 grade = grade_str.split(",")
         elif args[i].startswith("attribute:") or args[i].startswith("type:"):
             type_str = args[i].replace("attribute:", "").replace("type:", "")
             if type_str.startswith("!"):
                 inv_type = type_str.replace("!", "")
-                attribute = list(filter(lambda x: x != inv_type, list(map(lambda x: x.value, TYPES))))
+                attribute = [x.value for x in TYPES if x.value != inv_type]
             else:
                 attribute = type_str.split(",")
         elif args[i].startswith("event:") or args[i].startswith("collab:"):
             event_str = args[i].replace("event:", "").replace("collab:", "")
             if event_str.startswith("!"):
                 inv_event = event_str.replace("!", "")
-                event = list(filter(lambda x: x != inv_event, list(map(lambda x: x.value, EVENTS))))
+                event = [x.value for x in EVENTS if x.value != inv_event]
             else:
                 event = event_str.split(",")
         elif args[i].startswith("affection:"):
             affection_str = args[i].replace("affection:", "")
             if affection_str.startswith("!"):
                 inv_affection = affection_str.replace("!", "")
-                affection = list(filter(lambda x: x != inv_affection, list(map(lambda x: x.value, AFFECTIONS))))
+                affection = [x for x in AFFECTIONS if x != inv_affection]
             else:
                 affection = affection_str.split(",")
 
@@ -1054,8 +1053,9 @@ def get_text_dimensions(text_string, font):
 
 
 async def compose_rerolled_team(team: List[Unit], re_units) -> Image:
+    icons = [x.resize([IMG_SIZE, IMG_SIZE]) for x in [i.icon for i in team]]
+
     if re_units[0] == 0 and re_units[1] == 0 and re_units[2] == 0 and re_units[3] == 0:
-        icons = list(map(lambda x: x.resize([IMG_SIZE, IMG_SIZE]), list(map(lambda x: x.icon, team))))
         img = Image.new('RGBA', ((IMG_SIZE * 4) + 6, IMG_SIZE))
         x_offset = 0
         for icon in icons:
@@ -1064,7 +1064,6 @@ async def compose_rerolled_team(team: List[Unit], re_units) -> Image:
 
         return img
 
-    icons = list(map(lambda x: x.resize([IMG_SIZE, IMG_SIZE]), list(map(lambda x: x.icon, team))))
     font = ImageFont.truetype("pvp.ttf", 12)
     dummy_height = get_text_dimensions("[Dummy] Bot", font)[1]
     all_re_units_len = 0
@@ -1115,8 +1114,8 @@ async def compose_pvp_with_images(player1: discord.Member, team1_img: Image, pla
 
 
 async def compose_pvp(player1: discord.Member, team1: List[Unit], player2: discord.Member, team2: List[Unit]) -> Image:
-    left_icons = list(map(lambda x: x.resize((IMG_SIZE, IMG_SIZE)), list(map(lambda x: x.icon, team1))))
-    right_icons = list(map(lambda x: x.resize((IMG_SIZE, IMG_SIZE)), list(map(lambda x: x.icon, team2))))
+    left_icons = [x.resize([IMG_SIZE, IMG_SIZE]) for x in [i.icon for i in team1]]
+    right_icons = [x.resize([IMG_SIZE, IMG_SIZE]) for x in [i.icon for i in team2]]
     right_team_img = Image.new('RGBA', (IMG_SIZE * 4 + 4, IMG_SIZE))
     left_team_img = Image.new('RGBA', (IMG_SIZE * 4 + 4, IMG_SIZE))
 
@@ -1316,35 +1315,35 @@ def lookup_unitlist(criteria: str):
 
             if race_str.startswith("!"):
                 inv_race = map_race(race_str.replace("!", "")).value
-                race = list(filter(lambda x: x != inv_race, list(map(lambda x: x.value, RACES))))
+                race = [x.value for x in RACES if x.value != inv_race]
             else:
                 race = race_str.split(",")
         elif args[i].startswith("grade:"):
             grade_str = args[i].replace("grade:", "")
             if grade_str.startswith("!"):
                 inv_grade = grade_str.replace("!", "")
-                grade = list(filter(lambda x: x != inv_grade, list(map(lambda x: x.value, GRADES))))
+                grade = [x.value for x in GRADES if x.value != inv_grade]
             else:
                 grade = grade_str.split(",")
         elif args[i].startswith("attribute:") or args[i].startswith("type:"):
             type_str = args[i].replace("attribute:", "").replace("type:", "")
             if type_str.startswith("!"):
                 inv_type = type_str.replace("!", "")
-                attribute = list(filter(lambda x: x != inv_type, list(map(lambda x: x.value, TYPES))))
+                attribute = [x.value for x in TYPES if x.value != inv_type]
             else:
                 attribute = type_str.split(",")
         elif args[i].startswith("event:") or args[i].startswith("collab:"):
             event_str = args[i].replace("event:", "").replace("collab:", "")
             if event_str.startswith("!"):
                 inv_event = event_str.replace("!", "")
-                event = list(filter(lambda x: x != inv_event, list(map(lambda x: x.value, EVENTS))))
+                event = [x.value for x in EVENTS if x.value != inv_event]
             else:
                 event = event_str.split(",")
         elif args[i].startswith("affection:"):
             affection_str = args[i].replace("affection:", "")
             if affection_str.startswith("!"):
                 inv_affection = affection_str.replace("!", "")
-                affection = list(filter(lambda x: x != inv_affection, list(map(lambda x: x.value, AFFECTIONS))))
+                affection = [x for x in AFFECTIONS if x != inv_affection]
             else:
                 affection = affection_str.split(",")
 
@@ -1365,10 +1364,10 @@ def lookup_unitlist(criteria: str):
 
 
 def create_custom_unit_banner():
-    cus_units = list(filter(lambda x: x.event == Event.CUS, UNITS))
-    ssrs = list(filter(lambda x: x.grade == Grade.SSR, cus_units))
-    srs = list(filter(lambda x: x.grade == Grade.SR, cus_units))
-    rs = list(filter(lambda x: x.grade == Grade.R, cus_units))
+    cus_units = list(x for x in UNITS if x.event == Event.CUS)
+    ssrs = list(x for x in cus_units if x.grade == Grade.SSR)
+    srs = list(x for x in cus_units if x.grade == Grade.SR)
+    rs = list(x for x in cus_units if x.grade == Grade.R)
     if banner_by_name("custom") is not None:
         ALL_BANNERS.remove(banner_by_name("custom"))
     ALL_BANNERS.append(
@@ -1384,7 +1383,7 @@ def create_custom_unit_banner():
 
 
 async def save_custom_units(name: str, creator: int, type: Type, grade: Grade, url: str, race: Race, affection: str):
-    u = Unit(unit_id=-1 * len(list(filter(lambda x: x.event == Event.CUS, UNITS))),
+    u = Unit(unit_id=-1 * len(list(x for x in UNITS if x.event == Event.CUS)),
              name=name,
              type=type,
              grade=grade,
@@ -1810,7 +1809,7 @@ async def shaft(ctx, person: typing.Optional[discord.Member], unit_name: typing.
     if unit_name.startswith("ssr:"):
         unit_ssr = True
         unit_name = unit_name.replace("ssr:", "")
-    unit_to_draw = None if unit_name == "none" else list(map(lambda x: x.unit_id, unit_by_vague_name(unit_name)))
+    unit_to_draw = None if unit_name == "none" else list(x.unit_id for x in unit_by_vague_name(unit_name))
 
     if unit_to_draw is not None:
         if len(unit_to_draw) == 0:
@@ -1827,7 +1826,7 @@ async def shaft(ctx, person: typing.Optional[discord.Member], unit_name: typing.
                                   embed=discord.Embed(title="Error", colour=discord.Color.dark_red(),
                                                       description=f"Can't get shafted on the \"{banner.pretty_name}\" banner"))
 
-    banner_unit_ids = list(map(lambda x: x.unit_id, banner.units))
+    banner_unit_ids = list(x.unit_id for x in banner.units)
     if unit_to_draw is not None:
         for u_draw in unit_to_draw:
             if u_draw not in banner_unit_ids:
