@@ -862,7 +862,7 @@ def replace_duplicates(attr, team):
     for i in max_races:
         checker += max_races[i]
 
-    if checker != 4 and checker != 0:
+    if checker not in (4, 0):
         raise ValueError("Too many Races")
 
     def check_races(abba):
