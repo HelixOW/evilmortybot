@@ -2071,6 +2071,7 @@ async def add_banner_unit(ctx, banner_name: str, *, units: str):
     for u_id in [int(x) for x in strip_whitespace(units).split(",")]:
         CURSOR.execute('INSERT INTO banners_units VALUES (?, ?)', (banner_name, u_id))
     CONN.commit()
+    ctx.send(content=f"Units ({units}) added to {banner_name}")
 
 
 @BOT.command(no_pm=True)
@@ -2078,6 +2079,7 @@ async def add_banner_rate_up_unit(ctx, banner_name: str, *, units: str):
     for u_id in [int(x) for x in strip_whitespace(units).split(",")]:
         CURSOR.execute('INSERT INTO banners_rate_up_units VALUES (?, ?)', (banner_name, u_id))
     CONN.commit()
+    ctx.send(content=f"Rate up units ({units}) added to {banner_name}")
 
 
 @BOT.command(no_pm=True)
