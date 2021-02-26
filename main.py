@@ -886,7 +886,7 @@ def replace_duplicates(attr, team):
         return False
 
     for i in range(len(team)):
-        for b in range(500):
+        for _ in range(500):
             if check_names(i) and check_races(i):
                 break
 
@@ -932,7 +932,7 @@ async def build_menu(ctx, prev_message, page: int = 0):
         def check_banner(reaction, user):
             return user == ctx.message.author and str(reaction.emoji) in summon_menu_emojis
 
-        reaction, user = await BOT.wait_for("reaction_add", check=check_banner)
+        reaction, _ = await BOT.wait_for("reaction_add", check=check_banner)
 
         if "➡️" in str(reaction.emoji):
             await build_menu(ctx, prev_message=draw, page=page + 1)
@@ -1039,7 +1039,7 @@ async def unit_with_chance(banner: Banner, user: discord.Member) -> Unit:
 
 def get_text_dimensions(text_string, font):
     # https://stackoverflow.com/a/46220683/9263761
-    ascent, descent = font.getmetrics()
+    _, descent = font.getmetrics()
 
     text_width = font.getmask(text_string).getbbox()[2]
     text_height = font.getmask(text_string).getbbox()[3] + descent
@@ -1709,7 +1709,7 @@ async def team(ctx, *, args: str = ""):
                        and reaction.message == team_message
 
             try:
-                reaction, user = await BOT.wait_for("reaction_add", check=check_reroll, timeout=5)
+                reaction, _ = await BOT.wait_for("reaction_add", check=check_reroll, timeout=5)
                 reaction = str(reaction.emoji)
 
                 c_index = -1
@@ -2309,7 +2309,7 @@ async def blackjack(ctx, action="", person: typing.Optional[discord.Member] = No
             return user == ctx.message.author and str(reaction.emoji) in [hit, stand]
 
         try:
-            reaction, user = await BOT.wait_for('reaction_add', check=check)
+            reaction, _ = await BOT.wait_for('reaction_add', check=check)
 
             if str(reaction.emoji) == hit:
                 player_card_values.append(ra.randint(1, 11))
