@@ -1807,10 +1807,6 @@ async def shaft(ctx, person: typing.Optional[discord.Member], unit_name: typing.
         unit_name = unit_name.replace("ssr:", "")
     unit_to_draw = None if unit_name == "none" else [x.unit_id for x in unit_by_vague_name(unit_name)]
 
-    if unit_to_draw is not None:
-        if len(unit_to_draw) == 0:
-            unit_to_draw = None
-
     from_banner = banner_by_name(banner_name)
     if from_banner is None:
         return await ctx.send(content=f"{ctx.message.author.mention}",
@@ -1828,9 +1824,8 @@ async def shaft(ctx, person: typing.Optional[discord.Member], unit_name: typing.
             if u_draw not in banner_unit_ids:
                 unit_to_draw.remove(u_draw)
 
-    if unit_to_draw is not None:
-        if len(unit_to_draw) == 0:
-            unit_to_draw = None
+    if unit_to_draw is not None and len(unit_to_draw) == 0:
+        unit_to_draw = None
 
     draw = await ctx.send(content=f"{person.mention} this is your shaft" if person is ctx.message.author else f"{person.mention} this is your shaft coming from {ctx.message.author.mention}",
                           embed=discord.Embed(title="Shafting...").set_image(
@@ -1844,17 +1839,16 @@ async def shaft(ctx, person: typing.Optional[discord.Member], unit_name: typing.
 
         async def has_ssr(du: List[Unit]) -> bool:
             for u in du:
-                if u.grade == Grade.SSR:
-                    if unit_to_draw is None:
-                        return True
+                if u.grade == Grade.SSR and unit_to_draw is None:
+                    return True
 
                 if unit_to_draw is not None:
-                    if unit_ssr:
-                        if u.unit_id in unit_to_draw and u.grade == Grade.SSR:
-                            return True
-                    else:
-                        if u.unit_id in unit_to_draw:
-                            return True
+                    if u.unit_id in unit_to_draw:
+                        if unit_ssr:
+                            if u.grade == Grade.SSR:
+                                return True
+                            return False
+                        return True
             return False
 
         while not await has_ssr(drawn_units) and i < 1000:
