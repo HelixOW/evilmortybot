@@ -1842,12 +1842,11 @@ async def shaft(ctx, person: typing.Optional[discord.Member], unit_name: typing.
                 if u.grade == Grade.SSR and unit_to_draw is None:
                     return True
 
-                if unit_to_draw is not None:
-                    if u.unit_id in unit_to_draw:
-                        if unit_ssr:
-                            if u.grade == Grade.SSR:
-                                return True
-                            return False
+                if unit_to_draw is not None and u.unit_id in unit_to_draw:
+                    if unit_ssr:
+                        if u.grade == Grade.SSR:
+                            return True
+                    else:
                         return True
             return False
 
