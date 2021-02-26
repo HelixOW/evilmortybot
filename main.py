@@ -460,8 +460,8 @@ def read_units_from_db():
             icon_path=row[8] if row[0] < 0 else "gc/icons/{}.png"
         ))
 
-    R_UNITS.extend(list(x for x in UNITS if x.grade == Grade.R and x.event == Event.GC))
-    SR_UNITS.extend(list(x for x in UNITS if x.grade == Grade.SR and x.event == Event.GC))
+    R_UNITS.extend([x for x in UNITS if x.grade == Grade.R and x.event == Event.GC])
+    SR_UNITS.extend([x for x in UNITS if x.grade == Grade.SR and x.event == Event.GC])
 
 
 def read_affections_from_db():
@@ -507,9 +507,9 @@ class Banner:
         self.sr_unit_rate: float = sr_unit_rate
         self.r_unit_rate: float = r_unit_rate
         self.banner_type: BannerType = banner_type
-        self.r_units: List[Unit] = list(x for x in self.units if x.grade == Grade.R)
-        self.sr_units: List[Unit] = list(x for x in self.units if x.grade == Grade.SR)
-        self.ssr_units: List[Unit] = list(x for x in self.units if x.grade == Grade.SSR and x not in self.rate_up_units)
+        self.r_units: List[Unit] = [x for x in self.units if x.grade == Grade.R]
+        self.sr_units: List[Unit] = [x for x in self.units if x.grade == Grade.SR]
+        self.ssr_units: List[Unit] = [x for x in self.units if x.grade == Grade.SSR and x not in self.rate_up_units]
         self.ssr_chance: float = (self.ssr_unit_rate_up * len(self.rate_up_units)) + (
                 self.ssr_unit_rate * (len(self.ssr_units)))
         self.ssr_rate_up_chance: float = (self.ssr_unit_rate_up * len(self.rate_up_units)) if len(
@@ -519,7 +519,7 @@ class Banner:
 
 
 def units_by_id(ids: List[int]) -> List[Unit]:
-    found = list(x for x in UNITS if x.unit_id in ids)
+    found = [x for x in UNITS if x.unit_id in ids]
     if len(found) == 0:
         raise LookupError
     return found
@@ -534,7 +534,7 @@ def unit_by_name(name: str) -> Unit:
 
 
 def unit_by_vague_name(name: str) -> List[Unit]:
-    return list(x for x in UNITS if name.lower() in x.name.lower())
+    return [x for x in UNITS if name.lower() in x.name.lower()]
 
 
 def banner_by_name(name: str) -> Banner:
@@ -542,7 +542,7 @@ def banner_by_name(name: str) -> Banner:
 
 
 def banners_by_name(names: List[str]) -> List[Banner]:
-    found = list(x for x in ALL_BANNERS if not set(x.name).isdisjoint(names))
+    found = [x for x in ALL_BANNERS if not set(x.name).isdisjoint(names)]
     if len(found) == 0:
         raise ValueError
     return found
@@ -728,15 +728,15 @@ def get_matching_units(grades: List[Grade] = None,
     if events is None or events == []:
         events = EVENTS.copy()
     if affections is None or affections == []:
-        affections = list(strip_whitespace(x.lower()) for x in AFFECTIONS)
+        affections = [strip_whitespace(x.lower()) for x in AFFECTIONS]
     if names is None or names == []:
-        names = list(strip_whitespace(x.name.lower()) for x in UNITS)
+        names = [strip_whitespace(x.name.lower()) for x in UNITS]
 
     def test(x):
         return x.race in races and x.type in types and x.grade in grades and x.event in events and strip_whitespace(
             x.affection.lower()) in affections and strip_whitespace(x.name.lower()) in names
 
-    possible_units = list(x for x in UNITS if test(x))
+    possible_units = [x for x in UNITS if test(x)]
 
     if len(possible_units) == 0:
         raise LookupError
@@ -1364,10 +1364,10 @@ def lookup_unitlist(criteria: str):
 
 
 def create_custom_unit_banner():
-    cus_units = list(x for x in UNITS if x.event == Event.CUS)
-    ssrs = list(x for x in cus_units if x.grade == Grade.SSR)
-    srs = list(x for x in cus_units if x.grade == Grade.SR)
-    rs = list(x for x in cus_units if x.grade == Grade.R)
+    cus_units = [x for x in UNITS if x.event == Event.CUS]
+    ssrs = [x for x in cus_units if x.grade == Grade.SSR]
+    srs = [x for x in cus_units if x.grade == Grade.SR]
+    rs = [x for x in cus_units if x.grade == Grade.R]
     if banner_by_name("custom") is not None:
         ALL_BANNERS.remove(banner_by_name("custom"))
     ALL_BANNERS.append(
@@ -1383,7 +1383,7 @@ def create_custom_unit_banner():
 
 
 async def save_custom_units(name: str, creator: int, type: Type, grade: Grade, url: str, race: Race, affection: str):
-    u = Unit(unit_id=-1 * len(list(x for x in UNITS if x.event == Event.CUS)),
+    u = Unit(unit_id=-1 * len([x for x in UNITS if x.event == Event.CUS]),
              name=name,
              type=type,
              grade=grade,
@@ -1809,7 +1809,7 @@ async def shaft(ctx, person: typing.Optional[discord.Member], unit_name: typing.
     if unit_name.startswith("ssr:"):
         unit_ssr = True
         unit_name = unit_name.replace("ssr:", "")
-    unit_to_draw = None if unit_name == "none" else list(x.unit_id for x in unit_by_vague_name(unit_name))
+    unit_to_draw = None if unit_name == "none" else [x.unit_id for x in unit_by_vague_name(unit_name)]
 
     if unit_to_draw is not None:
         if len(unit_to_draw) == 0:
@@ -1826,7 +1826,7 @@ async def shaft(ctx, person: typing.Optional[discord.Member], unit_name: typing.
                                   embed=discord.Embed(title="Error", colour=discord.Color.dark_red(),
                                                       description=f"Can't get shafted on the \"{banner.pretty_name}\" banner"))
 
-    banner_unit_ids = list(x.unit_id for x in banner.units)
+    banner_unit_ids = [x.unit_id for x in banner.units]
     if unit_to_draw is not None:
         for u_draw in unit_to_draw:
             if u_draw not in banner_unit_ids:
@@ -2073,14 +2073,14 @@ async def banner(ctx, *, banner_name: str = "banner one"):
 
 @BOT.command(no_pm=True)
 async def add_banner_unit(ctx, banner_name: str, *, units: str):
-    for u_id in list(int(x) for x in strip_whitespace(units).split(",")):
+    for u_id in [int(x) for x in strip_whitespace(units).split(",")]:
         CURSOR.execute('INSERT INTO banners_units VALUES (?, ?)', (banner_name, u_id))
     CONN.commit()
 
 
 @BOT.command(no_pm=True)
 async def add_banner_rate_up_unit(ctx, banner_name: str, *, units: str):
-    for u_id in list(int(x) for x in strip_whitespace(units).split(",")):
+    for u_id in [int(x) for x in strip_whitespace(units).split(",")]:
         CURSOR.execute('INSERT INTO banners_rate_up_units VALUES (?, ?)', (banner_name, u_id))
     CONN.commit()
 
