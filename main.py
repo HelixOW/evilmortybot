@@ -272,9 +272,9 @@ def map_attribute(raw_att: str) -> Type:
     raw_att = raw_att.lower()
     if raw_att in ["blue", "speed", "b"]:
         return Type.BLUE
-    elif raw_att in ["red", "strength", "r"]:
+    if raw_att in ["red", "strength", "r"]:
         return Type.RED
-    elif raw_att in ["green", "hp", "g"]:
+    if raw_att in ["green", "hp", "g"]:
         return Type.GRE
     return None
 
@@ -283,9 +283,9 @@ def map_grade(raw_grade: str) -> Grade:
     raw_grade = raw_grade.lower()
     if raw_grade == "r":
         return Grade.R
-    elif raw_grade == "sr":
+    if raw_grade == "sr":
         return Grade.SR
-    elif raw_grade == "ssr":
+    if raw_grade == "ssr":
         return Grade.SSR
     return None
 
@@ -294,15 +294,15 @@ def map_race(raw_race: str) -> Race:
     raw_race = raw_race.lower()
     if raw_race in ["demon", "demons"]:
         return Race.DEMON
-    elif raw_race in ["giant", "giants"]:
+    if raw_race in ["giant", "giants"]:
         return Race.GIANT
-    elif raw_race in ["fairy", "fairies"]:
+    if raw_race in ["fairy", "fairies"]:
         return Race.FAIRY
-    elif raw_race in ["human", "humans"]:
+    if raw_race in ["human", "humans"]:
         return Race.HUMAN
-    elif raw_race in ["goddess", "god", "gods"]:
+    if raw_race in ["goddess", "god", "gods"]:
         return Race.GODDESS
-    elif raw_race in ["unknown"]:
+    if raw_race in ["unknown"]:
         return Race.UNKNOWN
     return None
 
@@ -311,42 +311,40 @@ def map_event(raw_event: str) -> Event:
     raw_event = strip_whitespace(raw_event).lower()
     if raw_event in ["slime", "tensura"]:
         return Event.SLI
-    elif raw_event in ["aot", "attackontitan", "titan"]:
+    if raw_event in ["aot", "attackontitan", "titan"]:
         return Event.AOT
-    elif raw_event in ["kof", "kingoffighter", "kingoffighters"]:
+    if raw_event in ["kof", "kingoffighter", "kingoffighters"]:
         return Event.KOF
-    elif raw_event in ["valentine", "val"]:
+    if raw_event in ["valentine", "val"]:
         return Event.VAL
-    elif raw_event in ["newyears", "newyear", "ny"]:
+    if raw_event in ["newyears", "newyear", "ny"]:
         return Event.NEY
-    elif raw_event in ["halloween", "hal", "hw"]:
+    if raw_event in ["halloween", "hal", "hw"]:
         return Event.HAL
-    elif raw_event in ["festival", "fes", "fest"]:
+    if raw_event in ["festival", "fes", "fest"]:
         return Event.FES
-    elif raw_event in ["custom"]:
+    if raw_event in ["custom"]:
         return Event.CUS
-    else:
-        return Event.GC
+    return Event.GC
 
 
 def map_affection(raw_affection: str) -> str:
     raw_affection = strip_whitespace(raw_affection).lower()
     if raw_affection in ["sins", "sin"]:
         return Affection.SIN.value
-    elif raw_affection in ["holyknight", "holyknights", "knights", "knight"]:
+    if raw_affection in ["holyknight", "holyknights", "knights", "knight"]:
         return Affection.KNIGHT.value
-    elif raw_affection in ["commandments", "commandment", "command"]:
+    if raw_affection in ["commandments", "commandment", "command"]:
         return Affection.COMMANDMENTS.value
-    elif raw_affection in ["catastrophes", "catastrophes"]:
+    if raw_affection in ["catastrophes", "catastrophes"]:
         return Affection.CATASTROPHE.value
-    elif raw_affection in ["arcangels", "angels", "angel", "arcangel"]:
+    if raw_affection in ["arcangels", "angels", "angel", "arcangel"]:
         return Affection.ANGEL.value
-    elif raw_affection in ["none", "no"]:
+    if raw_affection in ["none", "no"]:
         return Affection.NONE.value
-    else:
-        if raw_affection in AFFECTIONS:
-            return raw_affection
-        return Affection.NONE.value
+    if raw_affection in AFFECTIONS:
+        return raw_affection
+    return Affection.NONE.value
 
 
 def map_bannertype(raw_bannertype: int) -> BannerType:
@@ -359,11 +357,11 @@ def map_leaderboard(raw_leaderboard: str) -> LeaderboardType:
     raw_leaderboard = strip_whitespace(raw_leaderboard).lower()
     if raw_leaderboard in ["ssrs", "ssrs", "mostssr", "mostssrs"]:
         return LeaderboardType.MOST_SSR
-    elif raw_leaderboard in ["units", "unit", "mostunits", "mostunit"]:
+    if raw_leaderboard in ["units", "unit", "mostunits", "mostunit"]:
         return LeaderboardType.MOST_UNITS
-    elif raw_leaderboard in ["shaft", "shafts", "mostshafts", "mostshaft"]:
+    if raw_leaderboard in ["shaft", "shafts", "mostshafts", "mostshaft"]:
         return LeaderboardType.MOST_SHAFTS
-    elif raw_leaderboard in ["rotation", "rotations", "rot", "rots"]:
+    if raw_leaderboard in ["rotation", "rotations", "rot", "rots"]:
         return LeaderboardType.MOST_SSR_ROTATION
     return LeaderboardType.LUCK
 
@@ -432,12 +430,11 @@ class Unit:
     def discord_color(self) -> discord.Color:
         if self.type == Type.RED:
             return discord.Color.red()
-        elif self.type == Type.GRE:
+        if self.type == Type.GRE:
             return discord.Color.green()
-        elif self.type == Type.BLUE:
+        if self.type == Type.BLUE:
             return discord.Color.blue()
-        else:
-            return discord.Color.gold()
+        return discord.Color.gold()
 
 
 def read_units_from_db():
@@ -875,20 +872,18 @@ def replace_duplicates(attr, team):
                                             events=attr["event"], affections=attr["affection"],
                                             names=attr["name"])
             return False
-        else:
-            team_races[team[abba].race] += 1
-            return True
+        team_races[team[abba].race] += 1
+        return True
 
     def check_names(abba):
         if team[abba].simple_name not in team_simple_names:
             team_simple_names[abba] = team[abba].simple_name
             return True
-        else:
-            team[abba] = create_random_unit(races=attr["race"], grades=attr["grade"],
-                                            types=attr["type"],
-                                            events=attr["event"], affections=attr["affection"],
-                                            names=attr["name"])
-            return False
+        team[abba] = create_random_unit(races=attr["race"], grades=attr["grade"],
+                                        types=attr["type"],
+                                        events=attr["event"], affections=attr["affection"],
+                                        names=attr["name"])
+        return False
 
     for i in range(len(team)):
         for b in range(500):
@@ -1890,7 +1885,7 @@ async def shaft(ctx, person: typing.Optional[discord.Member], unit_name: typing.
 async def custom(ctx, action="help", *, name: typing.Optional[str] = ""):
     if action in ["help"]:
         return await ctx.send(content=f"{ctx.message.author.mention}", embed=CUSTOM_HELP_EMBED)
-    elif action in ["add", "create", "+"]:  # provided with name, type, grade, url, race, affection
+    if action in ["add", "create", "+"]:  # provided with name, type, grade, url, race, affection
         data = lookup_custom_units(name)
 
         if data["url"] == "" or data["name"] == "" or data["type"] is None or data["grade"] is None:
@@ -2099,7 +2094,7 @@ async def affection(ctx, action: str = "help", *, name: typing.Optional[str]):
                 Affection.COMMANDMENTS]:
         return await ctx.send(content=f"{ctx.message.author.mention}",
                               embed=AFFECTION_UNMUTABLE_ERROR_EMBED)
-    elif action in ["add", "create", "plus", "+"]:
+    if action in ["add", "create", "plus", "+"]:
         CURSOR.execute('INSERT OR IGNORE INTO affections VALUES (?, ?)', (name.lower(), ctx.message.author.id))
         AFFECTIONS.append(name.lower())
         await ctx.send(content=f"{ctx.message.author.mention}",
@@ -2296,7 +2291,7 @@ async def blackjack(ctx, action="", person: typing.Optional[discord.Member] = No
             await add_blackjack_game(ctx.message.author, False)
             return await last_msg.edit(
                 content=f"{ctx.message.author.mention} you lost! -> Hand of {sum(player_card_values)}")
-        elif sum(player_card_values) == 21:
+        if sum(player_card_values) == 21:
             await add_blackjack_game(ctx.message.author, True)
             if last_msg is None:
                 return await ctx.send(content=f"{ctx.message.author.mention} you got a Blackjack and won!")
@@ -2317,7 +2312,7 @@ async def blackjack(ctx, action="", person: typing.Optional[discord.Member] = No
             if str(reaction.emoji) == hit:
                 player_card_values.append(ra.randint(1, 11))
                 return await play(last_msg=cards_msg)
-            elif str(reaction.emoji) == stand:
+            if str(reaction.emoji) == stand:
                 await cards_msg.clear_reactions()
                 await add_blackjack_game(ctx.message.author, 21 - sum(player_card_values) < 21 - sum(bot_card_values))
                 return await last_msg.edit(
