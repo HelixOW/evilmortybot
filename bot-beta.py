@@ -19,8 +19,6 @@ from discord.ext.commands import HelpCommand
 #   - maybe web interface for new units?
 #   - jp units
 #   - daily currency for box pulls
-#   - no case sensitive unit lookup
-
 
 with open("data/beta_token.txt", 'r') as file:
     TOKEN = file.read()
@@ -2229,7 +2227,8 @@ async def find(ctx, *, units=""):
 async def blackjack(ctx, action="", person: typing.Optional[discord.Member] = None):
     if action.lower() in ["top", "leaderboard"]:
         data = CURSOR.execute(
-            'SELECT user, highest_streak FROM blackjack_record ORDER BY highest_streak DESC LIMIT 10').fetchall()
+            'SELECT user, highest_streak FROM blackjack_record WHERE guild=? ORDER BY highest_streak DESC LIMIT 10',
+            (ctx.message.guild.id,)).fetchall()
         if data is None:
             return await ctx.send(content="Nobody played Blackjack yet!")
 
