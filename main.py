@@ -19,7 +19,7 @@ from discord.ext.commands import HelpCommand
 #   - maybe web interface for new units?
 #   - jp units
 #   - daily currency for box pulls
-#   - no case sensitive unit lookup
+#   - demon partner search -> (..demons 1*Red, 2* Grey, 4*Crim) -> ..claim @Helix 1/2/1
 
 
 with open("data/bot_token.txt", 'r') as file:
