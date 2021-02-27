@@ -756,11 +756,26 @@ def create_random_unit(grades: List[Grade] = None,
     return possible_units[ra.randint(0, len(possible_units) - 1)]
 
 
-def lookup_possible_units(arg: str):
-    args = strip_whitespace(arg.lower()).split("&")
-    possible_races = []
-    possible_names = []
-    possible_race_count = {
+def remove_trailing_whitespace(to_remove: str):
+    while to_remove.startswith(" "):
+        to_remove = to_remove[1:]
+
+    while to_remove.endswith(" "):
+        to_remove = to_remove[:-1]
+    return to_remove
+
+
+def remove_beginning_ignore_case(remove_from: str, beginning: str):
+    if remove_from.lower().startswith(beginning.lower()):
+        return remove_from[len(beginning):]
+    return remove_from
+
+
+def parse_arguments(given_args: str, list_seperator: str = "&") -> dict:
+    args = given_args.split(list_seperator)
+    parsed_races = []
+    parsed_names = []
+    parsed_race_count = {
         Race.HUMAN: 0,
         Race.FAIRY: 0,
         Race.GIANT: 0,
@@ -768,77 +783,100 @@ def lookup_possible_units(arg: str):
         Race.DEMON: 0,
         Race.GODDESS: 0
     }
-    possible_grades = []
-    possible_attributes = []
-    possible_events = []
-    possible_affections = []
+    parsed_grades = []
+    parsed_types = []
+    parsed_events = []
+    parsed_affections = []
+    parsed_url = ""
+    parsed_new_name = ""
+    parsed_owner = 0
 
     for i in range(len(args)):
-        if args[i].startswith("name:"):
-            name_str = args[i].replace("name:", "").replace(", ", ",")
+        arg = remove_trailing_whitespace(args[i])
 
-            if name_str.startswith(" "):
-                name_str = name_str[1:]
+        if arg.lower().startswith("new_name:"):
+            parsed_new_name = remove_trailing_whitespace(remove_beginning_ignore_case(arg, "new_name:"))
+            continue
 
-            possible_names = name_str.split(",")
-        elif args[i].startswith("race:"):
-            race_str = args[i].replace("race:", "")
+        if arg.lower().startswith("url:"):
+            parsed_url = remove_trailing_whitespace(remove_beginning_ignore_case(arg, "url:"))
+            continue
+
+        if arg.lower().startswith("owner:"):
+            parsed_owner = int(remove_trailing_whitespace(remove_beginning_ignore_case(arg, "owner:"))[3:-1])
+
+        if arg.lower().startswith("name:"):
+            name_str = remove_trailing_whitespace(remove_beginning_ignore_case(arg, "name:"))
+
+            if name_str.startswith("!"):
+                parsed_names = [x.name for x in UNITS if x.name.lower() != remove_beginning_ignore_case(name_str, "!").lower()]
+            else:
+                parsed_names = [remove_trailing_whitespace(x) for x in name_str.split(",")]
+            continue
+
+        if arg.lower().startswith("race:"):
+            race_str = remove_trailing_whitespace(remove_beginning_ignore_case(arg, "race:").lower())
 
             if race_str.startswith("!"):
-                inv_race = map_race(race_str.replace("!", "")).value
-                possible_races = [x.value for x in RACES if x.value != inv_race]
+                parsed_races = [x for x in RACES if x.value != remove_beginning_ignore_case(race_str, "!")]
             else:
-                pre_race = race_str.split(",")
-                for ii in range(len(pre_race)):
-                    apr = pre_race[ii].split("*")
+                races_with_count = [remove_trailing_whitespace(x) for x in race_str.split(",")]
+                for ii in range(len(races_with_count)):
+                    apr = races_with_count[ii].split("*")
                     if len(apr) == 2:
-                        possible_races.append(apr[1])
-                        possible_race_count[map_race(apr[1])] += int(apr[0])
+                        parsed_races.append(apr[1])
+                        parsed_race_count[map_race(apr[1])] += int(apr[0])
                     else:
-                        possible_races.append(pre_race[ii])
-        elif args[i].startswith("grade:"):
-            grade_str = args[i].replace("grade:", "")
-            if grade_str.startswith("!"):
-                inv_grade = grade_str.replace("!", "")
-                possible_grades = [x.value for x in GRADES if x.value != inv_grade]
-            else:
-                possible_grades = grade_str.split(",")
-        elif args[i].startswith("attribute:") or args[i].startswith("type:"):
-            type_str = args[i].replace("attribute:", "").replace("type:", "")
-            if type_str.startswith("!"):
-                inv_type = type_str.replace("!", "")
-                possible_attributes = [x.value for x in TYPES if x.value != inv_type]
-            else:
-                possible_attributes = type_str.split(",")
-        elif args[i].startswith("event:") or args[i].startswith("collab:"):
-            event_str = args[i].replace("event:", "").replace("collab:", "")
-            if event_str.startswith("!"):
-                inv_event = event_str.replace("!", "")
-                possible_events = [x.value for x in EVENTS if x.value != inv_event]
-            else:
-                possible_events = event_str.split(",")
-        elif args[i].startswith("affection:"):
-            affection_str = args[i].replace("affection:", "")
-            if affection_str.startswith("!"):
-                inv_affection = affection_str.replace("!", "")
-                possible_affections = [x for x in AFFECTIONS if x != inv_affection]
-            else:
-                possible_affections = affection_str.split(",")
+                        parsed_races.append(map_race(races_with_count[ii]))
+            continue
 
-    possible_races = list(map(map_race, possible_races))
-    possible_grades = list(map(map_grade, possible_grades))
-    possible_attributes = list(map(map_attribute, possible_attributes))
-    possible_events = list(map(map_event, possible_events))
-    possible_affections = list(map(map_affection, possible_affections))
+        if arg.lower().startswith("grade:"):
+            grade_str = remove_trailing_whitespace(remove_beginning_ignore_case(arg, "grade:").lower())
+
+            if grade_str.startswith("!"):
+                parsed_grades = [x for x in GRADES if x.value != remove_beginning_ignore_case(grade_str, "!")]
+            else:
+                parsed_grades = [map_grade(remove_trailing_whitespace(x)) for x in grade_str.split(",")]
+            continue
+
+        if arg.lower().startswith("type:"):
+            type_str = remove_trailing_whitespace(remove_beginning_ignore_case(arg, "type:").lower())
+
+            if type_str.startswith("!"):
+                parsed_types = [x for x in TYPES if x.value != remove_beginning_ignore_case(type_str, "!")]
+            else:
+                parsed_types = [map_attribute(remove_trailing_whitespace(x)) for x in type_str.split(",")]
+            continue
+
+        if arg.lower().startswith("event:"):
+            event_str = remove_trailing_whitespace(remove_beginning_ignore_case(arg, "event:").lower())
+
+            if event_str.startswith("!"):
+                parsed_events = [x for x in EVENTS if x.value != remove_beginning_ignore_case(event_str, "!")]
+            else:
+                parsed_events = [map_event(remove_trailing_whitespace(x)) for x in event_str.split(",")]
+            continue
+
+        if arg.lower().startswith("affection:"):
+            affection_str = remove_trailing_whitespace(remove_beginning_ignore_case(arg, "affection:").lower())
+
+            if affection_str.startswith("!"):
+                parsed_affections = [x for x in AFFECTIONS if x != remove_beginning_ignore_case(affection_str, "!")]
+            else:
+                parsed_affections = [map_affection(remove_trailing_whitespace(x)) for x in affection_str.split(",")]
+            continue
 
     return {
-        "name": possible_names,
-        "race": possible_races,
-        "max race count": possible_race_count,
-        "grade": possible_grades,
-        "type": possible_attributes,
-        "event": possible_events,
-        "affection": possible_affections
+        "name": parsed_names,
+        "race": parsed_races,
+        "max race count": parsed_race_count,
+        "grade": parsed_grades,
+        "type": parsed_types,
+        "event": parsed_events,
+        "affection": parsed_affections,
+        "updated_name": parsed_new_name,
+        "url": parsed_url,
+        "owner": parsed_owner
     }
 
 
@@ -952,69 +990,17 @@ async def build_menu(ctx, prev_message, page: int = 0):
 
 
 def parse_custom_unit_args(arg: str):
-    args = arg.split("&")
-    parsed_name = ""
-    parsed_updated_name = ""
-    parsed_owner = 0
-    parsed_race = ""
-    parsed_grade = ""
-    parsed_attribute = ""
-    parsed_affection = ""
-    parsed_url = ""
-
-    for i in range(len(args)):
-        if args[i].startswith("updated_name:"):
-            parsed_updated_name = args[i].replace("updated_name:", "")
-
-            while parsed_updated_name.endswith(" "):
-                parsed_updated_name = parsed_updated_name[:-1]
-
-            while parsed_updated_name.startswith(" "):
-                parsed_updated_name = parsed_updated_name[1:]
-
-        elif args[i].startswith("owner:"):
-            parsed_owner = strip_whitespace(args[i]).lower().replace("owner:", "")[3:-1]
-
-        elif args[i].startswith("name:"):
-            parsed_name = args[i].replace("name:", "")
-
-            while parsed_name.startswith(" "):
-                parsed_name = parsed_name[1:]
-
-            while parsed_name.endswith(" "):
-                parsed_name = parsed_name[:-1]
-
-        elif strip_whitespace(args[i]).startswith("url:"):
-            parsed_url = strip_whitespace(args[i]).replace("url:", "")
-
-        elif strip_whitespace(args[i]).lower().startswith("race:"):
-            parsed_race = strip_whitespace(args[i]).lower().replace("race:", "")
-
-        elif strip_whitespace(args[i]).lower().startswith("grade:"):
-            parsed_grade = strip_whitespace(args[i]).lower().replace("grade:", "")
-
-        elif strip_whitespace(args[i]).lower().startswith("attribute:") or strip_whitespace(args[i]).lower().startswith(
-                "type:"):
-            parsed_attribute = strip_whitespace(args[i]).lower().replace("attribute:", "").replace("type:", "")
-
-        elif strip_whitespace(args[i]).lower().startswith("affection:"):
-            parsed_affection = strip_whitespace(args[i]).lower().replace("affection:", "")
-
-    parsed_race = map_race(parsed_race)
-    parsed_grade = map_grade(parsed_grade)
-    parsed_attribute = map_attribute(parsed_attribute)
-    parsed_affection = map_affection(parsed_affection)
-    parsed_owner = int(parsed_owner)
+    all_parsed = parse_arguments(arg)
 
     return {
-        "name": parsed_name,
-        "updated_name": parsed_updated_name,
-        "owner": parsed_owner,
-        "url": parsed_url,
-        "race": parsed_race,
-        "grade": parsed_grade,
-        "type": parsed_attribute,
-        "affection": parsed_affection
+        "name": all_parsed["name"][0],
+        "updated_name": all_parsed["updated_name"],
+        "owner": all_parsed["owner"],
+        "url": all_parsed["url"],
+        "race": all_parsed["race"][0],
+        "grade": all_parsed["grade"][0],
+        "type": all_parsed["type"][0],
+        "affection": all_parsed["affection"][0]
     }
 
 
@@ -1285,79 +1271,6 @@ async def compose_banner_list(b: Banner, include_all: bool = False) -> Image:
     return i
 
 
-def parse_unitlist_criteria(criteria: str):
-    args = strip_whitespace(criteria.lower()).split("&")
-    parsed_races = []
-    parsed_names = []
-    parsed_grades = []
-    parsed_attributes = []
-    parsed_events = []
-    parsed_affections = []
-
-    for i in range(len(args)):
-        if args[i].startswith("name:"):
-            name_str = args[i].replace("name:", "").replace(", ", ",")
-
-            while name_str.startswith(" "):
-                name_str = name_str[1:]
-
-            while name_str.endswith(" "):
-                name_str = name_str[:-1]
-
-            parsed_names = name_str.split(",")
-        elif args[i].startswith("race:"):
-            race_str = args[i].replace("race:", "")
-
-            if race_str.startswith("!"):
-                inv_race = map_race(race_str.replace("!", "")).value
-                parsed_races = [x.value for x in RACES if x.value != inv_race]
-            else:
-                parsed_races = race_str.split(",")
-        elif args[i].startswith("grade:"):
-            grade_str = args[i].replace("grade:", "")
-            if grade_str.startswith("!"):
-                inv_grade = grade_str.replace("!", "")
-                parsed_grades = [x.value for x in GRADES if x.value != inv_grade]
-            else:
-                parsed_grades = grade_str.split(",")
-        elif args[i].startswith("attribute:") or args[i].startswith("type:"):
-            type_str = args[i].replace("attribute:", "").replace("type:", "")
-            if type_str.startswith("!"):
-                inv_type = type_str.replace("!", "")
-                parsed_attributes = [x.value for x in TYPES if x.value != inv_type]
-            else:
-                parsed_attributes = type_str.split(",")
-        elif args[i].startswith("event:") or args[i].startswith("collab:"):
-            event_str = args[i].replace("event:", "").replace("collab:", "")
-            if event_str.startswith("!"):
-                inv_event = event_str.replace("!", "")
-                parsed_events = [x.value for x in EVENTS if x.value != inv_event]
-            else:
-                parsed_events = event_str.split(",")
-        elif args[i].startswith("affection:"):
-            affection_str = args[i].replace("affection:", "")
-            if affection_str.startswith("!"):
-                inv_affection = affection_str.replace("!", "")
-                parsed_affections = [x for x in AFFECTIONS if x != inv_affection]
-            else:
-                parsed_affections = affection_str.split(",")
-
-    parsed_races = list(map(map_race, parsed_races))
-    parsed_grades = list(map(map_grade, parsed_grades))
-    parsed_attributes = list(map(map_attribute, parsed_attributes))
-    parsed_events = list(map(map_event, parsed_events))
-    parsed_affections = list(map(map_affection, parsed_affections))
-
-    return {
-        "name": parsed_names,
-        "race": parsed_races,
-        "grade": parsed_grades,
-        "type": parsed_attributes,
-        "event": parsed_events,
-        "affection": parsed_affections
-    }
-
-
 def create_custom_unit_banner():
     cus_units = [x for x in UNITS if x.event == Event.CUS]
     ssrs = [x for x in cus_units if x.grade == Grade.SSR]
@@ -1521,7 +1434,7 @@ async def stats(ctx, person: typing.Optional[discord.Member], *, action="luck"):
 # ..unit
 @BOT.command(no_pm=True)
 async def unit(ctx, *, args: str = ""):
-    attributes = lookup_possible_units(args)
+    attributes = parse_arguments(args)
     try:
         random_unit = create_random_unit(grades=attributes["grade"],
                                          types=attributes["type"],
@@ -1543,7 +1456,7 @@ async def unit(ctx, *, args: str = ""):
 # ..pvp
 @BOT.command(no_pm=True)
 async def pvp(ctx, enemy: discord.Member, attr: str = ""):
-    attr = lookup_possible_units(attr)
+    attr = parse_arguments(attr)
     proposed_team_p1 = [
         create_random_unit(races=attr["race"], grades=attr["grade"], types=attr["type"], events=attr["event"],
                            affections=attr["affection"], names=attr["name"]),
@@ -1658,7 +1571,8 @@ async def pvp(ctx, enemy: discord.Member, attr: str = ""):
 # ..team
 @BOT.command(no_pm=True)
 async def team(ctx, *, args: str = ""):
-    attr = lookup_possible_units(args)
+    attr = parse_arguments(args)
+
     try:
         proposed_team = [
             create_random_unit(races=attr["race"], grades=attr["grade"], types=attr["type"], events=attr["event"],
@@ -2029,7 +1943,7 @@ async def resize(ctx, file_url=None, width=75, height=75):
 
 @BOT.command(no_pm=True)
 async def unitlist(ctx, *, criteria: str = "event: custom"):
-    attr = parse_unitlist_criteria(criteria)
+    attr = parse_arguments(criteria)
     loading = await ctx.send(content=f"{ctx.message.author.mention} -> Loading Units", embed=LOADING_EMBED)
     await ctx.send(file=await image_to_discord(await compose_unit_list(
         get_matching_units(races=attr["race"], grades=attr["grade"], types=attr["type"], events=attr["event"],
