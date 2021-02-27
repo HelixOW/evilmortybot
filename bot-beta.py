@@ -22,13 +22,14 @@ from discord.ext.commands import HelpCommand
 #   - demon partner search -> (..demons 1*Red, 2* Grey, 4*Crim) -> ..claim @Helix 1/2/1
 
 
-with open("data/bot_token.txt", 'r') as file:
+with open("data/beta_token.txt", 'r') as file:
     TOKEN = file.read()
 IMG_SIZE = 150
 LOADING_IMAGE_URL = \
     "https://raw.githubusercontent.com/dokkanart/SDSGC/master/Loading%20Screens/Gacha/loading_gacha_start_01.png"
 CONN = sql.connect('data/data.db')
 CURSOR = CONN.cursor()
+AUTHOR_HELIX_ID = 204150777608929280
 
 
 class Grade(Enum):
@@ -260,6 +261,8 @@ FRAME_BACKGROUNDS = {
     Grade.SR: Image.open("gc/frames/sr_frame_background.png").resize((IMG_SIZE, IMG_SIZE)).convert("RGBA"),
     Grade.SSR: Image.open("gc/frames/ssr_frame_background.png").resize((IMG_SIZE, IMG_SIZE)).convert("RGBA")
 }
+
+DEMON_WAITING_LIST = []
 
 BOT = commands.Bot(command_prefix='..', description='..help for Help', help_command=CustomHelp())
 
@@ -790,6 +793,7 @@ def parse_arguments(given_args: str, list_seperator: str = "&") -> dict:
     parsed_url = ""
     parsed_new_name = ""
     parsed_owner = 0
+    unparsed = []
 
     for i in range(len(args)):
         arg = remove_trailing_whitespace(args[i])
@@ -867,6 +871,8 @@ def parse_arguments(given_args: str, list_seperator: str = "&") -> dict:
                 parsed_affections = [map_affection(remove_trailing_whitespace(x)) for x in affection_str.split(",")]
             continue
 
+        unparsed.append(arg.lower())
+
     return {
         "name": parsed_names,
         "race": parsed_races,
@@ -877,7 +883,8 @@ def parse_arguments(given_args: str, list_seperator: str = "&") -> dict:
         "affection": parsed_affections,
         "updated_name": parsed_new_name,
         "url": parsed_url,
-        "owner": parsed_owner
+        "owner": parsed_owner,
+        "unparsed": unparsed
     }
 
 
@@ -1991,10 +1998,30 @@ async def add_banner_rate_up_unit(ctx, banner_name: str, *, units: str):
     ctx.send(content=f"Rate up units ({units}) added to {banner_name}")
 
 
+@BOT.command()
+async def add_unit(ctx, unit_id: int = 0, name: str = "", simple_name: str = "", type_str: str = "", grade: str = "",
+                   race: str = "", event: str = "", affection_name: str = ""):
+    if ctx.message.author.id != AUTHOR_HELIX_ID:
+        return
+    if unit_id == 0:
+        return await ctx.send("..add_unit <id> <name> <simple_name> <type> <grade> <race> <event> <affection>")
+    if len(ctx.message.attachments) == 0:
+        return await ctx.send("No Unit Image!")
+    # await ctx.message.attachments[0].save("gc/icons/")
+    CURSOR.execute(
+        'INSERT INTO units (unit_id, name, simple_name, type, grade, race, event, affection) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        (unit_id, name, simple_name, map_attribute(type_str).value, map_grade(grade).value,
+         map_race(race).value, map_event(event).value, map_affection(affection_name)))
+    CONN.commit()
+    await update(ctx)
+    await ctx.message.attachments[0].save(f"gc/icons/{unit_id}.png")
+    await ctx.send("Added Unit!")
+
+
 @BOT.command(no_pm=True)
 async def update(ctx):
-    read_banners_from_db()
     read_units_from_db()
+    read_banners_from_db()
     create_custom_unit_banner()
     await ctx.send(content=f"{ctx.message.author.mention} Updated Units & Banners")
 

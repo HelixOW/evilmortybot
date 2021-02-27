@@ -20,6 +20,7 @@ from discord.ext.commands import HelpCommand
 #   - jp units
 #   - daily currency for box pulls
 #   - demon partner search -> (..demons 1*Red, 2* Grey, 4*Crim) -> ..claim @Helix 1/2/1
+#   - gearinfos for units
 
 
 with open("data/bot_token.txt", 'r') as file:
@@ -29,6 +30,7 @@ LOADING_IMAGE_URL = \
     "https://raw.githubusercontent.com/dokkanart/SDSGC/master/Loading%20Screens/Gacha/loading_gacha_start_01.png"
 CONN = sql.connect('data/data.db')
 CURSOR = CONN.cursor()
+AUTHOR_HELIX_ID = 204150777608929280
 
 
 class Grade(Enum):
@@ -260,6 +262,8 @@ FRAME_BACKGROUNDS = {
     Grade.SR: Image.open("gc/frames/sr_frame_background.png").resize((IMG_SIZE, IMG_SIZE)).convert("RGBA"),
     Grade.SSR: Image.open("gc/frames/ssr_frame_background.png").resize((IMG_SIZE, IMG_SIZE)).convert("RGBA")
 }
+
+DEMON_WAITING_LIST = []
 
 BOT = commands.Bot(command_prefix='..', description='..help for Help', help_command=CustomHelp())
 
@@ -790,6 +794,7 @@ def parse_arguments(given_args: str, list_seperator: str = "&") -> dict:
     parsed_url = ""
     parsed_new_name = ""
     parsed_owner = 0
+    unparsed = []
 
     for i in range(len(args)):
         arg = remove_trailing_whitespace(args[i])
@@ -809,7 +814,8 @@ def parse_arguments(given_args: str, list_seperator: str = "&") -> dict:
             name_str = remove_trailing_whitespace(remove_beginning_ignore_case(arg, "name:"))
 
             if name_str.startswith("!"):
-                parsed_names = [x.name for x in UNITS if x.name.lower() != remove_beginning_ignore_case(name_str, "!").lower()]
+                parsed_names = [x.name for x in UNITS if
+                                x.name.lower() != remove_beginning_ignore_case(name_str, "!").lower()]
             else:
                 parsed_names = [remove_trailing_whitespace(x) for x in name_str.split(",")]
             continue
@@ -866,6 +872,8 @@ def parse_arguments(given_args: str, list_seperator: str = "&") -> dict:
                 parsed_affections = [map_affection(remove_trailing_whitespace(x)) for x in affection_str.split(",")]
             continue
 
+        unparsed.append(arg.lower())
+
     return {
         "name": parsed_names,
         "race": parsed_races,
@@ -876,7 +884,8 @@ def parse_arguments(given_args: str, list_seperator: str = "&") -> dict:
         "affection": parsed_affections,
         "updated_name": parsed_new_name,
         "url": parsed_url,
-        "owner": parsed_owner
+        "owner": parsed_owner,
+        "unparsed": unparsed
     }
 
 
@@ -1337,6 +1346,57 @@ async def add_blackjack_game(user: discord.Member, won: bool):
     CONN.commit()
 
 
+def parse_demons(args: str):
+    args: list[str] = remove_trailing_whitespace(args).lower().split(" ")
+
+    claim: bool = False
+    claim_from: int = 0
+    reds: int = 0
+    greys: int = 0
+    crimsons: int = 0
+
+    for i in range(len(args)):
+        arg = args[i]
+
+        if arg.startswith("red"):
+            if "*" in arg:
+                reds = int(arg.split("*")[1])
+            else:
+                reds = 1
+            continue
+
+        if arg.startswith("grey"):
+            if "*" in arg:
+                greys = int(arg.split("*")[1])
+            else:
+                greys = 1
+            continue
+
+        if arg.startswith("crimson"):
+            if "*" in arg:
+                crimsons = int(arg.split("*")[1])
+            else:
+                crimsons = 1
+            continue
+
+        if arg == "claim":
+            claim = True
+            continue
+
+        if arg.startswith("<@"):
+            print(arg)
+            claim_from = int(arg[2:-1])
+            continue
+
+    return {
+        "claim": claim,
+        "from": claim_from,
+        "red": reds,
+        "grey": greys,
+        "crimson": crimsons
+    }
+
+
 @BOT.event
 async def on_ready():
     await BOT.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name="..help"))
@@ -1741,9 +1801,10 @@ async def shaft(ctx, person: typing.Optional[discord.Member], unit_name: typing.
     if unit_to_draw is not None and len(unit_to_draw) == 0:
         unit_to_draw = None
 
-    draw = await ctx.send(content=f"{person.mention} this is your shaft" if person is ctx.message.author else f"{person.mention} this is your shaft coming from {ctx.message.author.mention}",
-                          embed=discord.Embed(title="Shafting...").set_image(
-                              url=LOADING_IMAGE_URL))
+    draw = await ctx.send(
+        content=f"{person.mention} this is your shaft" if person is ctx.message.author else f"{person.mention} this is your shaft coming from {ctx.message.author.mention}",
+        embed=discord.Embed(title="Shafting...").set_image(
+            url=LOADING_IMAGE_URL))
 
     rang = 11 if from_banner.banner_type == BannerType.ELEVEN else 5
 
@@ -1989,10 +2050,30 @@ async def add_banner_rate_up_unit(ctx, banner_name: str, *, units: str):
     ctx.send(content=f"Rate up units ({units}) added to {banner_name}")
 
 
+@BOT.command()
+async def add_unit(ctx, unit_id: int = 0, name: str = "", simple_name: str = "", type_str: str = "", grade: str = "",
+                   race: str = "", event: str = "", affection_name: str = ""):
+    if ctx.message.author.id != AUTHOR_HELIX_ID:
+        return
+    if unit_id == 0:
+        return await ctx.send("..add_unit <id> <name> <simple_name> <type> <grade> <race> <event> <affection>")
+    if len(ctx.message.attachments) == 0:
+        return await ctx.send("No Unit Image!")
+    # await ctx.message.attachments[0].save("gc/icons/")
+    CURSOR.execute(
+        'INSERT INTO units (unit_id, name, simple_name, type, grade, race, event, affection) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        (unit_id, name, simple_name, map_attribute(type_str).value, map_grade(grade).value,
+         map_race(race).value, map_event(event).value, map_affection(affection_name)))
+    CONN.commit()
+    await update(ctx)
+    await ctx.message.attachments[0].save(f"gc/icons/{unit_id}.png")
+    await ctx.send("Added Unit!")
+
+
 @BOT.command(no_pm=True)
 async def update(ctx):
-    read_banners_from_db()
     read_units_from_db()
+    read_banners_from_db()
     create_custom_unit_banner()
     await ctx.send(content=f"{ctx.message.author.mention} Updated Units & Banners")
 
@@ -2142,7 +2223,8 @@ async def find(ctx, *, units=""):
 async def blackjack(ctx, action="", person: typing.Optional[discord.Member] = None):
     if action.lower() in ["top", "leaderboard"]:
         data = CURSOR.execute(
-            'SELECT user, highest_streak FROM blackjack_record WHERE guild=? ORDER BY highest_streak DESC LIMIT 10', (ctx.message.guild.id,)).fetchall()
+            'SELECT user, highest_streak FROM blackjack_record WHERE guild=? ORDER BY highest_streak DESC LIMIT 10',
+            (ctx.message.guild.id,)).fetchall()
         if data is None:
             return await ctx.send(content="Nobody played Blackjack yet!")
 
@@ -2176,11 +2258,11 @@ async def blackjack(ctx, action="", person: typing.Optional[discord.Member] = No
                 title=f"History of {person.display_name}",
                 description=f"""
                                   **Wins**: `{data[0]}`
-                                  
+
                                   **Lost**: `{data[1]}`
-                                  
+
                                   **Win Streak**: `{"No" if data[3] == 0 else data[2]}`
-                                  
+
                                   **Highest Winning Streak**: `{data[4]}`
                                   """
             ))
@@ -2234,6 +2316,12 @@ async def blackjack(ctx, action="", person: typing.Optional[discord.Member] = No
             pass
 
     await play(cards_msg)
+
+
+@BOT.command(no_pm=True)
+async def demon(ctx, demon_args: str = ""):
+    data = parse_demons(demon_args)
+    pass
 
 
 if __name__ == '__main__':
