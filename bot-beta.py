@@ -20,15 +20,15 @@ from discord.ext.commands import HelpCommand
 #   - jp units
 #   - daily currency for box pulls
 #   - demon partner search -> (..demons 1*Red, 2* Grey, 4*Crim) -> ..claim @Helix 1/2/1
+#   - gearinfos for units
 
 
-with open("data/beta_token.txt", 'r') as file:
+with open("data/bot_token.txt", 'r') as file:
     TOKEN = file.read()
 IMG_SIZE = 150
 LOADING_IMAGE_URL = \
     "https://raw.githubusercontent.com/dokkanart/SDSGC/master/Loading%20Screens/Gacha/loading_gacha_start_01.png"
 CONN = sql.connect('data/data.db')
-CURSOR = CONN.cursor()
 AUTHOR_HELIX_ID = 204150777608929280
 
 
@@ -262,8 +262,6 @@ FRAME_BACKGROUNDS = {
     Grade.SSR: Image.open("gc/frames/ssr_frame_background.png").resize((IMG_SIZE, IMG_SIZE)).convert("RGBA")
 }
 
-DEMON_WAITING_LIST = []
-
 BOT = commands.Bot(command_prefix='..', description='..help for Help', help_command=CustomHelp())
 
 
@@ -399,10 +397,16 @@ class Unit:
                  race: Race,
                  event: Event = Event.GC,
                  affection_str: str = Affection.NONE.value,
-                 icon_path: str = "gc/icons/{}.png"):
+                 icon_path: str = "gc/icons/{}.png",
+                 alt_names=None):
+
+        if alt_names is None:
+            alt_names = []
+
         self.unit_id: int = unit_id
         self.name: str = name
         self.simple_name: str = simple_name
+        self.alt_names: List[str] = alt_names.copy()
         self.type: Type = type_enum
         self.grade: Grade = grade
         self.race: Race = race
@@ -441,17 +445,18 @@ class Unit:
 
 
 def read_units_from_db():
+    cursor = CONN.cursor()
+    cursor2 = CONN.cursor()
     UNITS.clear()
     R_UNITS.clear()
     SR_UNITS.clear()
 
-    for row in CURSOR.execute('SELECT * FROM units'):
-        print(f"Registering Unit with id= {row[0]}")
-
+    for row in cursor.execute('SELECT * FROM units'):
         UNITS.append(Unit(
             unit_id=row[0],
             name=row[1],
             simple_name=row[2],
+            alt_names=None,
             type_enum=map_attribute(row[3]),
             grade=map_grade(row[4]),
             race=map_race(row[5]),
@@ -459,6 +464,7 @@ def read_units_from_db():
             affection_str=map_affection(row[7]),
             icon_path=row[8] if row[0] < 0 else "gc/icons/{}.png"
         ))
+        print(f"Registering Unit: {row[1]} ({row[0]})")
 
     R_UNITS.extend([x for x in UNITS if x.grade == Grade.R and x.event == Event.GC])
     SR_UNITS.extend([x for x in UNITS if x.grade == Grade.SR and x.event == Event.GC])
@@ -466,13 +472,10 @@ def read_units_from_db():
 
 def read_affections_from_db():
     CONN.commit()
-    for row in CURSOR.execute('SELECT * FROM affections'):
+    cursor = CONN.cursor()
+    for row in cursor.execute('SELECT * FROM affections'):
         print(f"Loaded {row[0]} - affection")
         AFFECTIONS.append(row[0])
-
-
-# loop.run_until_complete(read_affections_from_db())
-# loop.run_until_complete(read_units_from_db())
 
 
 class Banner:
@@ -488,8 +491,10 @@ class Banner:
                  includes_all_sr: bool = True,
                  includes_all_r: bool = True,
                  banner_type: BannerType = BannerType.ELEVEN):
+
         if rate_up_units is None:
             rate_up_units = []
+
         self.name: List[str] = name
         self.pretty_name: str = pretty_name
         self.includes_all_sr: bool = includes_all_sr
@@ -534,7 +539,7 @@ def unit_by_name(name: str) -> Unit:
 
 
 def unit_by_vague_name(name: str) -> List[Unit]:
-    return [x for x in UNITS if name.lower() in x.name.lower()]
+    return [x for x in UNITS if (name.lower() in x.name.lower()) or name.lower() in [y.lower() for y in x.alt_names]]
 
 
 def banner_by_name(name: str) -> Banner:
@@ -551,12 +556,13 @@ def banners_by_name(names: List[str]) -> List[Banner]:
 def read_banners_from_db():
     ALL_BANNERS.clear()
     CONN.commit()
-    banner_data = CURSOR.execute('SELECT * FROM banners').fetchall()
+    cursor = CONN.cursor()
+    banner_data = cursor.execute('SELECT * FROM banners ORDER BY "order"').fetchall()
     for row in banner_data:
-        banner_name_data = CURSOR.execute('SELECT alternative_name FROM banner_names WHERE name=?',
+        banner_name_data = cursor.execute('SELECT alternative_name FROM banner_names WHERE name=?',
                                           (row[0],)).fetchall()
-        banner_unit_data = CURSOR.execute('SELECT unit_id FROM banners_units WHERE banner_name=?', (row[0],)).fetchall()
-        banner_rate_up_unit_data = CURSOR.execute('SELECT unit_id FROM banners_rate_up_units WHERE banner_name=?',
+        banner_unit_data = cursor.execute('SELECT unit_id FROM banners_units WHERE banner_name=?', (row[0],)).fetchall()
+        banner_rate_up_unit_data = cursor.execute('SELECT unit_id FROM banners_rate_up_units WHERE banner_name=?',
                                                   (row[0],)).fetchall()
         banner_names = [row[0]]
         unit_list = []
@@ -568,6 +574,9 @@ def read_banners_from_db():
             unit_list.append(unit_by_id(sql_unit_id[0]))
         for sql_unit_id in banner_rate_up_unit_data:
             rate_up_unit_list.append(unit_by_id(sql_unit_id[0]))
+
+        if len(unit_list) == 0:
+            continue
 
         b = Banner(
             name=banner_names,
@@ -587,7 +596,8 @@ def read_banners_from_db():
 
 
 async def get_user_pull(user: discord.Member) -> dict:
-    data = CURSOR.execute('SELECT * FROM user_pulls WHERE user_id=? AND guild=?', (user.id, user.guild.id)).fetchone()
+    cursor = CONN.cursor()
+    data = cursor.execute('SELECT * FROM user_pulls WHERE user_id=? AND guild=?', (user.id, user.guild.id)).fetchone()
     if data is None:
         return {}
     return {"ssr_amount": data[1], "pull_amount": data[2], "guild": data[3], "shafts": data[4]}
@@ -595,8 +605,9 @@ async def get_user_pull(user: discord.Member) -> dict:
 
 async def get_top_users(guild: discord.Guild, action: LeaderboardType = LeaderboardType.LUCK) -> List[dict]:
     ret = []
+    cursor = CONN.cursor()
     if action == LeaderboardType.MOST_SHAFTS:
-        data = CURSOR.execute(
+        data = cursor.execute(
             'SELECT * FROM user_pulls WHERE guild=? AND pull_amount > 99 ORDER BY shafts DESC LIMIT 10',
             (guild.id,)).fetchall()
         if data is None:
@@ -611,7 +622,7 @@ async def get_top_users(guild: discord.Guild, action: LeaderboardType = Leaderbo
                 "shafts": data[i][4]
             })
     elif action == LeaderboardType.LUCK:
-        data = CURSOR.execute(
+        data = cursor.execute(
             'SELECT *, round((CAST(ssr_amount as REAL)/CAST(pull_amount as REAL)), 4) percent FROM user_pulls WHERE guild=? AND pull_amount > 99 ORDER BY percent DESC LIMIT 10',
             (guild.id,)).fetchall()
         if data is None:
@@ -627,7 +638,7 @@ async def get_top_users(guild: discord.Guild, action: LeaderboardType = Leaderbo
                 "pull-amount": data[i][2]
             })
     elif action == LeaderboardType.MOST_SSR:
-        data = CURSOR.execute(
+        data = cursor.execute(
             'SELECT * FROM user_pulls WHERE guild=? AND pull_amount > 99 ORDER BY ssr_amount DESC LIMIT 10',
             (guild.id,)).fetchall()
         if data is None:
@@ -643,7 +654,7 @@ async def get_top_users(guild: discord.Guild, action: LeaderboardType = Leaderbo
                 "pull-amount": data[i][2]
             })
     elif action == LeaderboardType.MOST_UNITS:
-        data = CURSOR.execute(
+        data = cursor.execute(
             'SELECT * FROM user_pulls WHERE guild=? and pull_amount > 99 ORDER BY pull_amount DESC LIMIT 10',
             (guild.id,)).fetchall()
         if data is None:
@@ -662,15 +673,16 @@ async def get_top_users(guild: discord.Guild, action: LeaderboardType = Leaderbo
 
 async def add_user_pull(user: discord.Member, got_ssr: bool):
     data = await get_user_pull(user)
+    cursor = CONN.cursor()
     if len(data) == 0:
-        CURSOR.execute('INSERT INTO user_pulls VALUES (?, ?, ?, ?, ?)',
+        cursor.execute('INSERT INTO user_pulls VALUES (?, ?, ?, ?, ?)',
                        (user.id, 1 if got_ssr else 0, 1, user.guild.id, 0))
     else:
         if got_ssr:
-            CURSOR.execute('UPDATE user_pulls SET ssr_amount=?, pull_amount=? WHERE user_id=? AND guild=?',
+            cursor.execute('UPDATE user_pulls SET ssr_amount=?, pull_amount=? WHERE user_id=? AND guild=?',
                            (data["ssr_amount"] + 1, data["pull_amount"] + 1, user.id, user.guild.id))
         else:
-            CURSOR.execute('UPDATE user_pulls SET pull_amount=? WHERE user_id=? AND guild=?',
+            cursor.execute('UPDATE user_pulls SET pull_amount=? WHERE user_id=? AND guild=?',
                            (data["pull_amount"] + 1, user.id, user.guild.id))
 
 
@@ -680,20 +692,22 @@ def chunks(lst, n):
 
 
 async def add_unit_to_box(user: discord.Member, unit_to_add: Unit):
-    data = CURSOR.execute('SELECT amount FROM box_units WHERE user_id=? AND guild=? AND unit_id=?',
+    cursor = CONN.cursor()
+    data = cursor.execute('SELECT amount FROM box_units WHERE user_id=? AND guild=? AND unit_id=?',
                           (user.id, user.guild.id, unit_to_add.unit_id)).fetchone()
     if data is None:
-        CURSOR.execute('INSERT INTO box_units VALUES (?, ?, ?, ?)', (user.id, user.guild.id, unit_to_add.unit_id, 1))
+        cursor.execute('INSERT INTO box_units VALUES (?, ?, ?, ?)', (user.id, user.guild.id, unit_to_add.unit_id, 1))
     else:
         if data[0] < 1000:
-            CURSOR.execute('UPDATE box_units SET amount=? WHERE user_id=? AND guild=? AND unit_id=?',
+            cursor.execute('UPDATE box_units SET amount=? WHERE user_id=? AND guild=? AND unit_id=?',
                            (data[0] + 1, user.id, user.guild.id, unit_to_add.unit_id))
     CONN.commit()
 
 
 async def read_box(user: discord.Member) -> dict:
     box_d = {}
-    for row in CURSOR.execute("""SELECT box_units.unit_id, box_units.amount
+    cursor = CONN.cursor()
+    for row in cursor.execute("""SELECT box_units.unit_id, box_units.amount
                                  FROM box_units INNER JOIN units u ON u.unit_id = box_units.unit_id
                                  WHERE user_id=? AND guild=?
                                  ORDER BY u.grade DESC, box_units.amount DESC;""",
@@ -704,11 +718,12 @@ async def read_box(user: discord.Member) -> dict:
 
 async def add_shaft(user: discord.Member, amount: int):
     data = await get_user_pull(user)
+    cursor = CONN.cursor()
     if len(data) != 0:
-        CURSOR.execute('UPDATE user_pulls SET shafts=? WHERE user_id=? AND guild=?',
+        cursor.execute('UPDATE user_pulls SET shafts=? WHERE user_id=? AND guild=?',
                        (data["shafts"] + amount, user.id, user.guild.id))
     else:
-        CURSOR.execute('INSERT INTO user_pulls VALUES (?, ?, ?, ?, ?)',
+        cursor.execute('INSERT INTO user_pulls VALUES (?, ?, ?, ?, ?)',
                        (user.id, 0, 0, user.guild.id, amount))
     CONN.commit()
 
@@ -942,7 +957,7 @@ def replace_duplicates(criteria: dict, team_to_deduplicate: List[Unit]):
 
 async def build_menu(ctx, prev_message, page: int = 0):
     summon_menu_emojis = ["⬅️", "1️⃣", "🔟" if ALL_BANNERS[page].banner_type == BannerType.ELEVEN else "5️⃣", "🐋",
-                          "➡️"]
+                          "ℹ️", "➡️"]
     await prev_message.clear_reactions()
     draw = prev_message
 
@@ -957,6 +972,7 @@ async def build_menu(ctx, prev_message, page: int = 0):
             draw.add_reaction(summon_menu_emojis[2]),
             draw.add_reaction(summon_menu_emojis[3]),
             draw.add_reaction(summon_menu_emojis[4]),
+            draw.add_reaction(summon_menu_emojis[5]),
         )
     elif page == len(ALL_BANNERS) - 1:
         await asyncio.gather(
@@ -964,6 +980,7 @@ async def build_menu(ctx, prev_message, page: int = 0):
             draw.add_reaction(summon_menu_emojis[1]),
             draw.add_reaction(summon_menu_emojis[2]),
             draw.add_reaction(summon_menu_emojis[3]),
+            draw.add_reaction(summon_menu_emojis[4]),
         )
     else:
         await asyncio.gather(
@@ -971,7 +988,8 @@ async def build_menu(ctx, prev_message, page: int = 0):
             draw.add_reaction(summon_menu_emojis[1]),
             draw.add_reaction(summon_menu_emojis[2]),
             draw.add_reaction(summon_menu_emojis[3]),
-            draw.add_reaction(summon_menu_emojis[4])
+            draw.add_reaction(summon_menu_emojis[4]),
+            draw.add_reaction(summon_menu_emojis[5]),
         )
 
     try:
@@ -993,6 +1011,9 @@ async def build_menu(ctx, prev_message, page: int = 0):
         elif "🐋" in str(reaction.emoji):
             await draw.delete()
             await shaft(ctx, person=ctx.message.author, banner_name=ALL_BANNERS[page].name[0])
+        elif "ℹ️" in str(reaction.emoji):
+            await draw.delete()
+            await banner(ctx, banner_name=ALL_BANNERS[page].name[0])
     except asyncio.TimeoutError:
         pass
 
@@ -1300,6 +1321,7 @@ def create_custom_unit_banner():
 
 async def save_custom_units(name: str, creator: int, type_enum: Type, grade: Grade, url: str, race: Race,
                             affection_str: str):
+    cursor = CONN.cursor()
     u = Unit(unit_id=-1 * len([x for x in UNITS if x.event == Event.CUS]),
              name=name,
              type_enum=type_enum,
@@ -1313,7 +1335,7 @@ async def save_custom_units(name: str, creator: int, type_enum: Type, grade: Gra
     UNITS.append(u)
     create_custom_unit_banner()
 
-    CURSOR.execute(
+    cursor.execute(
         'INSERT INTO units VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
         (u.unit_id, u.name, str(creator), type_enum.value, grade.value, race.value, u.event.value, affection_str, url)
     )
@@ -1321,26 +1343,27 @@ async def save_custom_units(name: str, creator: int, type_enum: Type, grade: Gra
 
 
 async def add_blackjack_game(user: discord.Member, won: bool):
-    data = CURSOR.execute(
+    cursor = CONN.cursor()
+    data = cursor.execute(
         'SELECT won, lost, win_streak, highest_streak, last_result FROM blackjack_record WHERE user=? AND guild=?',
         (user.id, user.guild.id)).fetchone()
     if data is None:
-        CURSOR.execute('INSERT INTO blackjack_record VALUES (?, ?, ?, ?, ?, ?, ?)',
+        cursor.execute('INSERT INTO blackjack_record VALUES (?, ?, ?, ?, ?, ?, ?)',
                        (user.id, user.guild.id, 1 if won else 0, 0 if won else 1, 1 if won else 0, 1 if won else 0,
                         1 if won else 0))
     else:
         if won:
             if data[4] == 1:  # last was won
-                CURSOR.execute(
+                cursor.execute(
                     'UPDATE blackjack_record SET won=?, win_streak=?, highest_streak=?, last_result=1 WHERE user=? AND guild=?',
                     (data[0] + 1, data[2] + 1, data[2] + 1 if data[2] + 1 > data[3] else data[3], user.id,
                      user.guild.id))
             else:  # last was lost
-                CURSOR.execute(
+                cursor.execute(
                     'UPDATE blackjack_record SET won=?, win_streak=1, highest_streak=?, last_result=1 WHERE user=? AND guild=?',
                     (data[0] + 1, data[3] + 1 if data[2] + 1 > data[3] else data[3], user.id, user.guild.id))
         else:
-            CURSOR.execute('UPDATE blackjack_record SET lost=?, win_streak=0, last_result=0 WHERE user=? AND guild=?',
+            cursor.execute('UPDATE blackjack_record SET lost=?, win_streak=0, last_result=0 WHERE user=? AND guild=?',
                            (data[1] + 1, user.id, user.guild.id))
     CONN.commit()
 
@@ -1837,6 +1860,7 @@ async def custom(ctx, action="help", *, name: typing.Optional[str] = ""):
                                         creator=ctx.message.author.id)
     elif action in ["remove", "delete", "-"]:
         data = parse_custom_unit_args(name)
+        cursor = CONN.cursor()
         if data["name"] == "":
             return await ctx.send(content=f"{ctx.message.author.mention}", embed=CUSTOM_REMOVE_COMMAND_USAGE_EMBED)
 
@@ -1847,7 +1871,7 @@ async def custom(ctx, action="help", *, name: typing.Optional[str] = ""):
                 title="Error with ..custom remove", colour=discord.Color.dark_red(),
                 description=f"**{edit_unit.name}** wasn't created by you!"))
 
-        CURSOR.execute('DROP FROM custom_units WHERE name=?', (data["name"],))
+        cursor.execute('DROP FROM custom_units WHERE name=?', (data["name"],))
         UNITS.remove(edit_unit)
         create_custom_unit_banner()
         return await ctx.send(content=f"{ctx.message.author.mention}", embed=CUSTOM_REMOVE_COMMAND_SUCCESS_EMBED)
@@ -1856,8 +1880,9 @@ async def custom(ctx, action="help", *, name: typing.Optional[str] = ""):
         if data["owner"] == 0:
             return await unitlist(ctx, criteria="event: custom")
 
+        cursor = CONN.cursor()
         unit_list = []
-        for row in CURSOR.execute('SELECT unit_id FROM units WHERE simple_name=?', (data["owner"],)):
+        for row in cursor.execute('SELECT unit_id FROM units WHERE simple_name=?', (data["owner"],)):
             unit_list.append(unit_by_id(-1 * row[0]))
 
         loading = await ctx.send(content=f"{ctx.message.author.mention} -> Loading Units", embed=LOADING_EMBED)
@@ -1911,9 +1936,10 @@ async def custom(ctx, action="help", *, name: typing.Optional[str] = ""):
             return await ctx.send(content=f"{ctx.message.author.mention}", embed=CUSTOM_EDIT_COMMAND_SUCCESS_EMBED)
 
         to_set = ", ".join(to_set)
+        cursor = CONN.cursor()
 
         values.append(data["name"])
-        CURSOR.execute("UPDATE custom_units SET " + to_set + " WHERE name=?", tuple(values))
+        cursor.execute("UPDATE custom_units SET " + to_set + " WHERE name=?", tuple(values))
 
         CONN.commit()
         await edit_unit.refresh_icon()
@@ -1984,16 +2010,18 @@ async def banner(ctx, *, banner_name: str = "banner one"):
 
 @BOT.command(no_pm=True)
 async def add_banner_unit(ctx, banner_name: str, *, units: str):
+    cursor = CONN.cursor()
     for u_id in [int(x) for x in strip_whitespace(units).split(",")]:
-        CURSOR.execute('INSERT INTO banners_units VALUES (?, ?)', (banner_name, u_id))
+        cursor.execute('INSERT INTO banners_units VALUES (?, ?)', (banner_name, u_id))
     CONN.commit()
     ctx.send(content=f"Units ({units}) added to {banner_name}")
 
 
 @BOT.command(no_pm=True)
 async def add_banner_rate_up_unit(ctx, banner_name: str, *, units: str):
+    cursor = CONN.cursor()
     for u_id in [int(x) for x in strip_whitespace(units).split(",")]:
-        CURSOR.execute('INSERT INTO banners_rate_up_units VALUES (?, ?)', (banner_name, u_id))
+        cursor.execute('INSERT INTO banners_rate_up_units VALUES (?, ?)', (banner_name, u_id))
     CONN.commit()
     ctx.send(content=f"Rate up units ({units}) added to {banner_name}")
 
@@ -2007,8 +2035,9 @@ async def add_unit(ctx, unit_id: int = 0, name: str = "", simple_name: str = "",
         return await ctx.send("..add_unit <id> <name> <simple_name> <type> <grade> <race> <event> <affection>")
     if len(ctx.message.attachments) == 0:
         return await ctx.send("No Unit Image!")
-    # await ctx.message.attachments[0].save("gc/icons/")
-    CURSOR.execute(
+
+    cursor = CONN.cursor()
+    cursor.execute(
         'INSERT INTO units (unit_id, name, simple_name, type, grade, race, event, affection) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
         (unit_id, name, simple_name, map_attribute(type_str).value, map_grade(grade).value,
          map_race(race).value, map_event(event).value, map_affection(affection_name)))
@@ -2033,7 +2062,8 @@ async def affection(ctx, action: str = "help", *, name: typing.Optional[str]):
         return await ctx.send(content=f"{ctx.message.author.mention}",
                               embed=AFFECTION_UNMUTABLE_ERROR_EMBED)
     if action in ["add", "create", "plus", "+"]:
-        CURSOR.execute('INSERT OR IGNORE INTO affections VALUES (?, ?)', (name.lower(), ctx.message.author.id))
+        cursor = CONN.cursor()
+        cursor.execute('INSERT OR IGNORE INTO affections VALUES (?, ?)', (name.lower(), ctx.message.author.id))
         AFFECTIONS.append(name.lower())
         await ctx.send(content=f"{ctx.message.author.mention}",
                        embed=AFFECTION_ADDED_EMBED)
@@ -2059,14 +2089,16 @@ async def affection(ctx, action: str = "help", *, name: typing.Optional[str]):
             return await ctx.send(content=f"{ctx.message.author.mention}",
                                   embed=AFFECTION_EDITED_EMBED)
 
-        if int(CURSOR.execute('SELECT creator FROM affections where name=?', (name.lower(),)).fetchone()[
+        cursor = CONN.cursor()
+
+        if int(cursor.execute('SELECT creator FROM affections where name=?', (name.lower(),)).fetchone()[
                    0]) != ctx.message.author.id:
             return await ctx.send(content=f"{ctx.message.author.mention}",
                                   embed=discord.Embed(title="Error with ..affections edit",
                                                       colour=discord.Color.dark_red(),
                                                       description=f"**{name.lower()}** is not your affection!"))
 
-        CURSOR.execute('UPDATE affections SET name=? WHERE name=?', (new_name, name.lower()))
+        cursor.execute('UPDATE affections SET name=? WHERE name=?', (new_name, name.lower()))
         AFFECTIONS.append(name.lower())
         await ctx.send(content=f"{ctx.message.author.mention}",
                        embed=AFFECTION_EDITED_EMBED)
@@ -2089,14 +2121,17 @@ async def affection(ctx, action: str = "help", *, name: typing.Optional[str]):
         if name.lower() not in AFFECTIONS:
             return await ctx.send(content=f"{ctx.message.author.mention}",
                                   embed=AFFECTION_EDITED_EMBED)
-        if int(CURSOR.execute('SELECT creator FROM affections where name=?', (name.lower(),)).fetchone()[
+
+        cursor = CONN.cursor()
+
+        if int(cursor.execute('SELECT creator FROM affections where name=?', (name.lower(),)).fetchone()[
                    0]) != ctx.message.author.id:
             return await ctx.send(content=f"{ctx.message.author.mention}",
                                   embed=discord.Embed(title="Error with ..affections edit",
                                                       colour=discord.Color.dark_red(),
                                                       description=f"**{name.lower()}** is not your affection!"))
 
-        CURSOR.execute('UPDATE affections SET creator=? WHERE name=?', (new_owner, name.lower()))
+        cursor.execute('UPDATE affections SET creator=? WHERE name=?', (new_owner, name.lower()))
         await ctx.send(content=f"{ctx.message.author.mention}",
                        embed=AFFECTION_EDITED_EMBED)
     elif action in ["remove", "delete", "minus", "-"]:
@@ -2104,13 +2139,15 @@ async def affection(ctx, action: str = "help", *, name: typing.Optional[str]):
             return await ctx.send(content=f"{ctx.message.author.mention}",
                                   embed=AFFECTION_REMOVED_EMBED)
 
-        if int(CURSOR.execute('SELECT creator FROM affections where name=?', (name.lower(),)).fetchone()[
+        cursor = CONN.cursor()
+
+        if int(cursor.execute('SELECT creator FROM affections where name=?', (name.lower(),)).fetchone()[
                    0]) != ctx.message.author.id:
             return await ctx.send(content=f"{ctx.message.author.mention}",
                                   embed=discord.Embed(title="Error with ..affections edit",
                                                       colour=discord.Color.dark_red(),
                                                       description=f"**{name.lower()}** is not your affection!"))
-        CURSOR.execute('DELETE FROM affections WHERE name=?', (name.lower(),))
+        cursor.execute('DELETE FROM affections WHERE name=?', (name.lower(),))
         AFFECTIONS.remove(name.lower())
         await ctx.send(content=f"{ctx.message.author.mention}",
                        embed=AFFECTION_REMOVED_EMBED)
@@ -2170,7 +2207,8 @@ async def find(ctx, *, units=""):
 @BOT.command(no_pm=True, aliases=["bj", "jack", "blackj"])
 async def blackjack(ctx, action="", person: typing.Optional[discord.Member] = None):
     if action.lower() in ["top", "leaderboard"]:
-        data = CURSOR.execute(
+        cursor = CONN.cursor()
+        data = cursor.execute(
             'SELECT user, highest_streak FROM blackjack_record WHERE guild=? ORDER BY highest_streak DESC LIMIT 10',
             (ctx.message.guild.id,)).fetchall()
         if data is None:
@@ -2193,7 +2231,8 @@ async def blackjack(ctx, action="", person: typing.Optional[discord.Member] = No
     if action.lower() in ["record", "stats"]:
         if person is None:
             person = ctx.message.author
-        data = CURSOR.execute(
+        cursor = CONN.cursor()
+        data = cursor.execute(
             'SELECT won, lost, win_streak, last_result, highest_streak FROM blackjack_record WHERE user=? AND guild=?',
             (person.id, person.guild.id)).fetchone()
         if data is None:
