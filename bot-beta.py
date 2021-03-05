@@ -615,7 +615,7 @@ async def get_top_users(guild: discord.Guild, action: LeaderboardType = Leaderbo
             'SELECT * FROM user_pulls WHERE guild=? AND pull_amount > 99 ORDER BY shafts DESC LIMIT 10',
             (guild.id,)).fetchall()
         if data is None:
-            return {}
+            return ret
         for i in range(10):
             if i == len(data):
                 break
@@ -630,7 +630,7 @@ async def get_top_users(guild: discord.Guild, action: LeaderboardType = Leaderbo
             'SELECT *, round((CAST(ssr_amount as REAL)/CAST(pull_amount as REAL)), 4) percent FROM user_pulls WHERE guild=? AND pull_amount > 99 ORDER BY percent DESC LIMIT 10',
             (guild.id,)).fetchall()
         if data is None:
-            return {}
+            return ret
         for i in range(10):
             if i == len(data):
                 break
@@ -646,7 +646,7 @@ async def get_top_users(guild: discord.Guild, action: LeaderboardType = Leaderbo
             'SELECT * FROM user_pulls WHERE guild=? AND pull_amount > 99 ORDER BY ssr_amount DESC LIMIT 10',
             (guild.id,)).fetchall()
         if data is None:
-            return {}
+            return ret
         for i in range(10):
             if i == len(data):
                 break
@@ -662,7 +662,7 @@ async def get_top_users(guild: discord.Guild, action: LeaderboardType = Leaderbo
             'SELECT * FROM user_pulls WHERE guild=? and pull_amount > 99 ORDER BY pull_amount DESC LIMIT 10',
             (guild.id,)).fetchall()
         if data is None:
-            return {}
+            return ret
         for i in range(10):
             if i == len(data):
                 break
@@ -859,7 +859,7 @@ def parse_arguments(given_args: str, list_seperator: str = "&") -> dict:
                 for ii in range(len(races_with_count)):
                     apr = races_with_count[ii].split("*")
                     if len(apr) == 2:
-                        parsed_races.append(apr[1])
+                        parsed_races.append(map_race(apr[1]))
                         parsed_race_count[map_race(apr[1])] += int(apr[0])
                     else:
                         parsed_races.append(map_race(races_with_count[ii]))

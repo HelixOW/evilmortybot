@@ -23,7 +23,7 @@ from discord.ext.commands import HelpCommand
 #   - gearinfos for units
 
 
-with open("data/bot_token.txt", 'r') as file:
+with open("data/beta_token.txt", 'r') as file:
     TOKEN = file.read()
 IMG_SIZE = 150
 LOADING_IMAGE_URL = \
@@ -101,15 +101,17 @@ HELP_EMBED_1 = discord.Embed(
                     `..unitlist` -> `Check Info`
                     `..team` -> `Check Info`
                     `..pvp <@Enemy>` -> `Check Info`
-                    `..single [@For] [banner=banner 1]` 
-                    `..multi [@For] [banner=banner 1]`
-                    `..shaft [@For] [unit="Unit name"] [banner=banner 1]`
+                    `..single [@For=You] [banner=banner 1]` 
+                    `..multi [@For=You] [banner=banner 1]`
+                    `..shaft [@For=You] [unit="Unit name"] [banner=banner 1]`
                     `..summon [banner=banner 1]`
                     `..banner [banner=banner 1]`
                     `..stats <luck, ssrs, units, shafts>`
                     `..top <luck, ssrs, units, shafts>`
-                    `..box [@Of]`
+                    `..box [@Of=You]`
                     `..find <unit name>`
+                    `..list unit [criteria=event: custom]` -> `for criteria check Info`
+                    `..list banner`
                     `..custom` -> `Execute for more Info`
 
                     __*Info:*__
@@ -118,7 +120,7 @@ HELP_EMBED_1 = discord.Embed(
                      `type:` blue, red, green
                      `grade:` r, sr, ssr
                      `event:` gc, slime, aot, kof, new year, halloween, festival, valentine
-                     `affection:` sins, commandments, holy knights, catastrophes, archangels, none
+                     `affection:` sins, commandments, holy knights, catastrophes, archangels, none, custom added ones...
                      `name:` name1, name2, name3, ..., nameN
 
                     If you want to define e.g. __multiple races append__ them with a `,` after each race
@@ -613,7 +615,7 @@ async def get_top_users(guild: discord.Guild, action: LeaderboardType = Leaderbo
             'SELECT * FROM user_pulls WHERE guild=? AND pull_amount > 99 ORDER BY shafts DESC LIMIT 10',
             (guild.id,)).fetchall()
         if data is None:
-            return {}
+            return ret
         for i in range(10):
             if i == len(data):
                 break
@@ -628,7 +630,7 @@ async def get_top_users(guild: discord.Guild, action: LeaderboardType = Leaderbo
             'SELECT *, round((CAST(ssr_amount as REAL)/CAST(pull_amount as REAL)), 4) percent FROM user_pulls WHERE guild=? AND pull_amount > 99 ORDER BY percent DESC LIMIT 10',
             (guild.id,)).fetchall()
         if data is None:
-            return {}
+            return ret
         for i in range(10):
             if i == len(data):
                 break
@@ -644,7 +646,7 @@ async def get_top_users(guild: discord.Guild, action: LeaderboardType = Leaderbo
             'SELECT * FROM user_pulls WHERE guild=? AND pull_amount > 99 ORDER BY ssr_amount DESC LIMIT 10',
             (guild.id,)).fetchall()
         if data is None:
-            return {}
+            return ret
         for i in range(10):
             if i == len(data):
                 break
@@ -660,7 +662,7 @@ async def get_top_users(guild: discord.Guild, action: LeaderboardType = Leaderbo
             'SELECT * FROM user_pulls WHERE guild=? and pull_amount > 99 ORDER BY pull_amount DESC LIMIT 10',
             (guild.id,)).fetchall()
         if data is None:
-            return {}
+            return ret
         for i in range(10):
             if i == len(data):
                 break
@@ -857,7 +859,7 @@ def parse_arguments(given_args: str, list_seperator: str = "&") -> dict:
                 for ii in range(len(races_with_count)):
                     apr = races_with_count[ii].split("*")
                     if len(apr) == 2:
-                        parsed_races.append(apr[1])
+                        parsed_races.append(map_race(apr[1]))
                         parsed_race_count[map_race(apr[1])] += int(apr[0])
                     else:
                         parsed_races.append(map_race(races_with_count[ii]))
@@ -1879,7 +1881,7 @@ async def custom(ctx, action="help", *, name: typing.Optional[str] = ""):
     elif action in ["list"]:
         data = parse_custom_unit_args(name)
         if data["owner"] == 0:
-            return await unitlist(ctx, criteria="event: custom")
+            return await list_units(ctx, criteria="event: custom")
 
         cursor = CONN.cursor()
         unit_list = []
@@ -1977,8 +1979,14 @@ async def resize(ctx, file_url=None, width=75, height=75):
                            embed=discord.Embed().set_image(url="attachment://resized.png"))
 
 
-@BOT.command(no_pm=True)
-async def unitlist(ctx, *, criteria: str = "event: custom"):
+@BOT.group(name="list", no_pm=True)
+async def cmd_list(ctx):
+    if ctx.invoked_subcommand is None:
+        return await list_units(ctx)
+
+
+@cmd_list.command(name="unit", aliases=["units"])
+async def list_units(ctx, *, criteria: str = "event: custom"):
     attr = parse_arguments(criteria)
     loading = await ctx.send(content=f"{ctx.message.author.mention} -> Loading Units", embed=LOADING_EMBED)
     await ctx.send(file=await image_to_discord(await compose_unit_list(
@@ -1987,6 +1995,15 @@ async def unitlist(ctx, *, criteria: str = "event: custom"):
                                                "units.png"),
                    embed=discord.Embed(title=f"Units matching {criteria}").set_image(url="attachment://units.png"),
                    content=f"{ctx.message.author.mention}")
+    await loading.delete()
+
+
+@cmd_list.command(name="banner", aliases=["banners"])
+async def list_banners(ctx):
+    loading = await ctx.send(content=f"{ctx.message.author.mention} -> Loading Banners", embed=LOADING_EMBED)
+    await ctx.send(content=f"{ctx.message.author.mention}",
+                   embed=discord.Embed(title="All Banners",
+                                       description="\n\n".join([f"**{x.name[0]}**: `{x.pretty_name}`" for x in ALL_BANNERS])))
     await loading.delete()
 
 
