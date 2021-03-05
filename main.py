@@ -398,7 +398,8 @@ class Unit:
                  event: Event = Event.GC,
                  affection_str: str = Affection.NONE.value,
                  icon_path: str = "gc/icons/{}.png",
-                 alt_names=None):
+                 alt_names=None,
+                 is_jp: bool = False):
 
         if alt_names is None:
             alt_names = []
@@ -413,6 +414,7 @@ class Unit:
         self.event: Event = event
         self.affection: str = affection_str
         self.icon_path: str = icon_path
+        self.is_jp: bool = is_jp
         if unit_id > 0:
             img = Image.new('RGBA', (IMG_SIZE, IMG_SIZE))
             img.paste(Image.open(icon_path.format(unit_id)).resize((IMG_SIZE, IMG_SIZE)), (0, 0))
@@ -461,9 +463,10 @@ def read_units_from_db():
             race=map_race(row[5]),
             event=map_event(row[6]),
             affection_str=map_affection(row[7]),
-            icon_path=row[8] if row[0] < 0 else "gc/icons/{}.png"
+            icon_path=row[8] if row[0] < 0 else "gc/icons/{}.png",
+            is_jp=row[9] == 1
         ))
-        print(f"Registering Unit: {row[1]} ({row[0]})")
+        print(f"Registering Unit: {row[1]} ({row[0]}) is JP? {row[9] == 1}")
 
     R_UNITS.extend([x for x in UNITS if x.grade == Grade.R and x.event == Event.GC])
     SR_UNITS.extend([x for x in UNITS if x.grade == Grade.SR and x.event == Event.GC])
@@ -732,7 +735,8 @@ def get_matching_units(grades: List[Grade] = None,
                        races: List[Race] = None,
                        events: List[Event] = None,
                        affections: List[str] = None,
-                       names: List[str] = None) -> List[Unit]:
+                       names: List[str] = None,
+                       jp: bool = False) -> List[Unit]:
     if races is None or races == []:
         races = RACES.copy()
     if grades is None or grades == []:
@@ -748,7 +752,9 @@ def get_matching_units(grades: List[Grade] = None,
 
     def test(x):
         return x.race in races and x.type in types and x.grade in grades and x.event in events and strip_whitespace(
-            x.affection.lower()) in affections and strip_whitespace(x.name.lower()) in names
+            x.affection.lower()) in affections and strip_whitespace(x.name.lower()) in names and (
+                   x.is_jp if jp else True
+               )
 
     possible_units = [x for x in UNITS if test(x)]
 
@@ -763,13 +769,15 @@ def create_random_unit(grades: List[Grade] = None,
                        races: List[Race] = None,
                        events: List[Event] = None,
                        affections: List[str] = None,
-                       names: List[str] = None) -> Unit:
+                       names: List[str] = None,
+                       jp: bool = False) -> Unit:
     possible_units = get_matching_units(grades=grades,
                                         types=types,
                                         races=races,
                                         events=events,
                                         affections=affections,
-                                        names=names)
+                                        names=names,
+                                        jp=jp)
     return possible_units[ra.randint(0, len(possible_units) - 1)]
 
 
@@ -807,6 +815,7 @@ def parse_arguments(given_args: str, list_seperator: str = "&") -> dict:
     parsed_url = ""
     parsed_new_name = ""
     parsed_owner = 0
+    jp = False
     unparsed = []
 
     for i in range(len(args)):
@@ -820,8 +829,13 @@ def parse_arguments(given_args: str, list_seperator: str = "&") -> dict:
             parsed_url = remove_trailing_whitespace(remove_beginning_ignore_case(arg, "url:"))
             continue
 
+        if arg.lower().startswith("jp") or arg.lower().startswith("kr"):
+            jp = True
+            continue
+
         if arg.lower().startswith("owner:"):
             parsed_owner = int(remove_trailing_whitespace(remove_beginning_ignore_case(arg, "owner:"))[3:-1])
+            continue
 
         if arg.lower().startswith("name:"):
             name_str = remove_trailing_whitespace(remove_beginning_ignore_case(arg, "name:"))
@@ -898,6 +912,7 @@ def parse_arguments(given_args: str, list_seperator: str = "&") -> dict:
         "updated_name": parsed_new_name,
         "url": parsed_url,
         "owner": parsed_owner,
+        "jp": jp,
         "unparsed": unparsed
     }
 
@@ -930,7 +945,7 @@ def replace_duplicates(criteria: dict, team_to_deduplicate: List[Unit]):
             team_to_deduplicate[abba] = create_random_unit(races=criteria["race"], grades=criteria["grade"],
                                                            types=criteria["type"],
                                                            events=criteria["event"], affections=criteria["affection"],
-                                                           names=criteria["name"])
+                                                           names=criteria["name"], jp=criteria["jp"])
             return False
         team_races[team_to_deduplicate[abba].race] += 1
         return True
@@ -942,7 +957,7 @@ def replace_duplicates(criteria: dict, team_to_deduplicate: List[Unit]):
         team_to_deduplicate[abba] = create_random_unit(races=criteria["race"], grades=criteria["grade"],
                                                        types=criteria["type"],
                                                        events=criteria["event"], affections=criteria["affection"],
-                                                       names=criteria["name"])
+                                                       names=criteria["name"], jp=criteria["jp"])
         return False
 
     for i in range(len(team_to_deduplicate)):
@@ -1021,14 +1036,14 @@ def parse_custom_unit_args(arg: str):
     all_parsed = parse_arguments(arg)
 
     return {
-        "name": all_parsed["name"][0],
+        "name": all_parsed["name"][0] if len(all_parsed["name"]) > 0 else "",
         "updated_name": all_parsed["updated_name"],
         "owner": all_parsed["owner"],
         "url": all_parsed["url"],
-        "race": all_parsed["race"][0],
-        "grade": all_parsed["grade"][0],
-        "type": all_parsed["type"][0],
-        "affection": all_parsed["affection"][0]
+        "race": all_parsed["race"][0] if len(all_parsed["race"]) > 0 else Race.UNKNOWN,
+        "grade": all_parsed["grade"][0] if len(all_parsed["grade"]) > 0 else Grade.SSR,
+        "type": all_parsed["type"][0] if len(all_parsed["type"]) > 0 else Type.RED,
+        "affection": all_parsed["affection"][0] if len(all_parsed["affection"]) > 0 else "none"
     }
 
 
@@ -1335,7 +1350,7 @@ async def save_custom_units(name: str, creator: int, type_enum: Type, grade: Gra
     create_custom_unit_banner()
 
     cursor.execute(
-        'INSERT INTO units VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO units (unit_id, name, simple_name, type, grade, race, event, affection, icon_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
         (u.unit_id, u.name, str(creator), type_enum.value, grade.value, race.value, u.event.value, affection_str, url)
     )
     CONN.commit()
@@ -1471,7 +1486,9 @@ async def unit(ctx, *, args: str = ""):
                                          races=attributes["race"],
                                          events=attributes["event"],
                                          affections=attributes["affection"],
-                                         names=attributes["name"])
+                                         names=attributes["name"],
+                                         jp=attributes["jp"])
+
         await random_unit.set_icon()
 
         await ctx.send(content=f"{ctx.message.author.mention} this is your unit",
@@ -1489,24 +1506,12 @@ async def pvp(ctx, enemy: discord.Member, attr: str = ""):
     attr = parse_arguments(attr)
     proposed_team_p1 = [
         create_random_unit(races=attr["race"], grades=attr["grade"], types=attr["type"], events=attr["event"],
-                           affections=attr["affection"], names=attr["name"]),
-        create_random_unit(races=attr["race"], grades=attr["grade"], types=attr["type"], events=attr["event"],
-                           affections=attr["affection"], names=attr["name"]),
-        create_random_unit(races=attr["race"], grades=attr["grade"], types=attr["type"], events=attr["event"],
-                           affections=attr["affection"], names=attr["name"]),
-        create_random_unit(races=attr["race"], grades=attr["grade"], types=attr["type"], events=attr["event"],
-                           affections=attr["affection"], names=attr["name"]),
-    ]
+                           affections=attr["affection"], names=attr["name"], jp=attr["jp"])
+        for _ in range(4)]
     proposed_team_p2 = [
         create_random_unit(races=attr["race"], grades=attr["grade"], types=attr["type"], events=attr["event"],
-                           affections=attr["affection"], names=attr["name"]),
-        create_random_unit(races=attr["race"], grades=attr["grade"], types=attr["type"], events=attr["event"],
-                           affections=attr["affection"], names=attr["name"]),
-        create_random_unit(races=attr["race"], grades=attr["grade"], types=attr["type"], events=attr["event"],
-                           affections=attr["affection"], names=attr["name"]),
-        create_random_unit(races=attr["race"], grades=attr["grade"], types=attr["type"], events=attr["event"],
-                           affections=attr["affection"], names=attr["name"]),
-    ]
+                           affections=attr["affection"], names=attr["name"], jp=attr["jp"])
+        for _ in range(4)]
 
     try:
         replace_duplicates(attr, proposed_team_p1)
@@ -1570,14 +1575,16 @@ async def pvp(ctx, enemy: discord.Member, attr: str = ""):
                 proposed_team_p1[c_index] = create_random_unit(races=attr["race"], grades=attr["grade"],
                                                                types=attr["type"],
                                                                events=attr["event"],
-                                                               affections=attr["affection"], names=attr["name"])
+                                                               affections=attr["affection"], names=attr["name"],
+                                                               jp=attr["jp"])
                 replace_duplicates(attr, proposed_team_p1)
             else:
                 changed_units[c_index].append(proposed_team_p2[c_index])
                 proposed_team_p2[c_index] = create_random_unit(races=attr["race"], grades=attr["grade"],
                                                                types=attr["type"],
                                                                events=attr["event"],
-                                                               affections=attr["affection"], names=attr["name"])
+                                                               affections=attr["affection"], names=attr["name"],
+                                                               jp=attr["jp"])
                 replace_duplicates(attr, proposed_team_p2)
 
             await send(player=user, last_message=team_message)
@@ -1606,14 +1613,8 @@ async def team(ctx, *, args: str = ""):
     try:
         proposed_team = [
             create_random_unit(races=attr["race"], grades=attr["grade"], types=attr["type"], events=attr["event"],
-                               affections=attr["affection"], names=attr["name"]),
-            create_random_unit(races=attr["race"], grades=attr["grade"], types=attr["type"], events=attr["event"],
-                               affections=attr["affection"], names=attr["name"]),
-            create_random_unit(races=attr["race"], grades=attr["grade"], types=attr["type"], events=attr["event"],
-                               affections=attr["affection"], names=attr["name"]),
-            create_random_unit(races=attr["race"], grades=attr["grade"], types=attr["type"], events=attr["event"],
-                               affections=attr["affection"], names=attr["name"]),
-        ]
+                               affections=attr["affection"], names=attr["name"], jp=attr["jp"])
+            for _ in range(4)]
 
         try:
             replace_duplicates(criteria=attr, team_to_deduplicate=proposed_team)
@@ -1671,7 +1672,8 @@ async def team(ctx, *, args: str = ""):
                 proposed_team[c_index] = create_random_unit(races=attr["race"], grades=attr["grade"],
                                                             types=attr["type"],
                                                             events=attr["event"], affections=attr["affection"],
-                                                            names=attr["name"])
+                                                            names=attr["name"],
+                                                            jp=attr["jp"])
 
                 replace_duplicates(criteria=attr, team_to_deduplicate=proposed_team)
                 await send_message(last_team_message=team_message)
@@ -1981,7 +1983,7 @@ async def unitlist(ctx, *, criteria: str = "event: custom"):
     loading = await ctx.send(content=f"{ctx.message.author.mention} -> Loading Units", embed=LOADING_EMBED)
     await ctx.send(file=await image_to_discord(await compose_unit_list(
         get_matching_units(races=attr["race"], grades=attr["grade"], types=attr["type"], events=attr["event"],
-                           affections=attr["affection"], names=attr["name"])),
+                           affections=attr["affection"], names=attr["name"], jp=attr["jp"])),
                                                "units.png"),
                    embed=discord.Embed(title=f"Units matching {criteria}").set_image(url="attachment://units.png"),
                    content=f"{ctx.message.author.mention}")
@@ -2027,19 +2029,19 @@ async def add_banner_rate_up_unit(ctx, banner_name: str, *, units: str):
 
 @BOT.command()
 async def add_unit(ctx, unit_id: int = 0, name: str = "", simple_name: str = "", type_str: str = "", grade: str = "",
-                   race: str = "", event: str = "", affection_name: str = ""):
+                   race: str = "", event: str = "", affection_name: str = "", is_jp: bool = False):
     if ctx.message.author.id != AUTHOR_HELIX_ID:
         return
     if unit_id == 0:
-        return await ctx.send("..add_unit <id> <name> <simple_name> <type> <grade> <race> <event> <affection>")
+        return await ctx.send("..add_unit <id> <name> <simple_name> <type> <grade> <race> <event> <affection> <jp>")
     if len(ctx.message.attachments) == 0:
         return await ctx.send("No Unit Image!")
 
     cursor = CONN.cursor()
     cursor.execute(
-        'INSERT INTO units (unit_id, name, simple_name, type, grade, race, event, affection) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO units (unit_id, name, simple_name, type, grade, race, event, affection, is_jp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
         (unit_id, name, simple_name, map_attribute(type_str).value, map_grade(grade).value,
-         map_race(race).value, map_event(event).value, map_affection(affection_name)))
+         map_race(race).value, map_event(event).value, map_affection(affection_name), 1 if is_jp else 0))
     CONN.commit()
     await update(ctx)
     await ctx.message.attachments[0].save(f"gc/icons/{unit_id}.png")
