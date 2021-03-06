@@ -1,13 +1,13 @@
 import asyncio
+import aiohttp
+import discord
 import random as ra
 import sqlite3 as sql
 import typing
+
 from enum import Enum
 from io import BytesIO
 from typing import List
-
-import aiohttp
-import discord
 from PIL import Image
 from PIL import ImageDraw
 from PIL import ImageFont
@@ -101,15 +101,17 @@ HELP_EMBED_1 = discord.Embed(
                     `..unitlist` -> `Check Info`
                     `..team` -> `Check Info`
                     `..pvp <@Enemy>` -> `Check Info`
-                    `..single [@For] [banner=banner 1]` 
-                    `..multi [@For] [banner=banner 1]`
-                    `..shaft [@For] [unit="Unit name"] [banner=banner 1]`
+                    `..single [@For=You] [banner=banner 1]` 
+                    `..multi [@For=You] [banner=banner 1]`
+                    `..shaft [@For=You] [unit="Unit name"] [banner=banner 1]`
                     `..summon [banner=banner 1]`
                     `..banner [banner=banner 1]`
                     `..stats <luck, ssrs, units, shafts>`
                     `..top <luck, ssrs, units, shafts>`
-                    `..box [@Of]`
+                    `..box [@Of=You]`
                     `..find <unit name>`
+                    `..list unit [criteria=event: custom]` -> `for criteria check Info`
+                    `..list banner`
                     `..custom` -> `Execute for more Info`
 
                     __*Info:*__
@@ -118,7 +120,7 @@ HELP_EMBED_1 = discord.Embed(
                      `type:` blue, red, green
                      `grade:` r, sr, ssr
                      `event:` gc, slime, aot, kof, new year, halloween, festival, valentine
-                     `affection:` sins, commandments, holy knights, catastrophes, archangels, none
+                     `affection:` sins, commandments, holy knights, catastrophes, archangels, none, custom added ones...
                      `name:` name1, name2, name3, ..., nameN
 
                     If you want to define e.g. __multiple races append__ them with a `,` after each race
@@ -238,8 +240,6 @@ ALL_BANNERS = []
 
 TEAM_TIME_CHECK = []
 PVP_TIME_CHECK = []
-
-STATS_MAP = []
 
 FRAMES = {
     Type.BLUE: {
@@ -755,7 +755,7 @@ def get_matching_units(grades: List[Grade] = None,
     def test(x):
         return x.race in races and x.type in types and x.grade in grades and x.event in events and strip_whitespace(
             x.affection.lower()) in affections and strip_whitespace(x.name.lower()) in names and (
-                   x.is_jp is not False if not jp else True
+                   x.is_jp if jp else True
                )
 
     possible_units = [x for x in UNITS if test(x)]
@@ -1038,14 +1038,14 @@ def parse_custom_unit_args(arg: str):
     all_parsed = parse_arguments(arg)
 
     return {
-        "name": all_parsed["name"][0],
+        "name": all_parsed["name"][0] if len(all_parsed["name"]) > 0 else "",
         "updated_name": all_parsed["updated_name"],
         "owner": all_parsed["owner"],
         "url": all_parsed["url"],
-        "race": all_parsed["race"][0],
-        "grade": all_parsed["grade"][0],
-        "type": all_parsed["type"][0],
-        "affection": all_parsed["affection"][0]
+        "race": all_parsed["race"][0] if len(all_parsed["race"]) > 0 else Race.UNKNOWN,
+        "grade": all_parsed["grade"][0] if len(all_parsed["grade"]) > 0 else Grade.SSR,
+        "type": all_parsed["type"][0] if len(all_parsed["type"]) > 0 else Type.RED,
+        "affection": all_parsed["affection"][0] if len(all_parsed["affection"]) > 0 else "none"
     }
 
 
@@ -1977,7 +1977,7 @@ async def custom(ctx, action="help", *, name: typing.Optional[str] = ""):
     elif action in ["list"]:
         data = parse_custom_unit_args(name)
         if data["owner"] == 0:
-            return await unitlist(ctx, criteria="event: custom")
+            return await list_units(ctx, criteria="event: custom")
 
         cursor = CONN.cursor()
         unit_list = []
@@ -2075,8 +2075,14 @@ async def resize(ctx, file_url=None, width=75, height=75):
                            embed=discord.Embed().set_image(url="attachment://resized.png"))
 
 
-@BOT.command(no_pm=True)
-async def unitlist(ctx, *, criteria: str = "event: custom"):
+@BOT.group(name="list", no_pm=True)
+async def cmd_list(ctx):
+    if ctx.invoked_subcommand is None:
+        return await list_units(ctx)
+
+
+@cmd_list.command(name="unit", aliases=["units"])
+async def list_units(ctx, *, criteria: str = "event: custom"):
     attr = parse_arguments(criteria)
     loading = await ctx.send(content=f"{ctx.message.author.mention} -> Loading Units", embed=LOADING_EMBED)
     await ctx.send(file=await image_to_discord(await compose_unit_list(
@@ -2085,6 +2091,15 @@ async def unitlist(ctx, *, criteria: str = "event: custom"):
                                                "units.png"),
                    embed=discord.Embed(title=f"Units matching {criteria}").set_image(url="attachment://units.png"),
                    content=f"{ctx.message.author.mention}")
+    await loading.delete()
+
+
+@cmd_list.command(name="banner", aliases=["banners"])
+async def list_banners(ctx):
+    loading = await ctx.send(content=f"{ctx.message.author.mention} -> Loading Banners", embed=LOADING_EMBED)
+    await ctx.send(content=f"{ctx.message.author.mention}",
+                   embed=discord.Embed(title="All Banners",
+                                       description="\n\n".join([f"**{x.name[0]}**: `{x.pretty_name}`" for x in ALL_BANNERS])))
     await loading.delete()
 
 
@@ -2148,8 +2163,20 @@ async def affection(ctx, action: str = "help", *, name: typing.Optional[str]):
     elif action in ["edit"]:
         new_name = name.lower()
         if "new:" in name.lower():
-            new_name = remove_trailing_whitespace(name.split("new:")[1])
-            name = remove_trailing_whitespace(name.split("new:")[0])
+            new_name = name.split("new:")[1]
+            name = name.split("new:")[0]
+
+            while new_name.startswith(" "):
+                new_name = new_name[1:]
+
+            while new_name.endswith(" "):
+                new_name = new_name[:-1]
+
+            while name.startswith(" "):
+                name = name[:1]
+
+            while name.endswith(" "):
+                name = name[:-1]
 
         if name.lower() not in AFFECTIONS:
             return await ctx.send(content=f"{ctx.message.author.mention}",
@@ -2171,8 +2198,19 @@ async def affection(ctx, action: str = "help", *, name: typing.Optional[str]):
     elif action in ["move", ">", "transfer"]:
         new_owner = ctx.message.author.id
         if "owner:" in name.lower():
-            new_owner = int(remove_trailing_whitespace(name.split("owner:")[1])[3:-1])
-            name = remove_trailing_whitespace(name.split("owner:")[0])
+            new_owner = name.split("owner:")[1]
+            name = name.split("owner:")[0]
+
+            while name.endswith(" "):
+                name = name[:-1]
+
+            while new_owner.startswith(" "):
+                new_owner = new_owner[1:]
+
+            while new_owner.endswith(" "):
+                new_owner = new_owner[:-1]
+
+            new_owner = int(new_owner[3:-1])
         if name.lower() not in AFFECTIONS:
             return await ctx.send(content=f"{ctx.message.author.mention}",
                                   embed=AFFECTION_EDITED_EMBED)

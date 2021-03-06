@@ -2140,27 +2140,6 @@ async def add_banner_rate_up_unit(ctx, banner_name: str, *, units: str):
     ctx.send(content=f"Rate up units ({units}) added to {banner_name}")
 
 
-@BOT.command()
-async def add_unit(ctx, unit_id: int = 0, name: str = "", simple_name: str = "", type_str: str = "", grade: str = "",
-                   race: str = "", event: str = "", affection_name: str = "", is_jp: bool = False):
-    if ctx.message.author.id != AUTHOR_HELIX_ID:
-        return
-    if unit_id == 0:
-        return await ctx.send("..add_unit <id> <name> <simple_name> <type> <grade> <race> <event> <affection> <jp>")
-    if len(ctx.message.attachments) == 0:
-        return await ctx.send("No Unit Image!")
-
-    cursor = CONN.cursor()
-    cursor.execute(
-        'INSERT INTO units (unit_id, name, simple_name, type, grade, race, event, affection, is_jp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        (unit_id, name, simple_name, map_attribute(type_str).value, map_grade(grade).value,
-         map_race(race).value, map_event(event).value, map_affection(affection_name), 1 if is_jp else 0))
-    CONN.commit()
-    await update(ctx)
-    await ctx.message.attachments[0].save(f"gc/icons/{unit_id}.png")
-    await ctx.send("Added Unit!")
-
-
 @BOT.command(no_pm=True)
 async def update(ctx):
     read_units_from_db()
