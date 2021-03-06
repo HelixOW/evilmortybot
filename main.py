@@ -1396,86 +1396,182 @@ async def on_ready():
     print('--------')
 
 
-@BOT.command(no_pm=True)
-async def top(ctx, action="luck"):
-    action = map_leaderboard(action)
-    tops = await get_top_users(ctx.message.guild, action)
-    if len(tops) == 0:
+@BOT.group()
+async def top(ctx):
+    if ctx.invoked_subcommand is None:
+        return await top_luck(ctx)
+
+
+@top.command(name="luck", aliases=["lucky", "luckiness"])
+async def top_luck(ctx):
+    top_users = await get_top_users(ctx.message.guild, LeaderboardType.LUCK)
+    if len(top_users) == 0:
         return await ctx.send(
-            embed=discord.Embed(title="Nobody summoned yet", description="Use `..multi`, `..single` or `..shaft`"))
+            embed=discord.Embed(
+                title="Nobody summoned yet",
+                description="Use `..multi`, `..single` or `..shaft`"
+            )
+        )
 
-    if action == LeaderboardType.LUCK:
-        top_str = '\n'.join(
-            ["**{}.** {} with a *{}%* SSR droprate in their pulls. Total of {} Units".format(top_member["place"],
-                                                                                             top_member["name"],
-                                                                                             top_member["luck"],
-                                                                                             top_member["pull-amount"])
-             for top_member in tops])
-        await ctx.send(embed=discord.Embed(title=f"Luckiest Members in {ctx.message.guild.name}", description=top_str,
-                                           colour=discord.Colour.gold()).set_thumbnail(url=ctx.message.guild.icon_url))
-    elif action == LeaderboardType.MOST_SSR:
-        top_str = '\n'.join(["**{}.** {} with *{} SSRs*. Total of *{} Units*".format(
-            top_member["place"], top_member["name"], top_member["ssrs"], top_member["pull-amount"])
-            for top_member in tops])
-        await ctx.send(embed=discord.Embed(title=f"Members with most drawn SSRs in {ctx.message.guild.name}",
-                                           description=top_str, colour=discord.Colour.gold())
-                       .set_thumbnail(url=ctx.message.guild.icon_url))
-    elif action == LeaderboardType.MOST_UNITS:
-        top_str = '\n'.join(["**{}.** {} with *{} Units*".format(
-            top_member["place"], top_member["name"], top_member["pull-amount"])
-            for top_member in tops])
-        await ctx.send(embed=discord.Embed(title=f"Members with most drawn Units in {ctx.message.guild.name}",
-                                           description=top_str, colour=discord.Colour.gold())
-                       .set_thumbnail(url=ctx.message.guild.icon_url))
-    elif action == LeaderboardType.MOST_SHAFTS:
-        top_str = '\n'.join(["**{}.** {} with *{} Shafts*".format(
-            top_member["place"], top_member["name"], top_member["shafts"])
-            for top_member in tops])
-        await ctx.send(embed=discord.Embed(title=f"Most Shafted Members in {ctx.message.guild.name}",
-                                           description=top_str, colour=discord.Colour.gold())
-                       .set_thumbnail(url=ctx.message.guild.icon_url))
+    await ctx.send(
+        embed=discord.Embed(
+            title=f"Luckiest Members in {ctx.message.guild.name}",
+            description='\n'.join([
+                "**{}.** {} with a *{}%* SSR drop rate in their pulls. (Total: *{}*)".format(top_user["place"],
+                                                                                             top_user["name"],
+                                                                                             top_user["luck"],
+                                                                                             top_user["pull-amount"])
+                for top_user in top_users]),
+            colour=discord.Colour.gold()
+        ).set_thumbnail(url=ctx.message.guild.icon_url)
+    )
 
 
-# ..stats
-@BOT.command(no_pm=True)
-async def stats(ctx, person: typing.Optional[discord.Member], *, action="luck"):
-    action = map_leaderboard(action)
+@top.command(name="ssrs", aliases=["ssr"])
+async def top_ssrs(ctx):
+    top_users = await get_top_users(ctx.message.guild, LeaderboardType.MOST_SSR)
+    if len(top_users) == 0:
+        return await ctx.send(
+            embed=discord.Embed(
+                title="Nobody summoned yet",
+                description="Use `..multi`, `..single` or `..shaft`"
+            )
+        )
+    await ctx.send(
+        embed=discord.Embed(
+            title=f"Members with most drawn SSRs in {ctx.message.guild.name}",
+            description='\n'.join([
+                "**{}.** {} with *{} SSRs*. (Total: *{}*)".format(top_user["place"], top_user["name"],
+                                                                  top_user["ssrs"], top_user["pull-amount"])
+                for top_user in top_users]),
+            colour=discord.Colour.gold()
+        ).set_thumbnail(url=ctx.message.guild.icon_url)
+    )
+
+
+@top.command(name="units", aliases=["unit"])
+async def top_units(ctx):
+    top_users = await get_top_users(ctx.message.guild, LeaderboardType.MOST_UNITS)
+    if len(top_users) == 0:
+        return await ctx.send(
+            embed=discord.Embed(
+                title="Nobody summoned yet",
+                description="Use `..multi`, `..single` or `..shaft`"
+            )
+        )
+    await ctx.send(
+        embed=discord.Embed(
+            title=f"Members with most drawn Units in {ctx.message.guild.name}",
+            description='\n'.join([
+                "**{}.** {} with *{} Units*".format(
+                    top_user["place"], top_user["name"], top_user["pull-amount"])
+                for top_user in top_users]),
+            colour=discord.Colour.gold()
+        ).set_thumbnail(url=ctx.message.guild.icon_url)
+    )
+
+
+@top.command(name="shafts", aliases=["shaft"])
+async def top_shafts(ctx):
+    top_users = await get_top_users(ctx.message.guild, LeaderboardType.MOST_SHAFTS)
+    if len(top_users) == 0:
+        return await ctx.send(
+            embed=discord.Embed(
+                title="Nobody summoned yet",
+                description="Use `..multi`, `..single` or `..shaft`"
+            )
+        )
+    return await ctx.send(
+        embed=discord.Embed(
+            title=f"Members with most Shafts in {ctx.message.guild.name}",
+            description='\n'.join([
+                "**{}.** {} with *{} Shafts*".format(
+                    top_user["place"], top_user["name"], top_user["shafts"])
+                for top_user in top_users]),
+            colour=discord.Colour.gold()
+        ).set_thumbnail(url=ctx.message.guild.icon_url)
+    )
+
+
+STAT_HELPER = {}
+
+
+@BOT.group()
+async def stats(ctx, person: typing.Optional[discord.Member]):
     if person is None:
         person = ctx.message.author
+
     data = await get_user_pull(person)
     ssrs = data["ssr_amount"] if len(data) != 0 else 0
     pulls = data["pull_amount"] if len(data) != 0 else 0
     shafts = data["shafts"] if len(data) != 0 else 0
     percent = round((ssrs / pulls if len(data) != 0 else 0) * 100, 2)
 
-    if action == LeaderboardType.LUCK:
-        await ctx.send(
-            content=f"{person.mention}'s luck:" if person == ctx.message.author else f"{ctx.message.author.mention}: {person.display_name}'s luck:",
-            embed=discord.Embed(
-                description=f"**{person.display_name}** currently got a *{percent}%* SSR droprate in their pulls, with *{ssrs} SSRs* in *{pulls} Units*"
-            )
+    STAT_HELPER[ctx] = {
+        "data": data,
+        "ssrs": ssrs,
+        "pulls": pulls,
+        "shafts": shafts,
+        "percent": percent,
+        "person": person
+    }
+
+    if ctx.invoked_subcommand is None:
+        pass
+
+
+@stats.command(name="luck", aliases=["lucky", "luckiness"])
+async def stats_luck(ctx):
+    person = STAT_HELPER[ctx]["person"]
+    percent = STAT_HELPER[ctx]["percent"]
+    ssrs = STAT_HELPER[ctx]["ssrs"]
+    pulls = STAT_HELPER[ctx]["pulls"]
+    await ctx.send(
+        content=f"{person.mention}'s luck:" if person == ctx.message.author
+        else f"{ctx.message.author.mention}: {person.display_name}'s luck:",
+        embed=discord.Embed(
+            description=f"**{person.display_name}** currently got a *{percent}%* SSR droprate in their pulls, with *{ssrs} SSRs* in *{pulls} Units*"
         )
-    elif action == LeaderboardType.MOST_SSR:
-        await ctx.send(
-            content=f"{person.mention}'s SSRs:" if person == ctx.message.author else f"{ctx.message.author.mention}: {person.display_name}'s SSRs:",
-            embed=discord.Embed(
-                description=f"**{person.display_name}** currently has *{ssrs} SSRs*"
-            )
+    )
+
+
+@stats.command(name="ssrs", aliases=["ssr"])
+async def stats_ssrs(ctx):
+    person = STAT_HELPER[ctx]["person"]
+    ssrs = STAT_HELPER[ctx]["ssrs"]
+    await ctx.send(
+        content=f"{person.mention}'s SSRs:" if person == ctx.message.author
+        else f"{ctx.message.author.mention}: {person.display_name}'s SSRs:",
+        embed=discord.Embed(
+            description=f"**{person.display_name}** currently has *{ssrs} SSRs*"
         )
-    elif action == LeaderboardType.MOST_UNITS:
-        await ctx.send(
-            content=f"{person.mention}'s Units:" if person == ctx.message.author else f"{ctx.message.author.mention}: {person.display_name}'s Units:",
-            embed=discord.Embed(
-                description=f"**{person.display_name}** currently has *{pulls} Units*"
-            )
+    )
+
+
+@stats.command(name="units", aliases=["unit"])
+async def stats_units(ctx):
+    person = STAT_HELPER[ctx]["person"]
+    pulls = STAT_HELPER[ctx]["pulls"]
+    await ctx.send(
+        content=f"{person.mention}'s Units:" if person == ctx.message.author
+        else f"{ctx.message.author.mention}: {person.display_name}'s Units:",
+        embed=discord.Embed(
+            description=f"**{person.display_name}** currently has *{pulls} Units*"
         )
-    elif action == LeaderboardType.MOST_SHAFTS:
-        await ctx.send(
-            content=f"{person.mention}'s Shafts:" if person == ctx.message.author else f"{ctx.message.author.mention}: {person.display_name}'s Shafts:",
-            embed=discord.Embed(
-                description=f"**{person.display_name}** currently got shafted {shafts}x"
-            )
+    )
+
+
+@stats.command(name="shafts", aliases=["shaft"])
+async def stats_shafts(ctx):
+    person = STAT_HELPER[ctx]["person"]
+    shafts = STAT_HELPER[ctx]["shafts"]
+    await ctx.send(
+        content=f"{person.mention}'s Shafts:" if person == ctx.message.author
+        else f"{ctx.message.author.mention}: {person.display_name}'s Shafts:",
+        embed=discord.Embed(
+            description=f"**{person.display_name}** currently got shafted {shafts}x"
         )
+    )
 
 
 # ..unit
