@@ -825,7 +825,7 @@ def parse_arguments(given_args: str, list_seperator: str = "&") -> dict:
     jp = False
     unparsed = []
 
-    for i, ele in enumerate(args):
+    for _, ele in enumerate(args):
         arg = remove_trailing_whitespace(ele)
 
         if arg.lower().startswith("new_name:"):
@@ -861,14 +861,14 @@ def parse_arguments(given_args: str, list_seperator: str = "&") -> dict:
                 parsed_races = [x for x in RACES if x.value != remove_beginning_ignore_case(race_str, "!")]
             else:
                 races_with_count = [remove_trailing_whitespace(x) for x in race_str.split(",")]
-                for ii, ele in enumerate(races_with_count):
-                    apr = ele.split("*")
+                for _, element in enumerate(races_with_count):
+                    apr = element.split("*")
 
                     if len(apr) == 2:
                         parsed_races.append(map_race(apr[1]))
                         parsed_race_count[map_race(apr[1])] += int(apr[0])
                     else:
-                        parsed_races.append(map_race(ele))
+                        parsed_races.append(map_race(element))
             continue
 
         if arg.lower().startswith("grade:"):
@@ -2339,7 +2339,7 @@ async def find(ctx, *, units=""):
     unit_vague_name_list = units.split(",")
     found = []
 
-    for i, ele in enumerate(unit_vague_name_list):
+    for _, ele in enumerate(unit_vague_name_list):
         while ele.startswith(" "):
             ele = ele[1:]
 
