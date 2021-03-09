@@ -19,7 +19,7 @@ from discord.ext.commands import has_permissions
 from discord.ext.commands import HelpCommand
 
 
-with open("data/beta_token.txt", 'r') as file:
+with open("data/bot_token.txt", 'r') as file:
     TOKEN = file.read()
 IMG_SIZE = 150
 LOADING_IMAGE_URL = \
@@ -2507,7 +2507,7 @@ async def demon_offer(ctx, reds: int = 0, greys: int = 0, crimsons: int = 0, *, 
             content=mention_str,
             embed=discord.Embed(
                 title=f"{author.display_name} offers:",
-                description=f"\n" +
+                description="\n" +
                             (f"Reds: `{reds}` \n" if reds != 0 else "") +
                             (f"Greys: `{greys}` \n" if greys != 0 else "") +
                             (f"Crimsons: `{crimsons}` \n" if crimsons != 0 else "") +
