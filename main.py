@@ -1,4 +1,7 @@
 import asyncio
+import math
+
+import PIL
 import aiohttp
 import discord
 import random as ra
@@ -12,15 +15,8 @@ from PIL import Image
 from PIL import ImageDraw
 from PIL import ImageFont
 from discord.ext import commands
+from discord.ext.commands import has_permissions
 from discord.ext.commands import HelpCommand
-
-# Version 1.0
-# TODO:
-#   - maybe web interface for new units?
-#   - jp units
-#   - daily currency for box pulls
-#   - demon partner search -> (..demons 1*Red, 2* Grey, 4*Crim) -> ..claim @Helix 1/2/1
-#   - gearinfos for units
 
 
 with open("data/beta_token.txt", 'r') as file:
@@ -30,6 +26,9 @@ LOADING_IMAGE_URL = \
     "https://raw.githubusercontent.com/dokkanart/SDSGC/master/Loading%20Screens/Gacha/loading_gacha_start_01.png"
 CONN = sql.connect('data/data.db')
 AUTHOR_HELIX_ID = 204150777608929280
+
+intents = discord.Intents.default()
+intents.members = True
 
 
 class Grade(Enum):
@@ -98,7 +97,7 @@ HELP_EMBED_1 = discord.Embed(
     description="""
                 __*Commands:*__
                     `..unit` -> `Check Info`
-                    `..unitlist` -> `Check Info`
+                    `..team` -> `Check Info`
                     `..team` -> `Check Info`
                     `..pvp <@Enemy>` -> `Check Info`
                     `..single [@For=You] [banner=banner 1]` 
@@ -112,6 +111,7 @@ HELP_EMBED_1 = discord.Embed(
                     `..find <unit name>`
                     `..list unit [criteria=event: custom]` -> `for criteria check Info`
                     `..list banner`
+                    `..demon` -> `Execute for more Info`
                     `..custom` -> `Execute for more Info`
 
                     __*Info:*__
@@ -264,7 +264,11 @@ FRAME_BACKGROUNDS = {
     Grade.SSR: Image.open("gc/frames/ssr_frame_background.png").resize((IMG_SIZE, IMG_SIZE)).convert("RGBA")
 }
 
-BOT = commands.Bot(command_prefix='..', description='..help for Help', help_command=CustomHelp())
+DEMON_ROLES = {}
+DEMON_MESSAGES = {}
+DEMON_CONTRACTS = {}
+
+BOT = commands.Bot(command_prefix='..', description='..help for Help', help_command=CustomHelp(), intents=intents)
 
 
 def strip_whitespace(arg: str) -> str:
@@ -400,7 +404,7 @@ class Unit:
                  event: Event = Event.GC,
                  affection_str: str = Affection.NONE.value,
                  icon_path: str = "gc/icons/{}.png",
-                 alt_names=None,
+                 alt_names: List[str] = None,
                  is_jp: bool = False):
 
         if alt_names is None:
@@ -420,9 +424,9 @@ class Unit:
         if unit_id > 0:
             img = Image.new('RGBA', (IMG_SIZE, IMG_SIZE))
             img.paste(Image.open(icon_path.format(unit_id)).resize((IMG_SIZE, IMG_SIZE)), (0, 0))
-            self.icon: Image = img
+            self.icon: PIL.Image = img
         else:
-            self.icon: Image = None
+            self.icon: PIL.Image = None
 
     async def discord_icon(self) -> discord.File:
         return await image_to_discord(self.icon, "unit.png")
@@ -466,7 +470,7 @@ def read_units_from_db():
             event=map_event(row[6]),
             affection_str=map_affection(row[7]),
             icon_path=row[8] if row[0] < 0 else "gc/icons/{}.png",
-            is_jp=row[9] == 1
+            is_jp=row[9] == 1,
         ))
         print(f"Registering Unit: {row[1]} ({row[0]}) is JP? {row[9] == 1}")
 
@@ -525,6 +529,7 @@ class Banner:
             self.rate_up_units) != 0 else 0
         self.sr_chance: float = (self.sr_unit_rate * len(self.sr_units))
         self.background: str = bg_url
+        self.shaftable: bool = len([x for x in name if "gssr" in name]) == 0
 
 
 def units_by_id(ids: List[int]) -> List[Unit]:
@@ -1246,6 +1251,11 @@ async def compose_box(units_dict: dict) -> Image:
     return i
 
 
+async def compose_paged_unit_list(cus_units: List[Unit], per_page: int) -> List[typing.Any]:
+    return [await compose_unit_list(list(chunks(cus_units, per_page))[i])
+            for i in range(math.ceil(len(cus_units) / per_page))]
+
+
 async def compose_unit_list(cus_units: List[Unit]) -> Image:
     font = ImageFont.truetype("pvp.ttf", 24)
     text_dim = get_text_dimensions(sorted(cus_units, key=lambda k: len(k.name), reverse=True)[0].name + " (Nr. 999)",
@@ -1384,11 +1394,47 @@ async def add_blackjack_game(user: discord.Member, won: bool):
     CONN.commit()
 
 
+class UnitConverter(commands.Converter):
+    async def convert(self, ctx, argument):
+        return unit_by_vague_name(argument)[0]
+
+
+def get_demon_role(guild_id: int, demon_type: str = "red") -> discord.Role:
+    guild_roles = DEMON_ROLES[guild_id]
+    if guild_roles is not None:
+        if len(guild_roles[demon_type]) != 0:
+            return guild_roles[demon_type][0]
+    return None
+
+
+def parse_demon_roles():
+    DEMON_ROLES.clear()
+    for guild in BOT.guilds:
+        red_demons = [x for x in guild.roles if "red" in x.name.lower() and "demon" in x.name.lower()]
+        grey_demons = [x for x in guild.roles if "grey" in x.name.lower() and "demon" in x.name.lower()]
+        crimson_demons = [x for x in guild.roles if ("crimson" in x.name.lower() or "howlex" in x.name.lower()) and "demon" in x.name.lower()]
+
+        DEMON_ROLES[guild.id] = {
+            "red": red_demons,
+            "grey": grey_demons,
+            "crimson": crimson_demons
+        }
+
+
+def mutual_guilds(person: discord.User):
+    return [g for g in BOT.guilds if g.get_member(person.id) is not None]
+
+
+def share_guild(person1: discord.User, person2: discord.User):
+    return [x for x in mutual_guilds(person1) if x in mutual_guilds(person2)]
+
+
 @BOT.event
 async def on_ready():
     await BOT.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name="..help"))
 
     create_custom_unit_banner()
+    parse_demon_roles()
 
     print('Logged in as')
     print(BOT.user.name)
@@ -1845,55 +1891,58 @@ async def shaft(ctx, person: typing.Optional[discord.Member], unit_name: typing.
     if person is None:
         person = ctx.message.author
 
+    from_banner = banner_by_name(banner_name)
+    if from_banner is None:
+        return await ctx.send(content=f"{ctx.message.author.mention}",
+                              embed=discord.Embed(
+                                  title="Error",
+                                  colour=discord.Color.dark_red(),
+                                  description=f"Can't find the \"{banner_name}\" banner"
+                              ))
+
+    if not from_banner.shaftable:
+        return await ctx.send(content=f"{ctx.message.author.mention}",
+                              embed=discord.Embed(
+                                  title="Error",
+                                  colour=discord.Color.dark_red(),
+                                  description=f"Can't get shafted on the \"{from_banner.pretty_name}\" banner"
+                              ))
+
     unit_ssr = False
     if unit_name.startswith("ssr:"):
         unit_ssr = True
         unit_name = unit_name.replace("ssr:", "")
-    unit_to_draw = None if unit_name == "none" else [x.unit_id for x in unit_by_vague_name(unit_name)]
 
-    from_banner = banner_by_name(banner_name)
-    if from_banner is None:
-        return await ctx.send(content=f"{ctx.message.author.mention}",
-                              embed=discord.Embed(title="Error", colour=discord.Color.dark_red(),
-                                                  description=f"Can't find the \"{banner_name}\" banner"))
-    for bN in from_banner.name:
-        if "gssr" in bN:
-            return await ctx.send(content=f"{ctx.message.author.mention}",
-                                  embed=discord.Embed(title="Error", colour=discord.Color.dark_red(),
-                                                      description=f"Can't get shafted on the \"{from_banner.pretty_name}\" banner"))
+    unit_to_draw = [x.unit_id for x in unit_by_vague_name(unit_name)
+                    if x.unit_id in [x.unit_id for x in from_banner.units]]
 
-    banner_unit_ids = [x.unit_id for x in from_banner.units]
-    if unit_to_draw is not None:
-        for u_draw in unit_to_draw:
-            if u_draw not in banner_unit_ids:
-                unit_to_draw.remove(u_draw)
-
-    if unit_to_draw is not None and len(unit_to_draw) == 0:
-        unit_to_draw = None
+    print(unit_to_draw)
 
     draw = await ctx.send(
-        content=f"{person.mention} this is your shaft" if person is ctx.message.author else f"{person.mention} this is your shaft coming from {ctx.message.author.mention}",
-        embed=discord.Embed(title="Shafting...").set_image(
-            url=LOADING_IMAGE_URL))
+        content=f"{person.mention} this is your shaft" if person is ctx.message.author
+        else f"{person.mention} this is your shaft coming from {ctx.message.author.mention}",
+        embed=discord.Embed(
+            title="Shafting..."
+        ).set_image(url=LOADING_IMAGE_URL))
 
     rang = 11 if from_banner.banner_type == BannerType.ELEVEN else 5
+
+    async def has_ssr(du: List[Unit]) -> bool:
+        for u in du:
+            if u.grade == Grade.SSR and len(unit_to_draw) == 0:
+                return True
+
+            if u.unit_id in unit_to_draw:
+                if unit_ssr:
+                    if u.grade == Grade.SSR:
+                        return True
+                else:
+                    return True
+        return False
 
     async def loop():
         i = 0
         drawn_units = [(await unit_with_chance(from_banner, person)) for _ in range(rang)]
-
-        async def has_ssr(du: List[Unit]) -> bool:
-            for u in du:
-                if u.grade == Grade.SSR and unit_to_draw is None:
-                    return True
-
-                if unit_to_draw is not None and u.unit_id in unit_to_draw:
-                    if unit_ssr:
-                        if u.grade == Grade.SSR:
-                            return True
-                    else:
-                        return True
-            return False
 
         while not await has_ssr(drawn_units) and i < 1000:
             i += 1
@@ -2082,16 +2131,51 @@ async def cmd_list(ctx):
 
 
 @cmd_list.command(name="unit", aliases=["units"])
-async def list_units(ctx, *, criteria: str = "event: custom"):
-    attr = parse_arguments(criteria)
+async def list_units(ctx, units_per_page: int = 5, *, criteria: str = "event: custom"):
     loading = await ctx.send(content=f"{ctx.message.author.mention} -> Loading Units", embed=LOADING_EMBED)
-    await ctx.send(file=await image_to_discord(await compose_unit_list(
-        get_matching_units(races=attr["race"], grades=attr["grade"], types=attr["type"], events=attr["event"],
-                           affections=attr["affection"], names=attr["name"], jp=attr["jp"])),
-                                               "units.png"),
-                   embed=discord.Embed(title=f"Units matching {criteria}").set_image(url="attachment://units.png"),
-                   content=f"{ctx.message.author.mention}")
+    attr = parse_arguments(criteria)
+    matching_units = get_matching_units(races=attr["race"],
+                                        grades=attr["grade"],
+                                        types=attr["type"],
+                                        events=attr["event"],
+                                        affections=attr["affection"],
+                                        names=attr["name"],
+                                        jp=attr["jp"])
+    paged_unit_list = await compose_paged_unit_list(matching_units, units_per_page)
+    max_pages = math.ceil(len(matching_units) / units_per_page) - 1
     await loading.delete()
+
+    async def display(page: int):
+        _loading = await ctx.send(content=f"{ctx.message.author.mention} -> Loading Units", embed=LOADING_EMBED)
+        message = await ctx.send(file=await image_to_discord(paged_unit_list[page], "units.png"),
+                                 embed=discord.Embed(
+                                     title=f"Units matching {criteria} ({page+1}/{max_pages + 1})"
+                                 ).set_image(url="attachment://units.png"),
+                                 content=f"{ctx.message.author.mention}")
+        await _loading.delete()
+
+        if page != 0:
+            await message.add_reaction("⬅️")
+
+        if page != max_pages:
+            await message.add_reaction("➡️")
+
+        try:
+            def check_page(added_reaction, user):
+                return user == ctx.message.author and str(added_reaction.emoji) in ["⬅️", "➡️"]
+
+            reaction, _ = await BOT.wait_for("reaction_add", check=check_page, timeout=20)
+
+            if "➡️" in str(reaction.emoji):
+                await message.delete()
+                await display(page + 1)
+            elif "⬅️" in str(reaction.emoji):
+                await message.delete()
+                await display(page - 1)
+        except asyncio.TimeoutError:
+            await message.clear_reactions()
+
+    await display(0)
 
 
 @cmd_list.command(name="banner", aliases=["banners"])
@@ -2099,7 +2183,8 @@ async def list_banners(ctx):
     loading = await ctx.send(content=f"{ctx.message.author.mention} -> Loading Banners", embed=LOADING_EMBED)
     await ctx.send(content=f"{ctx.message.author.mention}",
                    embed=discord.Embed(title="All Banners",
-                                       description="\n\n".join([f"**{x.name[0]}**: `{x.pretty_name}`" for x in ALL_BANNERS])))
+                                       description="\n\n".join(
+                                           [f"**{x.name[0]}**: `{x.pretty_name}`" for x in ALL_BANNERS])))
     await loading.delete()
 
 
@@ -2145,6 +2230,7 @@ async def update(ctx):
     read_units_from_db()
     read_banners_from_db()
     create_custom_unit_banner()
+    parse_demon_roles()
     await ctx.send(content=f"{ctx.message.author.mention} Updated Units & Banners")
 
 
@@ -2163,20 +2249,8 @@ async def affection(ctx, action: str = "help", *, name: typing.Optional[str]):
     elif action in ["edit"]:
         new_name = name.lower()
         if "new:" in name.lower():
-            new_name = name.split("new:")[1]
-            name = name.split("new:")[0]
-
-            while new_name.startswith(" "):
-                new_name = new_name[1:]
-
-            while new_name.endswith(" "):
-                new_name = new_name[:-1]
-
-            while name.startswith(" "):
-                name = name[:1]
-
-            while name.endswith(" "):
-                name = name[:-1]
+            new_name = remove_trailing_whitespace(name.split("new:")[1])
+            name = remove_trailing_whitespace(name.split("new:")[0])
 
         if name.lower() not in AFFECTIONS:
             return await ctx.send(content=f"{ctx.message.author.mention}",
@@ -2184,8 +2258,8 @@ async def affection(ctx, action: str = "help", *, name: typing.Optional[str]):
 
         cursor = CONN.cursor()
 
-        if int(cursor.execute('SELECT creator FROM affections where name=?', (name.lower(),)).fetchone()[
-                   0]) != ctx.message.author.id:
+        if cursor.execute('SELECT creator FROM affections where name=?', (name.lower(),)).fetchone()[0] != \
+                ctx.message.author.id:
             return await ctx.send(content=f"{ctx.message.author.mention}",
                                   embed=discord.Embed(title="Error with ..affections edit",
                                                       colour=discord.Color.dark_red(),
@@ -2198,27 +2272,16 @@ async def affection(ctx, action: str = "help", *, name: typing.Optional[str]):
     elif action in ["move", ">", "transfer"]:
         new_owner = ctx.message.author.id
         if "owner:" in name.lower():
-            new_owner = name.split("owner:")[1]
-            name = name.split("owner:")[0]
-
-            while name.endswith(" "):
-                name = name[:-1]
-
-            while new_owner.startswith(" "):
-                new_owner = new_owner[1:]
-
-            while new_owner.endswith(" "):
-                new_owner = new_owner[:-1]
-
-            new_owner = int(new_owner[3:-1])
+            new_owner = int(remove_trailing_whitespace(name.split("owner:")[1])[3:-1])
+            name = remove_trailing_whitespace(name.split("owner:")[0])
         if name.lower() not in AFFECTIONS:
             return await ctx.send(content=f"{ctx.message.author.mention}",
                                   embed=AFFECTION_EDITED_EMBED)
 
         cursor = CONN.cursor()
 
-        if int(cursor.execute('SELECT creator FROM affections where name=?', (name.lower(),)).fetchone()[
-                   0]) != ctx.message.author.id:
+        if cursor.execute('SELECT creator FROM affections where name=?', (name.lower(),)).fetchone()[0] != \
+                ctx.message.author.id:
             return await ctx.send(content=f"{ctx.message.author.mention}",
                                   embed=discord.Embed(title="Error with ..affections edit",
                                                       colour=discord.Color.dark_red(),
@@ -2234,8 +2297,8 @@ async def affection(ctx, action: str = "help", *, name: typing.Optional[str]):
 
         cursor = CONN.cursor()
 
-        if int(cursor.execute('SELECT creator FROM affections where name=?', (name.lower(),)).fetchone()[
-                   0]) != ctx.message.author.id:
+        if cursor.execute('SELECT creator FROM affections where name=?', (name.lower(),)).fetchone()[0] != \
+                ctx.message.author.id:
             return await ctx.send(content=f"{ctx.message.author.mention}",
                                   embed=discord.Embed(title="Error with ..affections edit",
                                                       colour=discord.Color.dark_red(),
@@ -2396,6 +2459,225 @@ async def blackjack(ctx, action="", person: typing.Optional[discord.Member] = No
             pass
 
     await play(cards_msg)
+
+
+@BOT.group(no_pm=True)
+async def demon(ctx):
+    if ctx.invoked_subcommand is None:
+        await ctx.send(f"""{ctx.message.author.mention}: 
+        `..demon offer <reds> <greys> <crimsons>` to offer demons (Click "OK" to claim)
+        `..demon tag <grand cross friendcode> [name] [slot]` to create a profile
+        `..demon info` to show your info
+        """)
+
+
+@demon.command(name="offer")
+async def demon_offer(ctx, reds: int = 0, greys: int = 0, crimsons: int = 0, *, additional_message: str = ""):
+    if reds == 0 and greys == 0 and crimsons == 0:
+        return await ctx.send(
+            content=f"{ctx.message.author.mention}",
+            embed=discord.Embed(
+                title="Error",
+                description="Please provide at least one demon",
+                color=discord.Color.dark_red()
+            )
+        )
+    cursor = CONN.cursor()
+    author = ctx.message.author
+
+    if author.id in DEMON_CONTRACTS.keys():
+        del DEMON_CONTRACTS[author.id]
+
+    if author.id not in DEMON_CONTRACTS:
+        DEMON_CONTRACTS[author.id] = {
+            "guild": ctx.message.guild.id
+        }
+
+    for channel_list_item in cursor.execute('SELECT * FROM "raid_channels"'):
+        channel = await BOT.fetch_channel(channel_list_item[1])
+        guild = await BOT.fetch_guild(channel_list_item[0])
+
+        mentions = []
+        if reds != 0 and get_demon_role(guild.id, "red") is not None:
+            mentions.append(get_demon_role(guild.id, "red").mention)
+        if greys != 0 and get_demon_role(guild.id, "grey") is not None:
+            mentions.append(get_demon_role(guild.id, "grey").mention)
+        if crimsons != 0 and get_demon_role(guild.id, "crimson") is not None:
+            mentions.append(get_demon_role(guild.id, "crimson").mention)
+        mention_str = ", ".join(mentions)
+
+        to_claim = await channel.send(
+            content=mention_str,
+            embed=discord.Embed(
+                title=f"{author.display_name} offers:",
+                description=f"\n" +
+                            (f"Reds: `{reds}` \n" if reds != 0 else "") +
+                            (f"Greys: `{greys}` \n" if greys != 0 else "") +
+                            (f"Crimsons: `{crimsons}` \n" if crimsons != 0 else "") +
+                            (f"\n {additional_message} \n" if additional_message != "" else "") +
+                            "\nClick 🆗 to claim them." +
+                            "\nMake sure to have a empty spot in your friends list!",
+                color=discord.Color.green()
+            )
+        )
+
+        await to_claim.add_reaction("🆗")
+
+        if author.id in DEMON_MESSAGES:
+            DEMON_MESSAGES[author.id].append({
+                "channel": channel,
+                "msg": to_claim.id
+            })
+        else:
+            DEMON_MESSAGES[author.id] = [{
+                "channel": channel,
+                "msg": to_claim.id
+            }]
+
+    if author.id not in DEMON_MESSAGES:
+        return await ctx.send(f"{author.mention} no channel to broadcast in found")
+
+    def check(added_reaction, user):
+        return user != BOT.user and str(added_reaction.emoji) in "🆗"
+
+    try:
+        _, user = await BOT.wait_for('reaction_add', check=check, timeout=60*60*4)
+
+        if user == author:
+            await ctx.send(f"{author.mention} deleted your demon offer.")
+        else:
+            cursor2 = CONN.cursor()
+            friendcode = cursor2.execute('SELECT gc_id FROM "users" WHERE discord_id=?', (user.id,)).fetchone()
+
+            if friendcode is None:
+                await ctx.send(f"{author.mention}: {user.mention} has claimed your demons!")
+            else:
+                await ctx.send(f"{author.mention}: {user.mention} (Friendcode: {friendcode[0]}) has claimed your demons!")
+
+        if len(share_guild(author, user)) != 0 and author != user:
+            await author.send(content=f"Please contact {user.mention} (from {share_guild(author, user)[0]}) for your demons")
+
+        DEMON_CONTRACTS[author.id]["offerer"] = author
+        DEMON_CONTRACTS[author.id]["claimee"] = user
+        DEMON_CONTRACTS[author.id]["msgs"] = []
+
+        for channel_message_dict in DEMON_MESSAGES[author.id]:
+            try:
+                DEMON_CONTRACTS[author.id]["msgs"].append(channel_message_dict["msg"])
+                msg = await channel_message_dict["channel"].fetch_message(channel_message_dict["msg"])
+                new_embed = discord.Embed(
+                    title=f"~~{msg.embeds[0].title}~~ Claimed",
+                    description=f"~~{msg.embeds[0].description}~~"
+                ).set_footer(text=f"Claimed by {user.display_name}")
+                await msg.edit(embed=new_embed)
+                await msg.clear_reactions()
+            except discord.errors.NotFound:
+                pass
+
+    except asyncio.TimeoutError:
+        for channel_message_dict in DEMON_MESSAGES[author.id]:
+            try:
+                msg = await channel_message_dict["channel"].fetch_message(channel_message_dict["msg"])
+                new_embed = discord.Embed(
+                    title=f"~~{msg.embeds[0].title}~~ Timed out",
+                    description=f"~~{msg.embeds[0].description}~~"
+                ).set_footer(text=f"Time ran out.")
+                await msg.edit(embed=new_embed)
+                await msg.clear_reactions()
+            except discord.errors.NotFound:
+                pass
+
+    if author.id in DEMON_MESSAGES:
+        del DEMON_MESSAGES[author.id]
+
+
+@BOT.event
+async def on_message(message):
+    if message.reference is None:
+        return await BOT.process_commands(message)
+
+    if len([x for x in DEMON_CONTRACTS.values() if len(x) > 1]) == 0:
+        return await BOT.process_commands(message)
+
+    demon_msg_id = message.reference.message_id
+    channel_msg_dict_list = [x for x in DEMON_CONTRACTS.values() if demon_msg_id in x["msgs"]]
+    if len(channel_msg_dict_list) == 0:
+        return await BOT.process_commands(message)
+
+    channel_msg_dict = channel_msg_dict_list[0]
+    reply_author = message.author
+    offerer = channel_msg_dict["offerer"]
+    claimee = channel_msg_dict["claimee"]
+
+    if reply_author.id != claimee.id:
+        return await BOT.process_commands(message)
+
+    guild_id = channel_msg_dict["guild"]
+
+    if message.guild.id == guild_id:  # same server
+        return await BOT.process_commands(message)
+
+    await offerer.send(content=f"Message from {claimee.mention} regarding your demon offer:",
+                       embed=discord.Embed(description=message.content))
+
+    await BOT.process_commands(message)
+
+
+@demon.command(name="profile", aliases=["create", "tag"])
+async def demon_profile(ctx, gc_id: int = 0, name: str = "main"):
+    cursor = CONN.cursor()
+
+    if gc_id == 0:
+        return await ctx.send(
+            content=f"{ctx.message.author.mention}",
+            embed=discord.Embed(
+                title=f"Info about {ctx.message.author.display_name}",
+                description="Names: \n" + "\n".join([
+                    "{}: {}".format(x[0], x[1])
+                    for x in cursor.execute('SELECT name, gc_id FROM "users" WHERE discord_id=?', (ctx.message.author.id,))
+                ])
+            ))
+
+    if cursor.execute('SELECT * FROM "users" WHERE discord_id=? AND name=?', (ctx.message.author.id, name.lower())).fetchone() is None:
+        cursor.execute('INSERT OR IGNORE INTO "users" VALUES (?, ?, ?)', (ctx.message.author.id, gc_id, name.lower()))
+        await ctx.send(f"{ctx.message.author.mention}: Added profile {name}  with friendcode {gc_id}")
+    else:
+        if name == "delete":
+            cursor.execute('DELETE FROM "users" WHERE gc_id=? AND name=?', (gc_id, name.lower()))
+            await ctx.send(f"{ctx.message.author.mention}: Deleted profile {name} with friendcode {gc_id}")
+        else:
+            cursor.execute('UPDATE "users" SET gc_id=?, name=? WHERE discord_id=? AND name=?', (gc_id, name.lower(), ctx.message.author.id, name.lower()))
+            await ctx.send(f"{ctx.message.author.mention}: Edited profile {name} to friendcode {gc_id}")
+
+    CONN.commit()
+
+
+@demon.command(name="info", aliases=["me"])
+async def demon_info(ctx, of: typing.Optional[discord.Member]):
+    cursor = CONN.cursor()
+    if of is None:
+        of = ctx.message.author
+    await ctx.send(content=f"{ctx.message.author.mention}",
+                   embed=discord.Embed(
+                       title=f"Info about {of.display_name}",
+                       description="Names: \n" + "\n".join([
+                           "{}: {}".format(x[0], x[1])
+                           for x in cursor.execute('SELECT name, gc_id FROM "users" WHERE discord_id=?', (of.id,))
+                       ])
+                   ))
+
+
+@demon.command(name="channel")
+@has_permissions(manage_channels=True)
+async def demon_channel(ctx, action="none"):
+    cursor = CONN.cursor()
+    if action == "none":
+        cursor.execute('INSERT INTO "raid_channels" VALUES (?, ?)', (ctx.message.guild.id, ctx.message.channel.id))
+        CONN.commit()
+        return await ctx.send(f"{ctx.message.author.mention} added demon channel!")
+
+    channels = [(await BOT.fetch_channel(x[1])).name + " in " + (await BOT.fetch_guild(x[0])).name for x in cursor.execute('SELECT * FROM main."raid_channels"')]
+    await ctx.message.author.send("\n".join(channels))
 
 
 if __name__ == '__main__':
