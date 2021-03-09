@@ -825,8 +825,8 @@ def parse_arguments(given_args: str, list_seperator: str = "&") -> dict:
     jp = False
     unparsed = []
 
-    for i in range(len(args)):
-        arg = remove_trailing_whitespace(args[i])
+    for i, ele in enumerate(args):
+        arg = remove_trailing_whitespace(ele)
 
         if arg.lower().startswith("new_name:"):
             parsed_new_name = remove_trailing_whitespace(remove_beginning_ignore_case(arg, "new_name:"))
@@ -861,13 +861,14 @@ def parse_arguments(given_args: str, list_seperator: str = "&") -> dict:
                 parsed_races = [x for x in RACES if x.value != remove_beginning_ignore_case(race_str, "!")]
             else:
                 races_with_count = [remove_trailing_whitespace(x) for x in race_str.split(",")]
-                for ii in range(len(races_with_count)):
-                    apr = races_with_count[ii].split("*")
+                for ii, ele in enumerate(races_with_count):
+                    apr = ele.split("*")
+
                     if len(apr) == 2:
                         parsed_races.append(map_race(apr[1]))
                         parsed_race_count[map_race(apr[1])] += int(apr[0])
                     else:
-                        parsed_races.append(map_race(races_with_count[ii]))
+                        parsed_races.append(map_race(ele))
             continue
 
         if arg.lower().startswith("grade:"):
@@ -967,7 +968,7 @@ def replace_duplicates(criteria: dict, team_to_deduplicate: List[Unit]):
                                                        names=criteria["name"], jp=criteria["jp"])
         return False
 
-    for i in range(len(team_to_deduplicate)):
+    for i, _ in enumerate(team_to_deduplicate):
         for _ in range(500):
             if check_names(i) and check_races(i):
                 break
@@ -1401,9 +1402,8 @@ class UnitConverter(commands.Converter):
 
 def get_demon_role(guild_id: int, demon_type: str = "red") -> discord.Role:
     guild_roles = DEMON_ROLES[guild_id]
-    if guild_roles is not None:
-        if len(guild_roles[demon_type]) != 0:
-            return guild_roles[demon_type][0]
+    if guild_roles is not None and len(guild_roles[demon_type]) != 0:
+        return guild_roles[demon_type][0]
     return None
 
 
@@ -1561,9 +1561,6 @@ async def stats(ctx, person: typing.Optional[discord.Member]):
         "percent": percent,
         "person": person
     }
-
-    if ctx.invoked_subcommand is None:
-        pass
 
 
 @stats.command(name="luck", aliases=["lucky", "luckiness"])
@@ -2342,14 +2339,14 @@ async def find(ctx, *, units=""):
     unit_vague_name_list = units.split(",")
     found = []
 
-    for i in range(len(unit_vague_name_list)):
-        while unit_vague_name_list[i].startswith(" "):
-            unit_vague_name_list[i] = unit_vague_name_list[i][1:]
+    for i, ele in enumerate(unit_vague_name_list):
+        while ele.startswith(" "):
+            ele = ele[1:]
 
-        while unit_vague_name_list[i].endswith(" "):
-            unit_vague_name_list[i] = unit_vague_name_list[i][:-1]
+        while ele.endswith(" "):
+            ele = ele[:-1]
 
-        found.extend(unit_by_vague_name(unit_vague_name_list[i]))
+        found.extend(unit_by_vague_name(ele))
 
     if len(found) == 0:
         return await ctx.send(content=f"{ctx.message.author.mention} -> No units found!")
@@ -2581,7 +2578,7 @@ async def demon_offer(ctx, reds: int = 0, greys: int = 0, crimsons: int = 0, *, 
                 new_embed = discord.Embed(
                     title=f"~~{msg.embeds[0].title}~~ Timed out",
                     description=f"~~{msg.embeds[0].description}~~"
-                ).set_footer(text=f"Time ran out.")
+                ).set_footer(text="Time ran out.")
                 await msg.edit(embed=new_embed)
                 await msg.clear_reactions()
             except discord.errors.NotFound:
