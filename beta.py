@@ -46,6 +46,8 @@ TEAM_TIME_CHECK = []
 PVP_TIME_CHECK = []
 
 DEMON_ROLES = {}
+DEMON_MESSAGES = {}
+DEMON_CONTRACTS = {}
 DEMON_OFFER_MESSAGES = {}
 
 BOT = commands.Bot(command_prefix='..', description='..help for Help', help_command=CustomHelp(), intents=intents)
@@ -1486,18 +1488,18 @@ async def demon(ctx):
 
 @demon.command(name="friend", aliases=["friendcode", "code"])
 async def demon_friend(ctx, of: typing.Optional[discord.Member]):
-    if of is None:
+    if of == None:
         of = ctx.message.author
 
-    friendcode = await get_friendcode(of)
+    friendcode = await get_friendcode(ctx.message.author)
 
     if friendcode is None:
         if of == ctx.message.author:
-            await ctx.send(f"{ctx.message.author.mention}: You are not registered in the bot yet! `..demon tag <grandcross friendcode> <profile name>` to create one")
+            ctx.send(f"{ctx.message.author.mention}: You are not registered in the bot yet! `..demon tag <grandcross friendcode> <profile name>` to create one")
         else:
-            await ctx.send(f"{ctx.message.author.mention}: {of.display_name} is not registered in the bot yet!")
+            ctx.send(f"{ctx.message.author.mention}: {of.display_name} is not registered in the bot yet!")
     else:
-        await ctx.send(f"{ctx.message.author.mention}: {friendcode[0]}")
+        ctx.send(f"{ctx.message.author.mention}: {friendcode[0]}")
 
 
 @demon.command(name="offer")
@@ -1513,6 +1515,14 @@ async def demon_offer(ctx, reds: int = 0, greys: int = 0, crimsons: int = 0, *, 
         )
     author = ctx.message.author
     guild_created_in = ctx.message.guild
+
+    if author.id in DEMON_CONTRACTS.keys():
+        del DEMON_CONTRACTS[author.id]
+
+    if author.id not in DEMON_CONTRACTS:
+        DEMON_CONTRACTS[author.id] = {
+            "guild": ctx.message.guild.id
+        }
 
     for channel_list_item in get_raid_channels():
         channel = await BOT.fetch_channel(channel_list_item[1])
@@ -1613,6 +1623,9 @@ async def demon_offer(ctx, reds: int = 0, greys: int = 0, crimsons: int = 0, *, 
                 await msg.clear_reactions()
             except discord.errors.NotFound:
                 pass
+
+    if author.id in DEMON_MESSAGES:
+        del DEMON_MESSAGES[author.id]
 
 
 @BOT.event
