@@ -109,15 +109,21 @@ async def compose_pvp(player1: discord.Member, team1: List[Unit], player2: disco
 
 
 async def compose_draw(from_banner: Banner, user: discord.Member) -> discord.File:
-    return await (await unit_with_chance(from_banner, user)).discord_icon()
+    u = await unit_with_chance(from_banner, user)
+    connection.commit()
+    return await u.discord_icon()
 
 
 async def compose_five_multi_draw(from_banner: Banner, user: discord.Member) -> Image:
-    return await compose_unit_five_multi_draw([(await unit_with_chance(from_banner, user)) for _ in range(5)])
+    u = await compose_unit_five_multi_draw([(await unit_with_chance(from_banner, user)) for _ in range(5)])
+    connection.commit()
+    return u
 
 
 async def compose_multi_draw(from_banner: Banner, user: discord.Member) -> Image:
-    return await compose_unit_multi_draw([(await unit_with_chance(from_banner, user)) for _ in range(11)])
+    u = await compose_unit_multi_draw([(await unit_with_chance(from_banner, user)) for _ in range(11)])
+    connection.commit()
+    return u
 
 
 async def compose_unit_five_multi_draw(units: List[Unit]) -> Image:
@@ -178,9 +184,11 @@ async def compose_unit_multi_draw(units: List[Unit], ssrs: List[Unit] = None) ->
     )
     y_offset += text_dim[1] + 10
 
-    for _units in ssr_rows:
+    max_loops = len(ssr_rows) if len(ssr_rows) < 15 else 15
+
+    for c in range(max_loops):
         x_offset = 0
-        for _unit in _units:
+        for _unit in ssr_rows[c]:
             await _unit.set_icon()
             i.paste(_unit.icon, (x_offset, y_offset))
             x_offset += IMG_SIZE + complete_offset

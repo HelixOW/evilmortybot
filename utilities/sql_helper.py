@@ -3,7 +3,7 @@ from discord.ext.commands import Bot
 from utilities.banner_data import Banner, map_bannertype, create_custom_unit_banner
 from utilities.unit_data import *
 
-connection = sqlite.connect('data/data.db')
+connection: sqlite.Connection = sqlite.connect("data/data.db")
 
 
 def read_units_from_db():
@@ -44,12 +44,13 @@ def read_banners_from_db():
     ALL_BANNERS.clear()
     connection.commit()
     cursor = connection.cursor()
+    cursor2 = connection.cursor()
     for row in cursor.execute('SELECT * FROM banners ORDER BY "order"'):
-        banner_name_data = cursor.execute('SELECT alternative_name FROM banner_names WHERE name=?',
-                                          (row[0],)).fetchall()
-        banner_unit_data = cursor.execute('SELECT unit_id FROM banners_units WHERE banner_name=?', (row[0],)).fetchall()
-        banner_rate_up_unit_data = cursor.execute('SELECT unit_id FROM banners_rate_up_units WHERE banner_name=?',
-                                                  (row[0],)).fetchall()
+        banner_name_data = cursor2.execute('SELECT alternative_name FROM banner_names WHERE name=?',
+                                           (row[0],)).fetchall()
+        banner_unit_data = cursor2.execute('SELECT unit_id FROM banners_units WHERE banner_name=?', (row[0],)).fetchall()
+        banner_rate_up_unit_data = cursor2.execute('SELECT unit_id FROM banners_rate_up_units WHERE banner_name=?',
+                                                   (row[0],)).fetchall()
         banner_names = [row[0]]
         unit_list = []
         rate_up_unit_list = []
@@ -197,7 +198,6 @@ async def add_user_pull(user: discord.Member, got_ssr: bool):
         else:
             cursor.execute('UPDATE user_pulls SET pull_amount=? WHERE user_id=? AND guild=?',
                            (data["pull_amount"] + 1, user.id, user.guild.id))
-    connection.commit()
 
 
 async def read_box(user: discord.Member) -> dict:
@@ -222,7 +222,6 @@ async def add_unit_to_box(user: discord.Member, unit_to_add: Unit):
         if data[0] < 1000:
             cursor.execute('UPDATE box_units SET amount=? WHERE user_id=? AND guild=? AND unit_id=?',
                            (data[0] + 1, user.id, user.guild.id, unit_to_add.unit_id))
-    connection.commit()
 
 
 async def add_shaft(user: discord.Member, amount: int):

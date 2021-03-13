@@ -1,6 +1,5 @@
 from enum import Enum
 from utilities import *
-import sys
 
 
 class Grade(Enum):
@@ -233,6 +232,9 @@ class Unit:
         if self.type == Type.BLUE:
             return discord.Color.blue()
         return discord.Color.gold()
+
+    def __str__(self):
+        return f"Unit: {self.name} ({self.unit_id})"
 
 
 def units_by_id(ids: List[int]) -> List[Unit]:

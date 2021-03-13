@@ -67,6 +67,12 @@ class Banner:
 
         self.shaftable: bool = len([x for x in name if "gssr" in name]) == 0
 
+    def __repr__(self):
+        return "Banner: " + ", ".join([f"{x}: {self.__getattribute__(x)} " for x in dir(self)])
+
+    def __str__(self):
+        return f"Banner: {self.name}"
+
 
 def banner_by_name(name: str) -> Banner:
     return next((x for x in ALL_BANNERS if name in x.name), None)

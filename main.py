@@ -900,9 +900,9 @@ async def shaft(ctx, person: typing.Optional[MemberMentionConverter],
                               ))
 
     unit_ssr = False
-    if unit_name.startswith("ssr:"):
+    if ssr_pattern.match(unit_name, 0):
         unit_ssr = True
-        unit_name = unit_name.replace("ssr:", "")
+        unit_name = ssr_pattern.sub("", unit_name)
 
     possible_units = [a.unit_id for a in unit_by_vague_name(unit_name)]
 
@@ -966,6 +966,8 @@ async def shaft(ctx, person: typing.Optional[MemberMentionConverter],
             i += 1
             drawn_units = [(await unit_with_chance(from_banner, person)) for _ in range(rang)]
             drawn_ssrs.extend([x for x in drawn_units if x.grade == Grade.SSR])
+
+        connection.commit()
 
         return i, drawn_units, drawn_ssrs
 
@@ -1694,7 +1696,6 @@ def start_up_bot(token_path: str = "data/bot_token.txt", db_path: str = "data/da
         with open(token_path, 'r') as token_file:
             TOKEN = token_file.read()
 
-        sql.connection.close()
         sql.connection = sql.sqlite.connect(db_path)
 
         IS_BETA = is_beta

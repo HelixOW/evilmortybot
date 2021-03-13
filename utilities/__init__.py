@@ -11,6 +11,7 @@ import discord
 import typing
 import random as ra
 import sqlite3 as sqlite
+import re
 
 
 IMG_SIZE = 150
@@ -21,6 +22,9 @@ R_UNITS = []
 SR_UNITS = []
 CUSTOM_UNITS = []
 ALL_BANNERS = []
+
+
+ssr_pattern = re.compile(r'(ssr[-_:])+')
 
 
 def chunks(lst, n):
