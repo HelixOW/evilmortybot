@@ -104,20 +104,20 @@ async def unit_with_chance(from_banner: Banner, user: discord.Member) -> Unit:
 async def get_top_shafts(bot: Bot, guild: discord.Guild):
     ret = []
     cursor = connection.cursor()
-    data = cursor.execute(
-        'SELECT * FROM user_pulls WHERE guild=? AND pull_amount > 99 ORDER BY shafts DESC LIMIT 10',
-        (guild.id,)).fetchall()
 
-    if data is None:
-        return ret
-    for i in range(10):
-        if i == len(data):
-            break
-        user = await bot.fetch_user(data[i][0])
+    for row in cursor.execute(
+            'SELECT row_number() over (ORDER BY shafts),'
+            ' user_id,'
+            ' shafts'
+            ' FROM user_pulls'
+            ' WHERE guild=? AND pull_amount > 99'
+            ' ORDER BY shafts'
+            ' DESC LIMIT 10',
+            (guild.id,)).fetchall():
         ret.append({
-            "place": i + 1,
-            "name": user.display_name,
-            "shafts": data[i][4]
+            "place": row[0],
+            "name": (await bot.fetch_user(row[1])).display_name,
+            "shafts": row[5]
         })
     return ret
 
@@ -125,20 +125,22 @@ async def get_top_shafts(bot: Bot, guild: discord.Guild):
 async def get_top_lucky(bot: Bot, guild: discord.Guild):
     ret = []
     cursor = connection.cursor()
-    data = cursor.execute(
-        'SELECT *, round((CAST(ssr_amount as REAL)/CAST(pull_amount as REAL)), 4) percent FROM user_pulls WHERE guild=? AND pull_amount > 99 ORDER BY percent DESC LIMIT 10',
-        (guild.id,)).fetchall()
-    if data is None:
-        return ret
-    for i in range(10):
-        if i == len(data):
-            break
-        user = await bot.fetch_user(data[i][0])
+    for row in cursor.execute(
+            'SELECT row_number() over (ORDER BY round((CAST(ssr_amount as REAL)/CAST(pull_amount as REAL)), 4)),'
+            ' user_id,'
+            ' pull_amount,'
+            ' round((CAST(ssr_amount as REAL)/CAST(pull_amount as REAL)), 4) percent '
+            'FROM user_pulls'
+            ' WHERE guild=? AND pull_amount > 99'
+            ' ORDER BY percent'
+            ' DESC LIMIT 10',
+            (guild.id,)).fetchall():
+
         ret.append({
-            "place": i + 1,
-            "name": user.display_name,
-            "luck": round((data[i][1] / data[i][2]) * 100, 2),
-            "pull-amount": data[i][2]
+            "place": row[0],
+            "name": (await bot.fetch_user(row[1])).display_name,
+            "luck": round(row[3], 2),
+            "pull-amount": row[2]
         })
     return ret
 
@@ -146,7 +148,7 @@ async def get_top_lucky(bot: Bot, guild: discord.Guild):
 async def get_top_ssrs(bot: Bot, guild: discord.Guild):
     ret = []
     cursor = connection.cursor()
-    data = cursor.execute(
+    for row in cursor.execute(
         'SELECT * FROM user_pulls WHERE guild=? AND pull_amount > 99 ORDER BY ssr_amount DESC LIMIT 10',
         (guild.id,)).fetchall()
     if data is None:
@@ -274,9 +276,10 @@ async def remove_custom_unit(unit_name: str):
     connection.commit()
 
 
-async def parse_custom_unit_list(owner: int) -> sqlite.Cursor:
+async def parse_custom_unit_ids(owner: int):
     cursor = connection.cursor()
-    return cursor.execute('SELECT unit_id FROM units WHERE simple_name=?', (owner,)).fetchall()
+    for row in cursor.execute('SELECT unit_id FROM units WHERE simple_name=?', (owner,)).fetchall():
+        yield row[0]
 
 
 async def edit_custom_unit(to_set: str, values: List):
@@ -377,7 +380,6 @@ async def add_raid_channel(by: discord.Message):
     cursor = connection.cursor()
     cursor.execute('INSERT INTO "raid_channels" VALUES (?, ?)', (by.guild.id, by.channel.id))
     connection.commit()
-
 
 
 async def get_friendcode(of: discord.Member):

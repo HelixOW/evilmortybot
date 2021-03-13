@@ -9,4 +9,4 @@ if __name__ == '__main__':
     if sys.argv[1] == "prod":
         production.start_up_bot()
     else:
-        beta.start_up_bot(token_path="data/beta_token.txt", db_path="data/beta_data.db", is_beta=True)
+        beta.start_up_bot(token_path="data/beta_token.txt", db_path="data/data.db", is_beta=True)

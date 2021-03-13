@@ -64,13 +64,13 @@ def map_leaderboard(raw_leaderboard: str) -> LeaderboardType:
 
 async def get_top_users(guild: discord.Guild, action: LeaderboardType = LeaderboardType.LUCK) -> List[dict]:
     if action == LeaderboardType.MOST_SHAFTS:
-        return get_top_shafts(BOT, guild)
+        return await get_top_shafts(BOT, guild)
     elif action == LeaderboardType.LUCK:
-        return get_top_lucky(BOT, guild)
+        return await get_top_lucky(BOT, guild)
     elif action == LeaderboardType.MOST_SSR:
-        return get_top_ssrs(BOT, guild)
+        return await get_top_ssrs(BOT, guild)
     elif action == LeaderboardType.MOST_UNITS:
-        return get_top_units(BOT, guild)
+        return await get_top_units(BOT, guild)
 
 
 def get_matching_units(grades: List[Grade] = None,
@@ -390,7 +390,7 @@ def parse_custom_unit_args(arg: str):
     }
 
 
-def get_demon_role(guild_id: int, demon_type: str = "red") -> discord.Role:
+def get_demon_role(guild_id: int, demon_type: str = "red") -> typing.Optional[discord.Role]:
     guild_roles = DEMON_ROLES[guild_id]
     if guild_roles is not None and len(guild_roles[demon_type]) != 0:
         return guild_roles[demon_type][0]
@@ -440,7 +440,7 @@ async def on_ready():
 
 
 @BOT.event
-async def on_guild_join(guild):
+async def on_guild_join(guild_unused):
     parse_demon_roles()
 
 
@@ -1057,8 +1057,8 @@ async def custom_list(ctx, *, args: typing.Optional[str] = ""):
         return await list_units(ctx, criteria="event: custom")
 
     unit_list = []
-    async for row in parse_custom_unit_list(data["owner"]):
-        unit_list.append(unit_by_id(-1 * row[0]))
+    async for unit_id in await parse_custom_unit_ids(data["owner"]):
+        unit_list.append(unit_by_id(-1 * unit_id))
 
     loading = await ctx.send(content=f"{ctx.message.author.mention} -> Loading Units", embed=embeds.LOADING_EMBED)
     await ctx.send(file=await image_to_discord(await compose_unit_list(unit_list), "units.png"),

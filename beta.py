@@ -46,8 +46,6 @@ TEAM_TIME_CHECK = []
 PVP_TIME_CHECK = []
 
 DEMON_ROLES = {}
-DEMON_MESSAGES = {}
-DEMON_CONTRACTS = {}
 DEMON_OFFER_MESSAGES = {}
 
 BOT = commands.Bot(command_prefix='..', description='..help for Help', help_command=CustomHelp(), intents=intents)
@@ -66,13 +64,13 @@ def map_leaderboard(raw_leaderboard: str) -> LeaderboardType:
 
 async def get_top_users(guild: discord.Guild, action: LeaderboardType = LeaderboardType.LUCK) -> List[dict]:
     if action == LeaderboardType.MOST_SHAFTS:
-        return get_top_shafts(BOT, guild)
+        return await get_top_shafts(BOT, guild)
     elif action == LeaderboardType.LUCK:
-        return get_top_lucky(BOT, guild)
+        return await get_top_lucky(BOT, guild)
     elif action == LeaderboardType.MOST_SSR:
-        return get_top_ssrs(BOT, guild)
+        return await get_top_ssrs(BOT, guild)
     elif action == LeaderboardType.MOST_UNITS:
-        return get_top_units(BOT, guild)
+        return await get_top_units(BOT, guild)
 
 
 def get_matching_units(grades: List[Grade] = None,
@@ -392,7 +390,7 @@ def parse_custom_unit_args(arg: str):
     }
 
 
-def get_demon_role(guild_id: int, demon_type: str = "red") -> discord.Role:
+def get_demon_role(guild_id: int, demon_type: str = "red") -> typing.Optional[discord.Role]:
     guild_roles = DEMON_ROLES[guild_id]
     if guild_roles is not None and len(guild_roles[demon_type]) != 0:
         return guild_roles[demon_type][0]
@@ -442,7 +440,7 @@ async def on_ready():
 
 
 @BOT.event
-async def on_guild_join(guild):
+async def on_guild_join(guild_unused):
     parse_demon_roles()
 
 
@@ -1059,8 +1057,8 @@ async def custom_list(ctx, *, args: typing.Optional[str] = ""):
         return await list_units(ctx, criteria="event: custom")
 
     unit_list = []
-    async for row in parse_custom_unit_list(data["owner"]):
-        unit_list.append(unit_by_id(-1 * row[0]))
+    async for unit_id in await parse_custom_unit_ids(data["owner"]):
+        unit_list.append(unit_by_id(-1 * unit_id))
 
     loading = await ctx.send(content=f"{ctx.message.author.mention} -> Loading Units", embed=embeds.LOADING_EMBED)
     await ctx.send(file=await image_to_discord(await compose_unit_list(unit_list), "units.png"),
@@ -1488,18 +1486,18 @@ async def demon(ctx):
 
 @demon.command(name="friend", aliases=["friendcode", "code"])
 async def demon_friend(ctx, of: typing.Optional[discord.Member]):
-    if of == None:
+    if of is None:
         of = ctx.message.author
 
-    friendcode = await get_friendcode(ctx.message.author)
+    friendcode = await get_friendcode(of)
 
     if friendcode is None:
         if of == ctx.message.author:
-            ctx.send(f"{ctx.message.author.mention}: You are not registered in the bot yet! `..demon tag <grandcross friendcode> <profile name>` to create one")
+            await ctx.send(f"{ctx.message.author.mention}: You are not registered in the bot yet! `..demon tag <grandcross friendcode> <profile name>` to create one")
         else:
-            ctx.send(f"{ctx.message.author.mention}: {of.display_name} is not registered in the bot yet!")
+            await ctx.send(f"{ctx.message.author.mention}: {of.display_name} is not registered in the bot yet!")
     else:
-        ctx.send(f"{ctx.message.author.mention}: {friendcode[0]}")
+        await ctx.send(f"{ctx.message.author.mention}: {friendcode[0]}")
 
 
 @demon.command(name="offer")
@@ -1515,14 +1513,6 @@ async def demon_offer(ctx, reds: int = 0, greys: int = 0, crimsons: int = 0, *, 
         )
     author = ctx.message.author
     guild_created_in = ctx.message.guild
-
-    if author.id in DEMON_CONTRACTS.keys():
-        del DEMON_CONTRACTS[author.id]
-
-    if author.id not in DEMON_CONTRACTS:
-        DEMON_CONTRACTS[author.id] = {
-            "guild": ctx.message.guild.id
-        }
 
     for channel_list_item in get_raid_channels():
         channel = await BOT.fetch_channel(channel_list_item[1])
@@ -1623,9 +1613,6 @@ async def demon_offer(ctx, reds: int = 0, greys: int = 0, crimsons: int = 0, *, 
                 await msg.clear_reactions()
             except discord.errors.NotFound:
                 pass
-
-    if author.id in DEMON_MESSAGES:
-        del DEMON_MESSAGES[author.id]
 
 
 @BOT.event
