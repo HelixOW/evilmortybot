@@ -936,8 +936,8 @@ async def shaft(ctx, person: typing.Optional[MemberMentionConverter],
                     if a.unit_id in [b.unit_id for b in from_banner.all_units]]
 
     draw = await ctx.send(
-        content=f"{person.mention} this is your shaft" if person is ctx.message.author
-        else f"{person.mention} this is your shaft coming from {ctx.message.author.mention}",
+        content=f"{person.mention} you are getting shafted" if person is ctx.message.author
+        else f"{person.mention} you are getting shafted from {ctx.message.author.mention}",
         embed=discord.Embed(
             title="Shafting..."
         ).set_image(url=LOADING_IMAGE_URL))
@@ -957,36 +957,31 @@ async def shaft(ctx, person: typing.Optional[MemberMentionConverter],
                     return True
         return False
 
-    async def loop():
-        i = 0
+    i = 0
+    drawn_units = [(await unit_with_chance(from_banner, person)) for _ in range(rang)]
+    drawn_ssrs = [x for x in drawn_units if x.grade == Grade.SSR]
+
+    while not await has_ssr(drawn_units) and i < 1000:
+        i += 1
         drawn_units = [(await unit_with_chance(from_banner, person)) for _ in range(rang)]
-        drawn_ssrs = [x for x in drawn_units if x.grade == Grade.SSR]
+        drawn_ssrs.extend([x for x in drawn_units if x.grade == Grade.SSR])
 
-        while not await has_ssr(drawn_units) and i < 1000:
-            i += 1
-            drawn_units = [(await unit_with_chance(from_banner, person)) for _ in range(rang)]
-            drawn_ssrs.extend([x for x in drawn_units if x.grade == Grade.SSR])
-
-        connection.commit()
-
-        return i, drawn_units, drawn_ssrs
-
-    shafts_and_units = await loop()
+    connection.commit()
 
     await ctx.send(
         file=await image_to_discord(
-            await compose_unit_multi_draw(units=shafts_and_units[1],
-                                          ssrs=shafts_and_units[2]) if from_banner.banner_type == BannerType.ELEVEN
-            else await compose_unit_five_multi_draw(units=shafts_and_units[1]),
+            await compose_unit_multi_draw(units=drawn_units,
+                                          ssrs=drawn_ssrs) if from_banner.banner_type == BannerType.ELEVEN
+            else await compose_unit_five_multi_draw(units=drawn_units),
             "units.png"),
-        content=f"{person.mention}" if person is ctx.message.author
-        else f"{person.mention} coming from {ctx.message.author.mention}",
+        content=f"{person.mention}: Your shaft" if person is ctx.message.author
+        else f"{person.mention}: Your shaft coming from {ctx.message.author.mention}",
         embed=discord.Embed(
             title=f"{from_banner.pretty_name} ({rang}x summon)",
-            description=f"Shafted {shafts_and_units[0]} times \n This is your final pull").set_image(
+            description=f"Shafted {i} times \n This is your final pull").set_image(
             url="attachment://units.png"))
     await draw.delete()
-    await add_shaft(person, shafts_and_units[0])
+    await add_shaft(person, i)
 
 
 @BOT.group(no_pm=True)
@@ -1686,7 +1681,7 @@ async def demon_channel(ctx, action="none"):
     await ctx.message.author.send("\n".join(channels))
 
 
-def start_up_bot(token_path: str = "data/bot_token.txt", db_path: str = "data/data.db", is_beta: bool = False):
+def start_up_bot(token_path: str = "data/bot_token.txt", is_beta: bool = False):
     global TOKEN, IS_BETA
     try:
         read_affections_from_db()
@@ -1695,8 +1690,6 @@ def start_up_bot(token_path: str = "data/bot_token.txt", db_path: str = "data/da
 
         with open(token_path, 'r') as token_file:
             TOKEN = token_file.read()
-
-        sql.connection = sql.sqlite.connect(db_path)
 
         IS_BETA = is_beta
 

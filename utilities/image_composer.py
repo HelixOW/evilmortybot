@@ -162,7 +162,7 @@ async def compose_unit_multi_draw(units: List[Unit], ssrs: List[Unit] = None) ->
         (
                 ((IMG_SIZE * 3) + (complete_offset * 2)) +  # y of last pull
                 ((IMG_SIZE * len(ssr_rows)) + (complete_offset * (len(ssr_rows) - 1))) +  # y of all ssrs
-                text_dim[1] + 15  # y of text and spacing for top and bottom
+                ((text_dim[1] + 15) if len(ssrs) != 0 else 0)  # y of text and spacing for top and bottom
         )
     ))
     draw = ImageDraw.Draw(i)
@@ -175,6 +175,9 @@ async def compose_unit_multi_draw(units: List[Unit], ssrs: List[Unit] = None) ->
             i.paste(_unit.icon, (x_offset, y_offset))
             x_offset += IMG_SIZE + complete_offset
         y_offset += IMG_SIZE + complete_offset
+
+    if len(ssrs) == 0:
+        return i
 
     draw.text(
         xy=(0, y_offset + 5),
