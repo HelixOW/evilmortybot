@@ -64,13 +64,13 @@ def map_leaderboard(raw_leaderboard: str) -> LeaderboardType:
 
 async def get_top_users(guild: discord.Guild, action: LeaderboardType = LeaderboardType.LUCK) -> List[dict]:
     if action == LeaderboardType.MOST_SHAFTS:
-        return await get_top_shafts(BOT, guild)
+        return [x async for x in get_top_shafts(BOT, guild)]
     elif action == LeaderboardType.LUCK:
-        return await get_top_lucky(BOT, guild)
+        return [x async for x in get_top_lucky(BOT, guild)]
     elif action == LeaderboardType.MOST_SSR:
-        return await get_top_ssrs(BOT, guild)
+        return [x async for x in get_top_ssrs(BOT, guild)]
     elif action == LeaderboardType.MOST_UNITS:
-        return await get_top_units(BOT, guild)
+        return [x async for x in get_top_units(BOT, guild)]
 
 
 def get_matching_units(grades: List[Grade] = None,
@@ -1434,20 +1434,17 @@ async def blackjack(ctx):
 
 @blackjack.command(name="top", aliases=["leaderboard", "lead", "leader", "leading"])
 async def blackjack_top(ctx):
-    data = await get_blackjack_top(ctx.message.guild)
-    if data is None:
+    if len([x async for x in get_blackjack_top(ctx.message.guild)]) is None:
         return await ctx.send(content="Nobody played Blackjack yet!")
-
-    top_l = []
-    i = 0
-    for row in data:
-        i += 1
-        top_l.append(f"**{i}.** *{(await BOT.fetch_user(row[0])).display_name}* ~ Streak of {row[1]} wins")
 
     return await ctx.send(content=f"{ctx.message.author.mention}",
                           embed=discord.Embed(
                               title=f"Blackjack Leaderboard in {ctx.message.guild.name} (Highest Winning Streaks)",
-                              description=",\n".join(top_l)
+                              description=",\n".join(["**{}.** *{}* ~ Streak of {} wins".format(
+                                  data["place"],
+                                  await BOT.fetch_user(data["user"]),
+                                  data["highest_streak"]
+                              ) async for data in get_blackjack_top(ctx.message.guild)])
                           ).set_thumbnail(url=ctx.message.guild.icon_url))
 
 
@@ -1459,7 +1456,7 @@ async def blackjack_record(ctx, person: typing.Optional[discord.Member] = None):
 
     if data is None:
         return await ctx.send(
-            content=f"{ctx.message.author.mention} hasn't played Blackjack yet!" if person == ctx.message.author
+            content=f"{ctx.message.author.mention}: You haven't played Blackjack yet!" if person == ctx.message.author
             else f"{ctx.message.author.mention}: {person.display_name} hasn't played Blackjack yet!")
 
     return await ctx.send(
@@ -1493,7 +1490,8 @@ async def demon_friend(ctx, of: typing.Optional[discord.Member]):
 
     if friendcode is None:
         if of == ctx.message.author:
-            await ctx.send(f"{ctx.message.author.mention}: You are not registered in the bot yet! `..demon tag <grandcross friendcode> <profile name>` to create one")
+            await ctx.send(
+                f"{ctx.message.author.mention}: You are not registered in the bot yet! `..demon tag <grandcross friendcode> <profile name>` to create one")
         else:
             await ctx.send(f"{ctx.message.author.mention}: {of.display_name} is not registered in the bot yet!")
     else:
@@ -1514,9 +1512,9 @@ async def demon_offer(ctx, reds: int = 0, greys: int = 0, crimsons: int = 0, *, 
     author = ctx.message.author
     guild_created_in = ctx.message.guild
 
-    for channel_list_item in get_raid_channels():
-        channel = await BOT.fetch_channel(channel_list_item[1])
-        guild = await BOT.fetch_guild(channel_list_item[0])
+    async for channel_list_item in get_raid_channels():
+        channel = await BOT.fetch_channel(channel_list_item["channel_id"])
+        guild = await BOT.fetch_guild(channel_list_item["guild"])
 
         mentions = []
         if reds != 0 and get_demon_role(guild.id, "red") is not None:
@@ -1583,10 +1581,8 @@ async def demon_offer(ctx, reds: int = 0, greys: int = 0, crimsons: int = 0, *, 
                 await author.send(
                     content=f"Please contact {user.mention} (from {shared_guilds(author, user)[0]}) for your demons")
 
-        offer_messages = [message_id for message_id in DEMON_OFFER_MESSAGES if
-                          DEMON_OFFER_MESSAGES[message_id]["creator"].id == author.id]
-
-        for offer_id in offer_messages:
+        for offer_id in [message_id for message_id in DEMON_OFFER_MESSAGES if
+                         DEMON_OFFER_MESSAGES[message_id]["creator"].id == author.id]:
             try:
                 DEMON_OFFER_MESSAGES[offer_id]["claimed_by"] = user
                 offer_message = await DEMON_OFFER_MESSAGES[offer_id]["channel"].fetch_message(offer_id)
@@ -1625,36 +1621,31 @@ async def on_message(message):  # if people dont share a server. reply to the of
     if demon_msg_id not in DEMON_OFFER_MESSAGES:
         return await BOT.process_commands(message)
 
-    offer_data = Dict2Obj(DEMON_OFFER_MESSAGES[demon_msg_id])
+    offer_data = DEMON_OFFER_MESSAGES[demon_msg_id]
 
-    if "claimed_by" not in DEMON_OFFER_MESSAGES[demon_msg_id]:
+    if "claimed_by" not in offer_data:
         return await BOT.process_commands(message)
 
-    if len(shared_guilds(offer_data.creator, offer_data.claimed_by)) == 0:
-        if message.author.id == offer_data.creator.id:
-            await offer_data.claimed_by.send(
-                content=f"Message from {offer_data.creator.mention} regarding your demon offer:",
+    creator_tag = "creator"
+    claimed_tag = "claimed_by"
+
+    if len(shared_guilds(offer_data[creator_tag], offer_data[claimed_tag])) == 0:
+        if message.author.id == offer_data[creator_tag].id:
+            await offer_data[claimed_tag].send(
+                content=f"Message from {offer_data[creator_tag].mention} regarding your demon offer:",
                 embed=discord.Embed(description=message.content))
         else:
-            await offer_data.creator.send(
-                content=f"Message from {offer_data.claimed_by.mention} regarding your demon offer:",
+            await offer_data[creator_tag].send(
+                content=f"Message from {offer_data[claimed_tag].mention} regarding your demon offer:",
                 embed=discord.Embed(description=message.content))
 
 
 @demon.command(name="profile", aliases=["create", "tag"])
 async def demon_profile(ctx, gc_id: int = 0, name: str = "main"):
     if gc_id == 0:
-        return await ctx.send(
-            content=f"{ctx.message.author.mention}",
-            embed=discord.Embed(
-                title=f"Info about {ctx.message.author.display_name}",
-                description="Names: \n" + "\n".join([
-                    "{}: {}".format(x[0], x[1])
-                    for x in await get_profile_name_and_friendcode(ctx.message.author)
-                ])
-            ))
+        return demon_info(ctx)
 
-    if get_demon_profile(ctx.message.author, name) is None:
+    if await get_demon_profile(ctx.message.author, name) is None:
         await create_demon_profile(ctx.message.author, gc_id, name)
         await ctx.send(f"{ctx.message.author.mention}: Added profile {name}  with friendcode {gc_id}")
     else:
@@ -1675,8 +1666,8 @@ async def demon_info(ctx, of: typing.Optional[discord.Member]):
         embed=discord.Embed(
             title=f"Info about {of.display_name}",
             description="Names: \n" + "\n".join([
-                "{}: {}".format(x[0], x[1])
-                for x in await get_profile_name_and_friendcode(of)
+                "{}: {}".format(x["name"], x["code"])
+                async for x in get_profile_name_and_friendcode(of)
             ])
         ))
 
@@ -1688,8 +1679,8 @@ async def demon_channel(ctx, action="none"):
         await add_raid_channel(ctx.message)
         return await ctx.send(f"{ctx.message.author.mention} added demon channel!")
 
-    channels = [(await BOT.fetch_channel(x[1])).name + " in " + (await BOT.fetch_guild(x[0])).name for x in
-                await get_raid_channels()]
+    channels = [(await BOT.fetch_channel(x["channel_id"])).name + " in " + (await BOT.fetch_guild(x["guild"])).name
+                async for x in get_raid_channels()]
     await ctx.message.author.send("\n".join(channels))
 
 

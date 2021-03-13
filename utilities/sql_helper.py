@@ -44,8 +44,7 @@ def read_banners_from_db():
     ALL_BANNERS.clear()
     connection.commit()
     cursor = connection.cursor()
-    banner_data = cursor.execute('SELECT * FROM banners ORDER BY "order"').fetchall()
-    for row in banner_data:
+    for row in cursor.execute('SELECT * FROM banners ORDER BY "order"'):
         banner_name_data = cursor.execute('SELECT alternative_name FROM banner_names WHERE name=?',
                                           (row[0],)).fetchall()
         banner_unit_data = cursor.execute('SELECT unit_id FROM banners_units WHERE banner_name=?', (row[0],)).fetchall()
@@ -102,7 +101,6 @@ async def unit_with_chance(from_banner: Banner, user: discord.Member) -> Unit:
 
 
 async def get_top_shafts(bot: Bot, guild: discord.Guild):
-    ret = []
     cursor = connection.cursor()
 
     for row in cursor.execute(
@@ -113,17 +111,15 @@ async def get_top_shafts(bot: Bot, guild: discord.Guild):
             ' WHERE guild=? AND pull_amount > 99'
             ' ORDER BY shafts'
             ' DESC LIMIT 10',
-            (guild.id,)).fetchall():
-        ret.append({
+            (guild.id,)):
+        yield {
             "place": row[0],
             "name": (await bot.fetch_user(row[1])).display_name,
-            "shafts": row[5]
-        })
-    return ret
+            "shafts": row[2]
+        }
 
 
 async def get_top_lucky(bot: Bot, guild: discord.Guild):
-    ret = []
     cursor = connection.cursor()
     for row in cursor.execute(
             'SELECT row_number() over (ORDER BY round((CAST(ssr_amount as REAL)/CAST(pull_amount as REAL)), 4)),'
@@ -134,56 +130,50 @@ async def get_top_lucky(bot: Bot, guild: discord.Guild):
             ' WHERE guild=? AND pull_amount > 99'
             ' ORDER BY percent'
             ' DESC LIMIT 10',
-            (guild.id,)).fetchall():
-
-        ret.append({
+            (guild.id,)):
+        yield {
             "place": row[0],
             "name": (await bot.fetch_user(row[1])).display_name,
             "luck": round(row[3], 2),
             "pull-amount": row[2]
-        })
-    return ret
+        }
 
 
 async def get_top_ssrs(bot: Bot, guild: discord.Guild):
-    ret = []
     cursor = connection.cursor()
     for row in cursor.execute(
-        'SELECT * FROM user_pulls WHERE guild=? AND pull_amount > 99 ORDER BY ssr_amount DESC LIMIT 10',
-        (guild.id,)).fetchall()
-    if data is None:
-        return ret
-    for i in range(10):
-        if i == len(data):
-            break
-        user = await bot.fetch_user(data[i][0])
-        ret.append({
-            "place": i + 1,
-            "name": user.display_name,
-            "ssrs": data[i][1],
-            "pull-amount": data[i][2]
-        })
-    return ret
+            'SELECT row_number() over (ORDER BY ssr_amount),'
+            ' user_id,'
+            ' ssr_amount,'
+            ' pull_amount'
+            ' FROM user_pulls WHERE guild=? AND pull_amount > 99'
+            ' ORDER BY ssr_amount'
+            ' DESC LIMIT 10',
+            (guild.id,)):
+        yield {
+            "place": row[0],
+            "name": (await bot.fetch_user(row[1])).display_name,
+            "ssrs": row[2],
+            "pull-amount": row[3]
+        }
 
 
 async def get_top_units(bot: Bot, guild: discord.Guild):
-    ret = []
     cursor = connection.cursor()
-    data = cursor.execute(
-        'SELECT * FROM user_pulls WHERE guild=? and pull_amount > 99 ORDER BY pull_amount DESC LIMIT 10',
-        (guild.id,)).fetchall()
-    if data is None:
-        return ret
-    for i in range(10):
-        if i == len(data):
-            break
-        user = await bot.fetch_user(data[i][0])
-        ret.append({
-            "place": i + 1,
-            "name": user.display_name,
-            "pull-amount": data[i][2]
-        })
-    return ret
+    for row in cursor.execute(
+            'SELECT row_number() OVER (ORDER BY pull_amount),'
+            ' user_id,'
+            ' pull_amount'
+            ' FROM user_pulls'
+            ' WHERE guild=? AND pull_amount > 99'
+            ' ORDER BY pull_amount'
+            ' DESC LIMIT 10',
+            (guild.id,)):
+        yield {
+            "place": row[0],
+            "name": (await bot.fetch_user(row[1])).display_name,
+            "pull-amount": row[2]
+        }
 
 
 async def get_user_pull(user: discord.Member) -> dict:
@@ -359,9 +349,10 @@ async def add_blackjack_game(user: discord.Member, won: bool):
 
 async def get_blackjack_top(guild: discord.Guild):
     cursor = connection.cursor()
-    return cursor.execute(
-        'SELECT user, highest_streak FROM blackjack_record WHERE guild=? ORDER BY highest_streak DESC LIMIT 10',
-        (guild.id,)).fetchall()
+    for row in cursor.execute(
+            'SELECT row_number() over (ORDER BY highest_streak), user, highest_streak FROM blackjack_record WHERE guild=? ORDER BY highest_streak DESC LIMIT 10',
+            (guild.id,)):
+        yield {"place": row[0], "user": row[1], "highest_streak": row[2]}
 
 
 async def get_blackjack_stats(of: discord.Member):
@@ -373,7 +364,8 @@ async def get_blackjack_stats(of: discord.Member):
 
 async def get_raid_channels():
     cursor = connection.cursor()
-    return cursor.execute('SELECT * FROM "raid_channels"').fetchall()
+    for row in cursor.execute('SELECT * FROM "raid_channels"'):
+        yield {"guild": row[0], "channel_id": row[1]}
 
 
 async def add_raid_channel(by: discord.Message):
@@ -389,7 +381,8 @@ async def get_friendcode(of: discord.Member):
 
 async def get_profile_name_and_friendcode(of: discord.Member):
     cursor = connection.cursor()
-    return cursor.execute('SELECT name, gc_id FROM "users" WHERE discord_id=?', (of.id,)).fetchall()
+    for row in cursor.execute('SELECT name, gc_id FROM "users" WHERE discord_id=?', (of.id,)):
+        yield {"name": row[0], "code": row[1]}
 
 
 async def get_demon_profile(of: discord.Member, name: str):
