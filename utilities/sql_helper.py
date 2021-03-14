@@ -103,75 +103,70 @@ async def unit_with_chance(from_banner: Banner, user: discord.Member) -> Unit:
 
 async def get_top_shafts(bot: Bot, guild: discord.Guild):
     cursor = connection.cursor()
-
-    for row in cursor.execute(
-            'SELECT row_number() over (ORDER BY shafts),'
-            ' user_id,'
+    for i, row in enumerate(cursor.execute(
+            'SELECT user_id,'
             ' shafts'
             ' FROM user_pulls'
             ' WHERE guild=? AND pull_amount > 99'
             ' ORDER BY shafts'
             ' DESC LIMIT 10',
-            (guild.id,)):
+            (guild.id,))):
         yield {
-            "place": row[0],
-            "name": (await bot.fetch_user(row[1])).display_name,
-            "shafts": row[2]
+            "place": i+1,
+            "name": (await bot.fetch_user(row[0])).display_name,
+            "shafts": row[1]
         }
 
 
 async def get_top_lucky(bot: Bot, guild: discord.Guild):
     cursor = connection.cursor()
-    for row in cursor.execute(
-            'SELECT row_number() over (ORDER BY round((CAST(ssr_amount as REAL)/CAST(pull_amount as REAL)), 4)),'
-            ' user_id,'
+    for i, row in enumerate(cursor.execute(
+            'SELECT user_id,'
             ' pull_amount,'
-            ' round((CAST(ssr_amount as REAL)/CAST(pull_amount as REAL)), 4) percent '
+            ' round((CAST(ssr_amount as REAL)/CAST(pull_amount as REAL)), 4) * 100 percent '
             'FROM user_pulls'
             ' WHERE guild=? AND pull_amount > 99'
             ' ORDER BY percent'
             ' DESC LIMIT 10',
-            (guild.id,)):
+            (guild.id,))):
         yield {
-            "place": row[0],
-            "name": (await bot.fetch_user(row[1])).display_name,
-            "luck": round(row[3], 2),
-            "pull-amount": row[2]
+            "place": i+1,
+            "name": (await bot.fetch_user(row[0])).display_name,
+            "luck": round(row[2], 2),
+            "pull-amount": row[1]
         }
 
 
 async def get_top_ssrs(bot: Bot, guild: discord.Guild):
     cursor = connection.cursor()
-    for row in cursor.execute(
-            'SELECT row_number() over (ORDER BY ssr_amount),'
-            ' user_id,'
+    for i, row in enumerate(cursor.execute(
+            'SELECT user_id,'
             ' ssr_amount,'
             ' pull_amount'
             ' FROM user_pulls WHERE guild=? AND pull_amount > 99'
             ' ORDER BY ssr_amount'
             ' DESC LIMIT 10',
-            (guild.id,)):
+            (guild.id,))):
         yield {
-            "place": row[0],
-            "name": (await bot.fetch_user(row[1])).display_name,
-            "ssrs": row[2],
-            "pull-amount": row[3]
+            "place": i+1,
+            "name": (await bot.fetch_user(row[0])).display_name,
+            "ssrs": row[1],
+            "pull-amount": row[2]
         }
 
 
 async def get_top_units(bot: Bot, guild: discord.Guild):
     cursor = connection.cursor()
-    for row in cursor.execute(
-            'SELECT row_number() OVER (ORDER BY pull_amount),'
-            ' user_id,'
+    for i, row in enumerate(cursor.execute(
+            'SELECT user_id,'
             ' pull_amount'
             ' FROM user_pulls'
             ' WHERE guild=? AND pull_amount > 99'
             ' ORDER BY pull_amount'
             ' DESC LIMIT 10',
-            (guild.id,)):
+            (guild.id,))):
         yield {
-            "place": row[0],
+            "place": i+1,
             "name": (await bot.fetch_user(row[1])).display_name,
             "pull-amount": row[2]
         }

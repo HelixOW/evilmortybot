@@ -564,6 +564,9 @@ async def stats(ctx, person: typing.Optional[discord.Member]):
         "person": person
     }
 
+    if ctx.invoked_subcommand is None:
+        return await stats_luck(ctx)
+
 
 @stats.command(name="luck", aliases=["lucky", "luckiness"])
 async def stats_luck(ctx):
