@@ -1,96 +1,38 @@
 import discord
+import messages as m
 
-HELP_EMBED_1 = discord.Embed(
-    title="Help 1/2",
-    description="""
-                __*Commands:*__
-                    `..unit` -> `Check Info`
-                    `..team` -> `Check Info`
-                    `..pvp <@Enemy>` -> `Check Info`
-                    `..single [@For=You] [banner=banner 1]` 
-                    `..multi [@For=You] [banner=banner 1]`
-                    `..shaft [@For=You] [unit="Unit name"] [banner=banner 1]`
-                    `..summon`
-                    `..banner [banner=banner 1]`
-                    `..stats <luck, ssrs, units, shafts>`
-                    `..top <luck, ssrs, units, shafts>`
-                    `..box [@Of=You]`
-                    `..find <unit name>`
-                    `..list unit [criteria=event: custom]` -> `for criteria check Info`
-                    `..list banner`
-                    `..demon` -> `Execute for more Info`
-                    `..custom` -> `Execute for more Info`
-                            """,
-    colour=discord.Color.gold(),
-)
 
-HELP_EMBED_2 = discord.Embed(
-    title="Help 2/2",
-    description="""
-    __*Info:*__
-                    You can use different attributes to narrow down the possibilities:
-                     `race:` demons, giants, humans, fairies, goddess, unknown
-                     `type:` blue, red, green
-                     `grade:` r, sr, ssr
-                     `event:` gc, slime, aot, kof, new year, halloween, festival, valentine
-                     `affection:` sins, commandments, holy knights, catastrophes, archangels, none, custom added ones...
-                     `name:` name1, name2, name3, ..., nameN
+class Help:
+    class General:
+        HELP_1 = discord.Embed(
+            title=m.HELP_1_TITLE,
+            description=m.HELP_1,
+            colour=discord.Color.gold(),
+        )
+        HELP_2 = discord.Embed(
+            title=m.HELP_2_TITLE,
+            description=m.HELP_2,
+            colour=discord.Color.gold(),
+        ).set_footer(text=m.HELP_FOOTER)
 
-                    If you want to define e.g. __multiple races append__ them with a `,` after each race
-                    If you want to use __multiple attributes append__ a `&` after each attribute
 
-                    `<>`, that means you **have to provide** this argument
-                    `[]`, that means you **can provide** this argument
-                    `=` inside a argument means, whatever comes after the equals is the **default value**
-    
-    __Examples:__
-                    `..unit` ~ returns a random unit
-                    `..unit race: demons, giants & type: red` ~ returns a random red demon or red giant
-                    `..team` ~ returns a random pvp team
-                    `..team race: demons` ~ returns a random pvp team with only demons
-                    `..single part two` ~ does a single summon on the Part 2 banner
-                    `..multi race two` ~ does a 5x summon on the Demon/Fairy/Goddess banner
-                    `..multi banner two` ~ does a 11x summon on the most recent banner                    
-                    `..shaft` ~ does a 11x summon until you get a SSR
-                    `..shaft race two` ~ does a 5x summon on the Demon/Fairy/Goddess banner until you get a SSR
-                    `..custom create name:[Demon Slayer] Tanjiro & type: red & grade; sr & url: <URL to image> & race: human` ~ Creates a Red SR Tanjiro
-    """,
-    colour=discord.Color.gold(),
-).set_footer(text="Ping `Helix Sama#0001` for additional help!")
+UNIT_LOOKUP_ERROR_EMBED = discord.Embed(title=m.ERROR, colour=discord.Color.dark_red(), description=m.Unit.LOOKUP)
 
-UNIT_LOOKUP_ERROR_EMBED = discord.Embed(title="Error", colour=discord.Color.dark_red(),
-                                        description="Can't find any unit which meets those requirements")
+TEAM_LOOKUP_ERROR_EMBED = discord.Embed(title=m.ERROR, colour=discord.Color.dark_red(), description=m.Team.LOOKUP)
+TEAM_COOLDOWN_ERROR_EMBED = discord.Embed(title=m.ERROR, colour=discord.Color.dark_red(), description=m.Team.COOLDOWN)
 
-TEAM_LOOKUP_ERROR_EMBED = discord.Embed(title="Error", colour=discord.Color.dark_red(),
-                                        description="Can't find any team which meets those requirements")
-TEAM_COOLDOWN_ERROR_EMBED = discord.Embed(title="Error", colour=discord.Color.dark_red(),
-                                          description="Please wait before using another ..team")
+PVP_COOLDOWN_ERROR_EMBED = discord.Embed(title=m.ERROR, colour=discord.Color.dark_red(), description=m.PvP.COOLDOWN)
 
-PVP_COOLDOWN_ERROR_EMBED = discord.Embed(title="Error", colour=discord.Color.dark_red(),
-                                         description="Please wait before using another ..pvp")
+AFFECTION_UNMUTABLE_ERROR_EMBED = discord.Embed(title=m.ERROR, colour=discord.Color.dark_red(),
+                                                description=m.Affection.Error.UNMUTABLE)
+AFFECTION_HELP_EMBED = discord.Embed(title=m.Affection.Help.TITLE, colour=discord.Color.gold(),
+                                     description=m.Affection.Help.DESC)
 
-SUMMON_THROTTLE_ERROR_EMBED = discord.Embed(title="Error", colour=discord.Color.dark_red(),
-                                            description="Please don't summon more then 5x at once")
+AFFECTION_ADDED_EMBED = discord.Embed(title=m.SUCCESS, colour=discord.Color.green(), description=m.Affection.ADD)
+AFFECTION_EDITED_EMBED = discord.Embed(title=m.SUCCESS, colour=discord.Color.green(), description=m.Affection.EDIT)
+AFFECTION_REMOVED_EMBED = discord.Embed(title=m.SUCCESS, colour=discord.Color.red(), description=m.Affection.REMOVE)
 
-AFFECTION_UNMUTABLE_ERROR_EMBED = discord.Embed(title="Error", colour=discord.Color.dark_red(),
-                                                description="This Affection can not be added/removed!")
-AFFECTION_HELP_EMBED = discord.Embed(title="Help for ..affection", colour=discord.Color.gold(),
-                                     description="""
-                                     `..affection <action> <name>`
-
-                                     *__actions__*: 
-                                     `add <name>`,
-                                     `remove <name>`,
-                                     `edit <name> name: <new name>`, 
-                                     `transfer <name> owner: @<new owner>`,
-                                     `list`,
-                                     `help`
-                                      """)
-AFFECTION_ADDED_EMBED = discord.Embed(title="Success", colour=discord.Color.green(), description="Affection added!")
-AFFECTION_EDITED_EMBED = discord.Embed(title="Success", colour=discord.Color.green(), description="Affection edited!")
-AFFECTION_REMOVED_EMBED = discord.Embed(title="Success", colour=discord.Color.red(), description="Affection removed!")
-
-CUSTOM_HELP_EMBED = discord.Embed(title="Help for ..custom", colour=discord.Color.gold(),
+CUSTOM_HELP_EMBED = discord.Embed(title=m.Custom.Help.TITLE, colour=discord.Color.gold(),
                                   description="""
                                   `..custom create name:<name> & type:<type> & grade:<grade> & url:<file_url> & race:[race] & affection:[affection]`
                                   `..custom remove name:<name>`
