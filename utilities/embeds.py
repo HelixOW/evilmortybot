@@ -1,5 +1,5 @@
 import discord
-import messages as m
+import utilities.messages as m
 
 
 class Help:
@@ -32,49 +32,31 @@ AFFECTION_ADDED_EMBED = discord.Embed(title=m.SUCCESS, colour=discord.Color.gree
 AFFECTION_EDITED_EMBED = discord.Embed(title=m.SUCCESS, colour=discord.Color.green(), description=m.Affection.EDIT)
 AFFECTION_REMOVED_EMBED = discord.Embed(title=m.SUCCESS, colour=discord.Color.red(), description=m.Affection.REMOVE)
 
-CUSTOM_HELP_EMBED = discord.Embed(title=m.Custom.Help.TITLE, colour=discord.Color.gold(),
-                                  description="""
-                                  `..custom create name:<name> & type:<type> & grade:<grade> & url:<file_url> & race:[race] & affection:[affection]`
-                                  `..custom remove name:<name>`
-                                  `..custom edit name:<name> & type:[type] & grade:[grade] & owner:[@Owner] & updated_name:[updated name] & url:[url] & race:[race] & affection:[affection]`
-                                  """)
-CUSTOM_ADD_COMMAND_USAGE_EMBED = discord.Embed(title="Error with ..custom create", colour=discord.Color.dark_red(),
-                                               description="""
-                                               `..custom create name:<name> & type:<type> & grade:<grade> & url:<file_url> & race:[race] & affection:[affection]`
-                                               """)
-CUSTOM_EDIT_COMMAND_USAGE_EMBED = discord.Embed(title="Error with ..custom edit", colour=discord.Color.dark_red(),
-                                                description="""
-                                               `..custom edit name:<name> & criteria:<value1> & criteria2:<value2>`
+CUSTOM_HELP_EMBED = discord.Embed(title=m.Custom.Help.TITLE, colour=discord.Color.gold(), description=m.Custom.Help.DESC)
+CUSTOM_ADD_COMMAND_USAGE_EMBED = discord.Embed(title=m.Custom.Add.Error.TITLE, colour=discord.Color.dark_red(),
+                                               description=m.Custom.Add.Error.DESC)
+CUSTOM_EDIT_COMMAND_USAGE_EMBED = discord.Embed(title=m.Custom.Edit.Error.TITLE, colour=discord.Color.dark_red(),
+                                                description=m.Custom.Edit.Error.DESC)
+CUSTOM_EDIT_COMMAND_SUCCESS_EMBED = discord.Embed(title=m.Custom.Edit.Success.TITLE, colour=discord.Color.green(),
+                                                  description=m.Custom.Edit.Success.DESC)
+CUSTOM_REMOVE_COMMAND_USAGE_EMBED = discord.Embed(title=m.Custom.Remove.Error.TITLE, colour=discord.Color.dark_red(),
+                                                  description=m.Custom.Remove.Error.DESC)
+CUSTOM_REMOVE_COMMAND_SUCCESS_EMBED = discord.Embed(title=m.SUCCESS, colour=discord.Color.green(),
+                                                    description=m.Custom.Remove.SUCCESS)
 
-                                               **__Criteria__**:
-                                               `type: <type>`,
-                                               `grade: <grade>`,
-                                               `url: <image url>`,
-                                               `race: <race>`,
-                                               `affection: <affection>`
-                                               `updated_name: <new name>`
-                                               """)
-CUSTOM_EDIT_COMMAND_SUCCESS_EMBED = discord.Embed(title="Success", colour=discord.Color.green(),
-                                                  description="Unit successfully edited!")
-CUSTOM_REMOVE_COMMAND_USAGE_EMBED = discord.Embed(title="Error with ..custom remove", colour=discord.Color.dark_red(),
-                                                  description="""
-                                                  `..custom remove name:<name>`
-                                                  """)
-CUSTOM_REMOVE_COMMAND_SUCCESS_EMBED = discord.Embed(title="Success", colour=discord.Color.green(),
-                                                    description="Unit successfully removed!")
+CROP_COMMAND_USAGE_ERROR_EMBED = discord.Embed(title=m.ERROR, colour=discord.Color.dark_red(),
+                                               description=m.Crop.USAGE)
 
-CROP_COMMAND_USAGE_ERROR_EMBED = discord.Embed(title="Error", colour=discord.Color.dark_red(),
-                                               description="..crop requires at least a url of a file to crop (..help for more)")
+RESIZE_COMMAND_USAGE_ERROR_EMBED = discord.Embed(title=m.ERROR, colour=discord.Color.dark_red(),
+                                                 description=m.Resize.USAGE)
 
-RESIZE_COMMAND_USAGE_ERROR_EMBED = discord.Embed(title="Error", colour=discord.Color.dark_red(),
-                                                 description="..resize requires at least a url of a file to crop (..help for more)")
+DEMON_HELP_EMBED = discord.Embed(title=m.Demon.Help.TITLE, colour=discord.Color.gold(),
+                                 description=m.Demon.Help.DESC)
 
-DEMON_HELP_EMBED = discord.Embed(title="Help for ..demon", colour=discord.Color.gold(),
-                                 description="""
-                                 `..demon offer <reds> <greys> <crimsons>` to offer demons (Click "OK" to claim)
-                                 `..demon tag <grand cross friendcode> [name] [slot]` to create a profile
-                                 `..demon info` to show your info
-                                 """)
 
-LOADING_EMBED = discord.Embed(title="Loading...")
-IMAGES_LOADED_EMBED = discord.Embed(title="Images loaded!")
+class TourneyEmbeds:
+    HELP = discord.Embed(title=m.Tourney.Help.TITLE, colour=discord.Color.gold(), description=m.Tourney.Help.DESC)
+
+
+LOADING_EMBED = discord.Embed(title=m.LOADING)
+IMAGES_LOADED_EMBED = discord.Embed(title=m.LOADED)

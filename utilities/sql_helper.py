@@ -113,7 +113,7 @@ async def get_top_shafts(bot: Bot, guild: discord.Guild):
             (guild.id,))):
         yield {
             "place": i+1,
-            "name": (await bot.fetch_user(row[0])).display_name,
+            "name": (await bot.fetch_user(row[0])).mention,
             "shafts": row[1]
         }
 
@@ -131,7 +131,7 @@ async def get_top_lucky(bot: Bot, guild: discord.Guild):
             (guild.id,))):
         yield {
             "place": i+1,
-            "name": (await bot.fetch_user(row[0])).display_name,
+            "name": (await bot.fetch_user(row[0])).mention,
             "luck": round(row[2], 2),
             "pull-amount": row[1]
         }
@@ -149,7 +149,7 @@ async def get_top_ssrs(bot: Bot, guild: discord.Guild):
             (guild.id,))):
         yield {
             "place": i+1,
-            "name": (await bot.fetch_user(row[0])).display_name,
+            "name": (await bot.fetch_user(row[0])).mention,
             "ssrs": row[1],
             "pull-amount": row[2]
         }
@@ -167,7 +167,7 @@ async def get_top_units(bot: Bot, guild: discord.Guild):
             (guild.id,))):
         yield {
             "place": i+1,
-            "name": (await bot.fetch_user(row[1])).display_name,
+            "name": (await bot.fetch_user(row[1])).mention,
             "pull-amount": row[2]
         }
 
@@ -401,3 +401,145 @@ async def update_demon_profile(of: discord.Member, gc_id: int, name: str):
     cursor.execute('UPDATE "users" SET gc_id=?, name=? WHERE discord_id=? AND name=?',
                    (gc_id, name.lower(), of.id, name.lower()))
     connection.commit()
+
+
+async def create_tourney_profile(of: discord.Member, gc_id: int, cc: float, team: List[int]):
+    cursor = connection.cursor()
+    try:
+        cursor.execute('INSERT INTO "tourney_profiles" VALUES (?, ?, ?, ?, ?, ?)', (of.id, gc_id, cc, 0, 0, ",".join([str(x) for x in team])))
+        connection.commit()
+        return True
+    except sqlite.IntegrityError:
+        return False
+
+
+async def edit_tourney_friendcode(of: discord.Member, gc_id: int):
+    cursor = connection.cursor()
+
+    if cursor.execute('SELECT * FROM "tourney_profiles" WHERE discord_id=?', (of.id, )).fetchone() is None:
+        return False
+
+    cursor.execute('UPDATE "tourney_profiles" SET gc_code=? WHERE discord_id=?', (gc_id, of.id))
+    connection.commit()
+    return True
+
+
+async def edit_tourney_cc(of: discord.Member, cc: float):
+    cursor = connection.cursor()
+
+    if cursor.execute('SELECT * FROM "tourney_profiles" WHERE discord_id=?', (of.id, )).fetchone() is None:
+        return False
+
+    cursor.execute('UPDATE "tourney_profiles" SET team_cc=? WHERE discord_id=?', (cc, of.id))
+    connection.commit()
+    return True
+
+
+async def edit_tourney_team(of: discord.Member, team: List[int]):
+    cursor = connection.cursor()
+
+    if cursor.execute('SELECT * FROM "tourney_profiles" WHERE discord_id=?', (of.id,)).fetchone() is None:
+        return False
+
+    cursor.execute('UPDATE "tourney_profiles" SET team_unit_ids=? WHERE discord_id=?', (",".join([str(x) for x in team]), of.id))
+    connection.commit()
+    return True
+
+
+async def get_tourney_profile(of: discord.Member):
+    cursor = connection.cursor()
+    data = cursor.execute('SELECT gc_code, team_cc, won, lost, team_unit_ids FROM "tourney_profiles" WHERE discord_id=?', (of.id, )).fetchone()
+    if data is None:
+        return None
+    return {
+        "gc_code": data[0],
+        "team_cc": data[1],
+        "won": data[2],
+        "lost": data[3],
+        "team": [int(x) for x in data[4].split(",")]
+    }
+
+
+async def get_tourney_top_profiles():
+    cursor = connection.cursor()
+    for i, row in enumerate(cursor.execute('SELECT won, discord_id'
+                                           ' FROM "tourney_profiles"'
+                                           ' ORDER BY won DESC'
+                                           ' LIMIT 10').fetchall()):
+        yield {
+            "place": i + 1,
+            "won": row[0],
+            "member_id": row[1]
+        }
+
+
+async def add_tourney_challenge(author: discord.Member, to_fight: discord.Member):
+    cursor = connection.cursor()
+
+    try:
+        cursor.execute('INSERT INTO "tourney_challenges" VALUES (?, ?)', (to_fight.id, author.id))
+        connection.commit()
+        return True
+    except sqlite.IntegrityError:
+        return False
+
+
+async def get_tourney_challengers(of: discord.Member):
+    cursor = connection.cursor()
+
+    for row in cursor.execute('SELECT challenger_discord_id FROM "tourney_challenges" WHERE challenged_discord_id=?',
+                              (of.id, )):
+        yield row[0]
+
+
+async def accept_challenge(challenged: discord.Member, challenger: discord.Member):
+    return await start_tourney_game(challenged, challenger)
+
+
+async def decline_challenge(challenged: discord.Member, challenger: discord.Member):
+    cursor = connection.cursor()
+
+    cursor.execute('DELETE FROM "tourney_challenges" WHERE challenged_discord_id=? AND challenger_discord_id=?',
+                   (challenged.id, challenger.id))
+
+    connection.commit()
+
+
+async def start_tourney_game(challenged: discord.Member, challenger: discord.Member):
+    cursor = connection.cursor()
+
+    cursor.execute('DELETE FROM "tourney_challenges" WHERE challenged_discord_id=? AND challenger_discord_id=?',
+                   (challenged.id, challenger.id))
+
+    cursor.execute('INSERT INTO "tourney_games" VALUES (?, ?)', (challenged.id, challenger.id))
+    connection.commit()
+
+
+async def report_tourney_game(winner: discord.Member, looser: discord.Member):
+    cursor = connection.cursor()
+
+    if not await tourney_in_game_with(winner, looser):
+        return False
+
+    cursor.execute('DELETE FROM "tourney_games" WHERE (person1=? AND person2=?) OR (person1=? AND person2=?)',
+                   (winner.id, looser.id, looser.id, winner.id))
+
+    cursor.execute('UPDATE "tourney_profiles" SET won = won + 1 WHERE discord_id=?', (winner.id,))
+    cursor.execute('UPDATE "tourney_profiles" SET lost = lost + 1 WHERE discord_id=?', (looser.id,))
+
+    return True
+
+
+async def tourney_in_game(player: discord.Member):
+    cursor = connection.cursor()
+
+    return len(
+        cursor.execute('SELECT * FROM "tourney_games" WHERE person1=? OR person2=?', (player.id, player.id)).fetchall()) != 0
+
+
+async def tourney_in_game_with(p1: discord.Member, p2: discord.Member):
+    cursor = connection.cursor()
+
+    return len(
+        cursor.execute('SELECT * FROM "tourney_games" WHERE (person1=? AND person2=?) OR (person1=? AND person2=?)',
+                       (p1.id, p2.id, p2.id, p1.id)).fetchall()) != 0

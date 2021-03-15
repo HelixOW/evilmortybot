@@ -4,3 +4,4 @@
 - locale
 - awakening calc
 - tournament command
+- shaft with number on unit instead of repeat

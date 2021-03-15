@@ -1,3 +1,5 @@
+from discord.ext.commands import Context as cT
+
 import utilities.embeds as embeds
 import utilities.sql_helper as sql
 from utilities.banner_data import *
@@ -25,8 +27,8 @@ class LeaderboardType(Enum):
 
 class CustomHelp(HelpCommand):
     async def send_bot_help(self, mapping):
-        await self.get_destination().send(embed=embeds.HELP_EMBED_1)
-        await self.get_destination().send(embed=embeds.HELP_EMBED_2)
+        await self.get_destination().send(embed=embeds.Help.General.HELP_1)
+        await self.get_destination().send(embed=embeds.Help.General.HELP_2)
 
 
 class UnitConverter(commands.Converter):
@@ -564,9 +566,6 @@ async def stats(ctx, person: typing.Optional[discord.Member]):
         "person": person
     }
 
-    if ctx.invoked_subcommand is None:
-        return await stats_luck(ctx)
-
 
 @stats.command(name="luck", aliases=["lucky", "luckiness"])
 async def stats_luck(ctx):
@@ -939,8 +938,8 @@ async def shaft(ctx, person: typing.Optional[MemberMentionConverter],
                     if a.unit_id in [b.unit_id for b in from_banner.all_units]]
 
     draw = await ctx.send(
-        content=f"{person.mention} this is your shaft" if person is ctx.message.author
-        else f"{person.mention} this is your shaft coming from {ctx.message.author.mention}",
+        content=f"{person.mention} you are getting shafted" if person is ctx.message.author
+        else f"{person.mention} you are getting shafted from {ctx.message.author.mention}",
         embed=discord.Embed(
             title="Shafting..."
         ).set_image(url=LOADING_IMAGE_URL))
@@ -960,36 +959,32 @@ async def shaft(ctx, person: typing.Optional[MemberMentionConverter],
                     return True
         return False
 
-    async def loop():
-        i = 0
+    i = 0
+    drawn_units = [(await unit_with_chance(from_banner, person)) for _ in range(rang)]
+    drawn_ssrs = [x for x in drawn_units if x.grade == Grade.SSR]
+
+    while not await has_ssr(drawn_units) and i < 1000:
+        i += 1
         drawn_units = [(await unit_with_chance(from_banner, person)) for _ in range(rang)]
-        drawn_ssrs = [x for x in drawn_units if x.grade == Grade.SSR]
+        drawn_ssrs.extend([x for x in drawn_units if x.grade == Grade.SSR])
 
-        while not await has_ssr(drawn_units) and i < 1000:
-            i += 1
-            drawn_units = [(await unit_with_chance(from_banner, person)) for _ in range(rang)]
-            drawn_ssrs.extend([x for x in drawn_units if x.grade == Grade.SSR])
-
-        connection.commit()
-
-        return i, drawn_units, drawn_ssrs
-
-    shafts_and_units = await loop()
+    connection.commit()
+    multi_msg = "Multi" if i == 0 else "Multis"
 
     await ctx.send(
         file=await image_to_discord(
-            await compose_unit_multi_draw(units=shafts_and_units[1],
-                                          ssrs=shafts_and_units[2]) if from_banner.banner_type == BannerType.ELEVEN
-            else await compose_unit_five_multi_draw(units=shafts_and_units[1]),
+            await compose_unit_multi_draw(units=drawn_units,
+                                          ssrs=drawn_ssrs) if from_banner.banner_type == BannerType.ELEVEN
+            else await compose_unit_five_multi_draw(units=drawn_units),
             "units.png"),
-        content=f"{person.mention}" if person is ctx.message.author
-        else f"{person.mention} coming from {ctx.message.author.mention}",
+        content=f"{person.mention}: Your shaft" if person is ctx.message.author
+        else f"{person.mention}: Your shaft coming from {ctx.message.author.mention}",
         embed=discord.Embed(
             title=f"{from_banner.pretty_name} ({rang}x summon)",
-            description=f"Shafted {shafts_and_units[0]} times \n This is your final pull").set_image(
+            description=f"You did {i + 1}x {multi_msg}. \n With this being your final pull:").set_image(
             url="attachment://units.png"))
     await draw.delete()
-    await add_shaft(person, shafts_and_units[0])
+    await add_shaft(person, i)
 
 
 @BOT.group(no_pm=True)
@@ -1689,7 +1684,278 @@ async def demon_channel(ctx, action="none"):
     await ctx.message.author.send("\n".join(channels))
 
 
-def start_up_bot(token_path: str = "data/bot_token.txt", db_path: str = "data/data.db", is_beta: bool = False):
+@BOT.group(no_pm=True, aliases=["tourney"])
+async def tournament(ctx: cT):
+    if ctx.invoked_subcommand is None:
+        await ctx.send(content=ctx.message.author.mention, embed=embeds.TourneyEmbeds.HELP)
+
+
+@tournament.command(name="signup")
+async def tournament_signup(ctx: cT, gc_code: int = 0, team_cc: float = 0,
+                            unit1: int = 0, unit2: int = 0, unit3: int = 0, unit4: int = 0):
+    if 0 in [gc_code, team_cc, unit1, unit2, unit3, unit4]:
+        return await ctx.send(content=ctx.author.mention, embed=embeds.TourneyEmbeds.HELP)
+
+    _team = []
+
+    for unit_id in [unit1, unit2, unit3, unit4]:
+        u = unit_by_id(unit_id)
+        if u is None:
+            return await ctx.send(f"{ctx.author.mention}: No Unit with ID: {unit_id} found!")
+        else:
+            _team.append(u)
+
+    if await create_tourney_profile(ctx.author, gc_code, team_cc, [unit1, unit2, unit3, unit4]):
+        await ctx.send(f"{ctx.author.mention}:",
+                       file=await image_to_discord(await compose_team(_team), "team.png"),
+                       embed=discord.Embed(
+                           title="Registered Profile!",
+                           colour=discord.Color.green(),
+                           description=f"""
+            CC: `{team_cc}`
+
+            To edit your Team CC: 
+                `..tourney cc <new cc>`
+
+            Friend code: `{gc_code}`
+
+            To edit your Friend code:
+                `..tourney code <new friend code>`
+
+            Registered Team:
+            """
+                       ).set_image(url="attachment://team.png"))
+    else:
+        await ctx.send(f"{ctx.author.mention}:", embed=discord.Embed(
+            title="Error: Profile already exist",
+            colour=discord.Color.red(),
+            description="""
+            To edit your team cc: `..tourney cc <new cc>`
+
+            To edit your friend code: `..tourney code <new friend code>`
+            """
+        ))
+
+
+@tournament.command(name="code")
+async def tournament_code(ctx: cT, gc_code: int = 0):
+    if gc_code == 0:
+        return await ctx.send(content=ctx.author.mention, embed=embeds.TourneyEmbeds.HELP)
+
+    if await edit_tourney_friendcode(ctx.author, gc_code):
+        await ctx.send(f"{ctx.author.mention}:", embed=discord.Embed(
+            title="Updated Profile!",
+            colour=discord.Color.green(),
+            description=f"Your new friend code is: {gc_code}"
+        ))
+    else:
+        await ctx.send(f"{ctx.author.mention}:", embed=discord.Embed(
+            title="Error: Profile doesn't exist",
+            colour=discord.Color.red(),
+            description="To create one: `..tourney signup <friend code> <team cc>`"
+        ))
+
+
+@tournament.command(name="cc")
+async def tournament_cc(ctx: cT, cc: float = 0):
+    if cc == 0:
+        return await ctx.send(content=ctx.author.mention, embed=embeds.TourneyEmbeds.HELP)
+
+    if await edit_tourney_cc(ctx.author, cc):
+        await ctx.send(f"{ctx.author.mention}:", embed=discord.Embed(
+            title="Updated Profile!",
+            colour=discord.Color.green(),
+            description=f"Your new cc is: {cc}"
+        ))
+    else:
+        await ctx.send(f"{ctx.author.mention}:", embed=discord.Embed(
+            title="Error: Profile doesn't exist",
+            colour=discord.Color.red(),
+            description="To create one: `..tourney signup <friend code> <team cc>`"
+        ))
+
+
+@tournament.command(name="team")
+async def tournament_team(ctx: cT, unit1: int = 0, unit2: int = 0, unit3: int = 0, unit4: int = 0):
+    if 0 in [unit1, unit2, unit3, unit4]:
+        return await ctx.send(content=ctx.author.mention, embed=embeds.TourneyEmbeds.HELP)
+
+    _team = []
+
+    for unit_id in [unit1, unit2, unit3, unit4]:
+        u = unit_by_id(unit_id)
+        if u is None:
+            return await ctx.send(f"{ctx.author.mention}: No Unit with ID: {unit_id} found!")
+        else:
+            _team.append(u)
+
+    if await edit_tourney_team(ctx.author, [unit1, unit2, unit3, unit4]):
+        await ctx.send(f"{ctx.author.mention}:",
+                       file=await image_to_discord(await compose_team(_team), "team.png"),
+                       embed=discord.Embed(
+                           title="Updated Profile!",
+                           colour=discord.Color.green(),
+                           description=f"Your new team is:"
+                       ).set_image(url="attachment://team.png"))
+    else:
+        await ctx.send(f"{ctx.author.mention}:", embed=discord.Embed(
+            title="Error: Profile doesn't exist",
+            colour=discord.Color.red(),
+            description="To create one: `..tourney signup <friend code> <team cc>`"
+        ))
+
+
+@tournament.command(name="stats", aliases=["profile"])
+async def tournament_stats(ctx: cT, of: typing.Optional[discord.Member]):
+    if of is None:
+        of = ctx.author
+
+    data = await get_tourney_profile(of)
+    if data is None:
+        return await ctx.send(content=ctx.author.mention, embed=discord.Embed(
+            title="Error",
+            colour=discord.Color.red(),
+            description=f"{of.display_name} has no registered profile"
+        ))
+
+    _team = [unit_by_id(x) for x in data["team"]]
+
+    return await ctx.send(content=ctx.author.mention,
+                          file=await image_to_discord(await compose_team(_team), "team.png"),
+                          embed=discord.Embed(
+                              title=f"Profile of: {of.display_name}",
+                              description=f"""
+        Friend code: `{data["gc_code"]}` 
+
+        Team CC: `{data["team_cc"]}`
+
+        Won: `{data["won"]}`
+
+        Lost: `{data["lost"]}`
+
+        Registered Team:
+        """
+                          ).set_image(url="attachment://team.png"))
+
+
+@tournament.command(name="challenge", aliases=["fight"])
+async def tournament_challenge(ctx: cT, enemy: typing.Optional[discord.Member]):
+    if enemy is None or enemy == ctx.author:
+        return await ctx.send(f"{ctx.author.mention}: Please provide a enemy you want to challenge")
+
+    author_data = await get_tourney_profile(ctx.author)
+    enemy_data = await get_tourney_profile(enemy)
+
+    if author_data is None or enemy_data is None:
+        return await ctx.send(f"{ctx.author.mention}:", embed=discord.Embed(
+            title="Error: Profile doesn't exist",
+            colour=discord.Color.red(),
+            description="To create one: `..tourney signup <friend code> <team cc>`"
+        ))
+
+    if author_data["team_cc"] > enemy_data["team_cc"]:
+        return await ctx.send(f"{ctx.author.mention}:", embed=discord.Embed(
+            title="Error: Too high CC",
+            colour=discord.Color.red(),
+            description="You can't challenge someone who has __less__ CC then you."
+        ))
+
+    await add_tourney_challenge(ctx.author, enemy)
+    await ctx.send(f"{enemy.mention}: {ctx.author.mention} has challenged you!")
+
+
+@tournament.command(name="accept")
+async def tournament_accept(ctx: cT, enemy: typing.Optional[discord.Member]):
+    if enemy is None or enemy == ctx.author:
+        return await ctx.send(f"{ctx.author.mention}: Please provide a challenger you want to accept")
+
+    if await tourney_in_game(enemy):
+        return await ctx.send(f"{ctx.author.mention}:", embed=discord.Embed(
+            title="Error: Enemy still in a game",
+            colour=discord.Color.red(),
+            description=f"{enemy.display_name} is still in a game!"
+        ))
+    if await tourney_in_game(ctx.author):
+        return await ctx.send(f"{ctx.author.mention}:", embed=discord.Embed(
+            title="Error: Enemy still in a game",
+            colour=discord.Color.red(),
+            description=f"You are still in a game! \n\n `..tourney report <@Winner> <@Looser>` to finish the game"
+        ))
+    if enemy.id not in [x async for x in get_tourney_challengers(ctx.author)]:
+        return await ctx.send(f"{ctx.author.mention}: {enemy.display_name} didn't challenge you!")
+
+    p1_profile = await get_tourney_profile(ctx.author)
+    p2_profile = await get_tourney_profile(enemy)
+
+    p1_team = [unit_by_id(x) for x in p1_profile["team"]]
+    p2_team = [unit_by_id(x) for x in p2_profile["team"]]
+
+    await accept_challenge(ctx.author, enemy)
+    await ctx.send(f"{ctx.author.mention} ({p1_profile['gc_code']}) vs {enemy.mention} ({p2_profile['gc_code']})",
+                   file=await image_to_discord(await compose_pvp(ctx.author, p1_team, enemy, p2_team), "match.png"),
+                   embed=discord.Embed(
+                       title=f"{ctx.author.display_name} vs {enemy.display_name}",
+                       description=f"{p1_profile['team_cc']}CC vs {p2_profile['team_cc']}CC \n\n Please do `..tourney report <@Winner> <@Looser>` to end the game!"
+                   ).set_image(url="attachment://match.png"))
+
+
+@tournament.command(name="decline")
+async def tournament_decline(ctx: cT, enemy: typing.Optional[discord.Member]):
+    if enemy is None or enemy == ctx.author:
+        return await ctx.send(f"{ctx.author.mention}: Please provide a challenger you want to accept")
+
+    if enemy.id not in [x async for x in get_tourney_challengers(ctx.author)]:
+        return await ctx.send(f"{ctx.author.mention}: {enemy.display_name} didn't challenge you!")
+
+    await decline_challenge(ctx.author, enemy)
+    await ctx.send(f"{enemy.mention} {ctx.author.mention} has declined your challenge.")
+
+
+@tournament.command(name="challengers")
+async def tournament_challengers(ctx: cT):
+    if len([x async for x in get_tourney_challengers(ctx.author)]) == 0:
+        return await ctx.send(f"{ctx.author.mention}: No challengers.")
+    await ctx.send(ctx.author.mention, embed=discord.Embed(
+        title=f"{ctx.author.display_name}'s challengers",
+        description="\n".join(
+            [(await BOT.fetch_user(x)).display_name async for x in get_tourney_challengers(ctx.author)])
+    ))
+
+
+@tournament.command(name="report")
+async def tournament_report(ctx: cT, winner: typing.Optional[discord.Member], looser: typing.Optional[discord.Member]):
+    if winner == looser:
+        return await ctx.send(f"{ctx.author.mention} Winner and looser can't be the same person!")
+
+    if winner != ctx.author and looser != ctx.author:
+        return await ctx.send(f"{ctx.author.mention}: You can't report the game of someone else.")
+
+    if not tourney_in_game_with(winner, looser):
+        return await ctx.send(f"{winner.display_name} & {looser.display_name} were not in a game!")
+
+    await report_tourney_game(winner, looser)
+
+    unit_to_build = get_random_unit()
+
+    await ctx.send(f"{winner.mention} won against {looser.mention}",
+                   file=await image_to_discord(unit_to_build.icon, "unit.png"),
+                   embed=discord.Embed(
+                       title=f"{looser.mention} you now have to build out:",
+                       description=unit_to_build.name
+                   ).set_image(url="attachment://unit.png"))
+
+
+@tournament.command(name="top")
+async def tournament_top(ctx: cT):
+    await ctx.send(ctx.author.mention, embed=discord.Embed(
+        title="Tournament Participants with most wins",
+        description="\n".join(
+            [f"**{x['place']}.** {(await BOT.fetch_user(x['member_id'])).mention} with {x['won']} wins"
+             async for x in get_tourney_top_profiles()])
+    ))
+
+
+def start_up_bot(token_path: str = "data/bot_token.txt", is_beta: bool = False):
     global TOKEN, IS_BETA
     try:
         read_affections_from_db()
@@ -1698,8 +1964,6 @@ def start_up_bot(token_path: str = "data/bot_token.txt", db_path: str = "data/da
 
         with open(token_path, 'r') as token_file:
             TOKEN = token_file.read()
-
-        sql.connection = sql.sqlite.connect(db_path)
 
         IS_BETA = is_beta
 

@@ -13,7 +13,10 @@ def get_text_dimensions(text_string, font):
     return text_width, text_height
 
 
-async def compose_team(rerolled_team: List[Unit], re_units) -> Image:
+async def compose_team(rerolled_team: List[Unit], re_units=None) -> Image:
+    if re_units is None:
+        re_units = {0: [], 1: [], 2: [], 3: []}
+
     icons = [x.resize([IMG_SIZE, IMG_SIZE]) for x in [i.icon for i in rerolled_team]]
 
     if re_units[0] == 0 and re_units[1] == 0 and re_units[2] == 0 and re_units[3] == 0:
