@@ -13,6 +13,34 @@ def get_text_dimensions(text_string, font):
     return text_width, text_height
 
 
+def text_with_shadow(draw: ImageDraw, text: str, base_xy):
+    font = ImageFont.truetype("pvp.ttf", 24)
+    draw.text(
+        xy=(base_xy[0] + 1, base_xy[1]),
+        text=text,
+        fill=(0, 0, 0),
+        font=font
+    )
+    draw.text(
+        xy=(base_xy[0], base_xy[1] + 1),
+        text=text,
+        fill=(0, 0, 0),
+        font=font
+    )
+    draw.text(
+        xy=(base_xy[0] + 1, base_xy[1] + 1),
+        text=text,
+        fill=(0, 0, 0),
+        font=font
+    )
+    draw.text(
+        xy=(base_xy[0], base_xy[1]),
+        text=text,
+        fill=(255, 255, 255),
+        font=font
+    )
+
+
 async def compose_team(rerolled_team: List[Unit], re_units=None) -> Image:
     if re_units is None:
         re_units = {0: [], 1: [], 2: [], 3: []}
@@ -149,12 +177,12 @@ async def compose_unit_five_multi_draw(units: List[Unit]) -> Image:
     return i
 
 
-async def compose_unit_multi_draw(units: List[Unit], ssrs: List[Unit] = None) -> Image:
+async def compose_unit_multi_draw(units: List[Unit], ssrs=None) -> Image:
     if ssrs is None:
-        ssrs = []
+        ssrs = {}
 
     pull_rows = list(chunks(units, 4))
-    ssr_rows = list(chunks(ssrs, 4))
+    ssr_rows = list(chunks_dict(ssrs, 4))
     font = ImageFont.truetype("pvp.ttf", 24)
     text_dim = get_text_dimensions("All SSRs you got:", font=font)
 
@@ -190,13 +218,12 @@ async def compose_unit_multi_draw(units: List[Unit], ssrs: List[Unit] = None) ->
     )
     y_offset += text_dim[1] + 10
 
-    max_loops = len(ssr_rows) if len(ssr_rows) < 15 else 15
-
-    for c in range(max_loops):
+    for ssr_dict in ssr_rows:
         x_offset = 0
-        for _unit in ssr_rows[c]:
-            await _unit.set_icon()
-            i.paste(_unit.icon, (x_offset, y_offset))
+        for key in ssr_dict:
+            await key.set_icon()
+            i.paste(key.icon, (x_offset, y_offset))
+            text_with_shadow(draw, str(ssr_dict[key]), (x_offset + 10, y_offset + 10))
             x_offset += IMG_SIZE + complete_offset
         y_offset += IMG_SIZE + complete_offset
 
@@ -205,7 +232,6 @@ async def compose_unit_multi_draw(units: List[Unit], ssrs: List[Unit] = None) ->
 
 async def compose_box(units_dict: dict) -> Image:
     box_rows = list(chunks(list(units_dict.keys()), 5))
-    font = ImageFont.truetype("pvp.ttf", 24)
 
     i = Image.new('RGBA', (
         (IMG_SIZE * 5) + (4 * 5),
@@ -220,30 +246,7 @@ async def compose_box(units_dict: dict) -> Image:
             box_unit = unit_by_id(unit_id)
             await box_unit.set_icon()
             i.paste(box_unit.icon, (x_offset, y_offset))
-            draw.text(
-                xy=(x_offset + 6, y_offset + 10),
-                text=str(units_dict[unit_id]),
-                fill=(0, 0, 0),
-                font=font
-            )
-            draw.text(
-                xy=(x_offset + 5, y_offset + 11),
-                text=str(units_dict[unit_id]),
-                fill=(0, 0, 0),
-                font=font
-            )
-            draw.text(
-                xy=(x_offset + 6, y_offset + 11),
-                text=str(units_dict[unit_id]),
-                fill=(0, 0, 0),
-                font=font
-            )
-            draw.text(
-                xy=(x_offset + 5, y_offset + 10),
-                text=str(units_dict[unit_id]),
-                fill=(255, 255, 255),
-                font=font
-            )
+            text_with_shadow(draw, str(units_dict[unit_id]), (x_offset + 5, y_offset + 10))
             x_offset += IMG_SIZE + 5
         y_offset += IMG_SIZE + 5
 

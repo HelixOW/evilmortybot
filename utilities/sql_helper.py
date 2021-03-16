@@ -234,7 +234,7 @@ async def add_shaft(user: discord.Member, amount: int):
 async def add_custom_unit(name: str, creator: int, type_enum: Type, grade: Grade, url: str, race: Race,
                           affection_str: str):
     cursor = connection.cursor()
-    u = Unit(unit_id=-1 * len([x for x in UNITS if x.event == Event.CUS]),
+    u = Unit(unit_id=(-1 * len([x for x in UNITS if x.event == Event.CUS]) - 1),
              name=name,
              type_enum=type_enum,
              grade=grade,

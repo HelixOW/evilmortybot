@@ -961,12 +961,23 @@ async def shaft(ctx, person: typing.Optional[MemberMentionConverter],
 
     i = 0
     drawn_units = [(await unit_with_chance(from_banner, person)) for _ in range(rang)]
-    drawn_ssrs = [x for x in drawn_units if x.grade == Grade.SSR]
+    drawn_ssrs = {}
+    for x in drawn_units:
+        if x.grade == Grade.SSR:
+            if x not in drawn_ssrs:
+                drawn_ssrs[x] = 1
+            else:
+                drawn_ssrs[x] += 1
 
     while not await has_ssr(drawn_units) and i < 1000:
         i += 1
         drawn_units = [(await unit_with_chance(from_banner, person)) for _ in range(rang)]
-        drawn_ssrs.extend([x for x in drawn_units if x.grade == Grade.SSR])
+        for x in drawn_units:
+            if x.grade == Grade.SSR:
+                if x not in drawn_ssrs:
+                    drawn_ssrs[x] = 1
+                else:
+                    drawn_ssrs[x] += 1
 
     connection.commit()
     multi_msg = "Multi" if i == 0 else "Multis"
@@ -1940,7 +1951,7 @@ async def tournament_report(ctx: cT, winner: typing.Optional[discord.Member], lo
     await ctx.send(f"{winner.mention} won against {looser.mention}",
                    file=await image_to_discord(unit_to_build.icon, "unit.png"),
                    embed=discord.Embed(
-                       title=f"{looser.mention} you now have to build out:",
+                       title=f"{looser.display_name} you now have to build out:",
                        description=unit_to_build.name
                    ).set_image(url="attachment://unit.png"))
 
