@@ -177,6 +177,28 @@ async def compose_unit_five_multi_draw(units: List[Unit]) -> Image:
     return i
 
 
+async def compose_banner_rotation(units) -> Image:
+    pull_rows = list(chunks_dict(units, 5))
+
+    i = Image.new('RGBA', (
+        (IMG_SIZE * 5) + (5 * 4),  # x
+        ((IMG_SIZE * len(pull_rows)) + (5 * (len(pull_rows) - 1)))  # y
+    ))
+    draw = ImageDraw.Draw(i)
+
+    y_offset = 0
+    for _units in pull_rows:
+        x_offset = 0
+        for key in _units:
+            await key.set_icon()
+            i.paste(key.icon, (x_offset, y_offset))
+            text_with_shadow(draw, str(_units[key]), (x_offset + 10, y_offset + 10))
+            x_offset += IMG_SIZE + 5
+        y_offset += IMG_SIZE + 5
+
+    return i
+
+
 async def compose_unit_multi_draw(units: List[Unit], ssrs=None) -> Image:
     if ssrs is None:
         ssrs = {}

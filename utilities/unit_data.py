@@ -97,6 +97,14 @@ def map_grade(raw_grade: str) -> Grade:
     return None
 
 
+def grade_to_int(grade: Grade) -> int:
+    if grade == Grade.SSR:
+        return 0
+    elif grade == Grade.SR:
+        return 1
+    return 2
+
+
 def map_race(raw_race: str) -> Race:
     raw_race = raw_race.lower()
     if raw_race in ["demon", "demons"]:

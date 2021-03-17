@@ -23,6 +23,7 @@ CUSTOM_UNITS = []
 ALL_BANNERS = []
 
 ssr_pattern = re.compile(r'(ssr[-_:])+')
+number_pattern = re.compile(r'^([1-4][0-9]\s+)?$|50\s+')
 
 
 def chunks(lst, n):

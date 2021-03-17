@@ -835,9 +835,28 @@ async def team(ctx, *, args: str = ""):
 
 # ..multi
 @BOT.command(no_pm=True)
-async def multi(ctx, person: typing.Optional[discord.Member], *, banner_name: str = "banner 1"):
+async def multi(ctx, person: typing.Optional[discord.Member], *, banner_name: str = "1 banner 1"):
     if person is None:
         person = ctx.message.author
+
+    amount_str = ""
+    amount = 1
+    rot = False
+
+    if banner_name.startswith("rot") or banner_name.startswith("rotation"):
+        rot = True
+        banner_name = remove_trailing_whitespace(banner_name.replace("rotation", "").replace("rot", ""))
+        if banner_name.replace(" ", "") == "":
+            banner_name = "banner 1"
+    else:
+        while banner_name.startswith(tuple(str(i) for i in range(50))):
+            amount_str += remove_trailing_whitespace(banner_name[0])
+            banner_name = remove_trailing_whitespace(banner_name[1:])
+
+        if banner_name.replace(" ", "") == "":
+            banner_name = "banner 1"
+
+        amount = int(amount_str)
 
     from_banner = banner_by_name(banner_name)
     if from_banner is None:
@@ -849,15 +868,64 @@ async def multi(ctx, person: typing.Optional[discord.Member], *, banner_name: st
 
     draw = await ctx.send(embed=embeds.LOADING_EMBED.set_image(url=LOADING_IMAGE_URL))
 
-    img = await compose_multi_draw(from_banner=from_banner, user=person) if from_banner.banner_type == BannerType.ELEVEN \
-        else await compose_five_multi_draw(from_banner=from_banner, user=person)
-    await ctx.send(file=await image_to_discord(img, "units.png"),
-                   content=f"{person.mention} this is your multi" if person is ctx.message.author
-                   else f"{person.mention} this is your multi coming from {ctx.message.author.mention}",
-                   embed=discord.Embed(title=f"{from_banner.pretty_name} "
-                                             f"({11 if from_banner.banner_type == BannerType.ELEVEN else 5}x summon)")
-                   .set_image(url="attachment://units.png"))
-    return await draw.delete()
+    if rot:
+        units = {}
+        for _ in range(30*11):
+            _unit = await unit_with_chance(from_banner, person)
+            if _unit in units:
+                units[_unit] += 1
+            else:
+                units[_unit] = 1
+        connection.commit()
+        await ctx.send(file=await image_to_discord(await compose_banner_rotation(
+            dict(sorted(units.items(), key=lambda x: grade_to_int(x[0].grade)))
+        ), "rotation.png"),
+                       content=f"{person.display_name} those are the units you pulled in 1 rotation" if person is ctx.message.author
+                       else f"{person.display_name} those are the units you pulled in 1 rotation coming from {ctx.message.author.display_name}",
+                       embed=discord.Embed(
+                           title=f"{from_banner.pretty_name} ~ 1 Rotation (900 Gems)",
+                       ).set_image(url="attachment://rotation.png"))
+        return await draw.delete()
+
+    images = [
+        await compose_multi_draw(from_banner=from_banner, user=person) if from_banner.banner_type == BannerType.ELEVEN \
+            else await compose_five_multi_draw(from_banner=from_banner, user=person) for _ in range(amount)]
+
+    await display_draw_menu(ctx, draw, person, from_banner, 0, images)
+
+
+async def display_draw_menu(ctx: cT, last_message, person: discord.Member, from_banner: Banner, page: int,
+                            images: List[typing.Any]):
+    img = await image_to_discord(images[page], "units.png")
+    msg = await ctx.send(file=img,
+                         content=f"{person.display_name} this is your {page + 1}. multi" if person is ctx.message.author
+                         else f"{person.display_name} this is your {page + 1}. multi coming from {ctx.message.author.display_name}",
+                         embed=discord.Embed(title=f"{from_banner.pretty_name}"
+                                                   f"({11 if from_banner.banner_type == BannerType.ELEVEN else 5}x summon)")
+                         .set_image(url="attachment://units.png"))
+    if last_message is not None:
+        await last_message.delete()
+    if page != 0:
+        await msg.add_reaction("⬅️")
+
+    if page != len(images) - 1:
+        await msg.add_reaction("➡️")
+
+    if page == 0 and len(images) == 1:
+        return
+
+    def check(added_reaction, user):
+        return user == ctx.message.author or user == person and str(added_reaction.emoji) in ["⬅️", "➡️"]
+
+    try:
+        add_react, _ = await BOT.wait_for('reaction_add', check=check, timeout=30)
+
+        if str(add_react.emoji) == "⬅️":
+            return await display_draw_menu(ctx, msg, person, from_banner, page - 1, images)
+        elif str(add_react.emoji) == "➡️":
+            return await display_draw_menu(ctx, msg, person, from_banner, page + 1, images)
+    except asyncio.TimeoutError:
+        await msg.clear_reactions()
 
 
 # ..summon
@@ -1960,8 +2028,9 @@ async def tournament_report(ctx: cT, winner: typing.Optional[discord.Member], lo
 async def tournament_top(ctx: cT):
     await ctx.send(ctx.author.mention, embed=discord.Embed(
         title="Tournament Participants with most wins",
-        description="\n".join([f"**{x['place']}.** {(await BOT.fetch_user(x['member_id'])).mention} with {x['won']} wins"
-                              async for x in get_tourney_top_profiles()])
+        description="\n".join(
+            [f"**{x['place']}.** {(await BOT.fetch_user(x['member_id'])).mention} with {x['won']} wins"
+             async for x in get_tourney_top_profiles()])
     ))
 
 
