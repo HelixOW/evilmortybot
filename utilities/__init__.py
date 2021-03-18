@@ -15,6 +15,7 @@ import sqlite3 as sqlite
 import re
 
 IMG_SIZE = 150
+FOOD_SIZE = 75
 
 UNITS = []
 R_UNITS = []

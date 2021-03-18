@@ -3,11 +3,10 @@ from utilities import *
 
 
 class Food:
-    def __init__(self, f_type: str, true_name: str, _id: int, image: Image):
+    def __init__(self, f_type: str, true_name: str, images):
         self.food_type = f_type
         self.name = true_name
-        self.food_id = _id
-        self.icon = image.resize((IMG_SIZE, IMG_SIZE))
+        self.icons = images
 
 
 class Grade(Enum):

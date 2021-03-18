@@ -9,7 +9,6 @@ from utilities.unit_data import *
 
 TOKEN = 0
 IS_BETA = False
-IMG_SIZE = 150
 LOADING_IMAGE_URL = \
     "https://raw.githubusercontent.com/dokkanart/SDSGC/master/Loading%20Screens/Gacha/loading_gacha_start_01.png"
 AUTHOR_HELIX_ID = 204150777608929280
@@ -2067,9 +2066,11 @@ def start_up_bot(token_path: str = "data/bot_token.txt", is_beta: bool = False):
                 name = "Crit damage"
             else:
                 name = "Pierce"
-            for i in range(1, 3):
+            food_list = []
+            for i in range(1, 4):
                 with Image.open(f"gc/food/{f_type}_{i}.png") as food_image:
-                    TAROT_FOOD[1].append(Food(f_type, name, i, food_image))
+                    food_list.append(food_image.resize((FOOD_SIZE, FOOD_SIZE)))
+            TAROT_FOOD[1].append(Food(f_type, name, food_list))
 
         for f_type in ["res", "crit_def", "crit_res", "lifesteal"]:
             if f_type == "res":
@@ -2080,9 +2081,11 @@ def start_up_bot(token_path: str = "data/bot_token.txt", is_beta: bool = False):
                 name = "Crit Resistance"
             else:
                 name = "Lifesteal"
-            for i in range(1, 3):
+            food_list = []
+            for i in range(1, 4):
                 with Image.open(f"gc/food/{f_type}_{i}.png") as food_image:
-                    TAROT_FOOD[2].append(Food(f_type, name, i, food_image))
+                    food_list.append(food_image.resize((FOOD_SIZE, FOOD_SIZE)))
+            TAROT_FOOD[2].append(Food(f_type, name, food_list))
 
         for f_type in ["cc", "ult", "evade"]:
             if f_type == "cc":
@@ -2091,9 +2094,11 @@ def start_up_bot(token_path: str = "data/bot_token.txt", is_beta: bool = False):
                 name = "Ult Gauge"
             else:
                 name = "Evasion"
-            for i in range(1, 3):
+            food_list = []
+            for i in range(1, 4):
                 with Image.open(f"gc/food/{f_type}_{i}.png") as food_image:
-                    TAROT_FOOD[3].append(Food(f_type, name, i, food_image))
+                    food_list.append(food_image.resize((FOOD_SIZE, FOOD_SIZE)))
+            TAROT_FOOD[3].append(Food(f_type, name, food_list))
 
         for f_type in ["def", "hp", "reg", "rec"]:
             if f_type == "def":
@@ -2104,9 +2109,11 @@ def start_up_bot(token_path: str = "data/bot_token.txt", is_beta: bool = False):
                 name = "Regeneration Rate"
             else:
                 name = "Recovery Rate"
-            for i in range(1, 3):
+            food_list = []
+            for i in range(1, 4):
                 with Image.open(f"gc/food/{f_type}_{i}.png") as food_image:
-                    TAROT_FOOD[4].append(Food(f_type, name, i, food_image))
+                    food_list.append(food_image.resize((FOOD_SIZE, FOOD_SIZE)))
+            TAROT_FOOD[4].append(Food(f_type, name, food_list))
 
         IS_BETA = is_beta
 
