@@ -3,4 +3,3 @@
 - gearinfos for units
 - locale
 - awakening calc
-- Tarot PvP
