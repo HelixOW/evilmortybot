@@ -32,7 +32,10 @@ class CustomHelp(HelpCommand):
 
 class UnitConverter(commands.Converter):
     async def convert(self, ctx, argument):
-        return unit_by_vague_name(argument)[0]
+        try:
+            return unit_by_id(int(argument))
+        except ValueError:
+            return unit_by_vague_name(argument)[0]
 
 
 class MemberMentionConverter(commands.Converter):
@@ -1445,7 +1448,12 @@ async def find(ctx, *, units=""):
         while ele.endswith(" "):
             ele = ele[:-1]
 
-        found.extend(unit_by_vague_name(ele))
+        try:
+            pot_unit = unit_by_id(int(ele))
+            if pot_unit is not None:
+                found.append(pot_unit)
+        except ValueError:
+            found.extend(unit_by_vague_name(ele))
 
     if len(found) == 0:
         return await ctx.send(content=f"{ctx.message.author.mention} -> No units found!")

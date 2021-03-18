@@ -32,7 +32,10 @@ class CustomHelp(HelpCommand):
 
 class UnitConverter(commands.Converter):
     async def convert(self, ctx, argument):
-        return unit_by_vague_name(argument)[0]
+        try:
+            return unit_by_id(int(argument))
+        except ValueError:
+            return unit_by_vague_name(argument)[0]
 
 
 class MemberMentionConverter(commands.Converter):
@@ -869,7 +872,7 @@ async def multi(ctx, person: typing.Optional[discord.Member], *, banner_name: st
 
     if rot:
         units = {}
-        for _ in range(30*11):
+        for _ in range(30 * 11):
             _unit = await unit_with_chance(from_banner, person)
             if _unit in units:
                 units[_unit] += 1
@@ -1445,7 +1448,12 @@ async def find(ctx, *, units=""):
         while ele.endswith(" "):
             ele = ele[:-1]
 
-        found.extend(unit_by_vague_name(ele))
+        try:
+            pot_unit = unit_by_id(int(ele))
+            if pot_unit is not None:
+                found.append(pot_unit)
+        except ValueError:
+            found.extend(unit_by_vague_name(ele))
 
     if len(found) == 0:
         return await ctx.send(content=f"{ctx.message.author.mention} -> No units found!")
@@ -1791,15 +1799,15 @@ async def tournament_signup(ctx: cT, gc_code: int = 0, team_cc: float = 0,
                            colour=discord.Color.green(),
                            description=f"""
             CC: `{team_cc}`
-            
+
             To edit your Team CC: 
                 `..tourney cc <new cc>`
-                
+
             Friend code: `{gc_code}`
-            
+
             To edit your Friend code:
                 `..tourney code <new friend code>`
-                
+
             Registered Team:
             """
                        ).set_image(url="attachment://team.png"))
@@ -1809,7 +1817,7 @@ async def tournament_signup(ctx: cT, gc_code: int = 0, team_cc: float = 0,
             colour=discord.Color.red(),
             description="""
             To edit your team cc: `..tourney cc <new cc>`
-            
+
             To edit your friend code: `..tourney code <new friend code>`
             """
         ))
@@ -1904,13 +1912,13 @@ async def tournament_stats(ctx: cT, of: typing.Optional[discord.Member]):
                               title=f"Profile of: {of.display_name}",
                               description=f"""
         Friend code: `{data["gc_code"]}` 
-        
+
         Team CC: `{data["team_cc"]}`
-        
+
         Won: `{data["won"]}`
-        
+
         Lost: `{data["lost"]}`
-        
+
         Registered Team:
         """
                           ).set_image(url="attachment://team.png"))
@@ -2042,7 +2050,8 @@ async def tarot(ctx: cT):
         _units = [ra.randint(1, 22) for _ in range(4)]
 
     loading = await ctx.send(content=ctx.author.mention, embed=embeds.LOADING_EMBED)
-    await ctx.send(file=await image_to_discord(await compose_tarot(_units[0], _units[1], _units[2], _units[3], _food), "tarot.png"),
+    await ctx.send(file=await image_to_discord(await compose_tarot(_units[0], _units[1], _units[2], _units[3], _food),
+                                               "tarot.png"),
                    content=ctx.author.mention)
     await loading.delete()
 
