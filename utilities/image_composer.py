@@ -2,6 +2,10 @@ from utilities import *
 from utilities.unit_data import Unit, unit_by_id
 from utilities.banner_data import Banner
 from utilities.sql_helper import connection, unit_with_chance
+from utilities.tarot import *
+
+
+FONT_24 = ImageFont.truetype("pvp.ttf", 24)
 
 
 def get_text_dimensions(text_string, font):
@@ -359,3 +363,52 @@ async def compose_banner_list(b: Banner, include_all: bool = False) -> Image:
 
     return i
 
+
+async def compose_tarot(card1: int, card2: int, card3: int, card4: int, food: int):
+    food = TAROT_FOOD[food]
+    units1 = [unit_by_id(x) for x in TAROT_UNITS[card1]]
+    units2 = [unit_by_id(x) for x in TAROT_UNITS[card2]]
+    units3 = [unit_by_id(x) for x in TAROT_UNITS[card3]]
+    units4 = [unit_by_id(x) for x in TAROT_UNITS[card4]]
+
+    longest = sorted([units1, units2, units3, units4], key=lambda k: len(k), reverse=True)[0]
+    longest_name = sorted([tarot_name(x) for x in [card1, card2, card3, card4]], key=lambda k: len(k), reverse=True)[0]
+    longest_text = "Food:" + ", ".join([x.name for x in food if x.food_id == 1])
+
+    i = Image.new('RGBA', (
+        (len(longest) * IMG_SIZE) + (10 * (len(longest) - 1)) + get_text_dimensions(longest_name, FONT_24)[0] + 10,  # x
+        (4 * IMG_SIZE) + (3 * 5) + get_text_dimensions(longest_text, FONT_24)[1] + 5  # y
+    ))
+
+    draw = ImageDraw.Draw(i)
+    text_with_shadow(draw, longest_text, (0, 0))
+
+    y_offset = get_text_dimensions(longest_text, FONT_24)[1] + 5
+    offset = get_text_dimensions(longest_name, FONT_24)[0] + 5
+    text_with_shadow(draw, tarot_name(card1), (0, 5 + y_offset + (IMG_SIZE / 2)))
+    for unit in units1:
+        i.paste(await unit.set_icon(), (offset, y_offset))
+        offset += IMG_SIZE + 5
+
+    y_offset = get_text_dimensions(longest_text, FONT_24)[1] + 5 + IMG_SIZE + 5
+    offset = get_text_dimensions(longest_name, FONT_24)[0] + 5
+    text_with_shadow(draw, tarot_name(card2), (0, 5 + y_offset + (IMG_SIZE / 2)))
+    for unit in units2:
+        i.paste(await unit.set_icon(), (offset, y_offset))
+        offset += IMG_SIZE + 5
+
+    y_offset = get_text_dimensions(longest_text, FONT_24)[1] + 5 + (2 * IMG_SIZE) + 10
+    offset = get_text_dimensions(longest_name, FONT_24)[0] + 5
+    text_with_shadow(draw, tarot_name(card3), (0, 5 + y_offset + (IMG_SIZE / 2)))
+    for unit in units3:
+        i.paste(await unit.set_icon(), (offset, y_offset))
+        offset += IMG_SIZE + 5
+
+    y_offset = get_text_dimensions(longest_text, FONT_24)[1] + 5 + (3 * IMG_SIZE) + 15
+    offset = get_text_dimensions(longest_name, FONT_24)[0] + 5
+    text_with_shadow(draw, tarot_name(card4), (0, 5 + y_offset + (IMG_SIZE / 2)))
+    for unit in units4:
+        i.paste(await unit.set_icon(), (offset, y_offset))
+        offset += IMG_SIZE + 5
+
+    return i

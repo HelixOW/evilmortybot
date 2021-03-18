@@ -852,11 +852,10 @@ async def multi(ctx, person: typing.Optional[discord.Member], *, banner_name: st
         while banner_name.startswith(tuple(str(i) for i in range(50))):
             amount_str += remove_trailing_whitespace(banner_name[0])
             banner_name = remove_trailing_whitespace(banner_name[1:])
+            amount = int(amount_str)
 
         if banner_name.replace(" ", "") == "":
             banner_name = "banner 1"
-
-        amount = int(amount_str)
 
     from_banner = banner_by_name(banner_name)
     if from_banner is None:
@@ -2034,6 +2033,17 @@ async def tournament_top(ctx: cT):
     ))
 
 
+@BOT.command(no_pm=True)
+async def tarot(ctx: cT):
+    _units = [ra.randint(1, 22) for _ in range(4)]
+    _food = ra.randint(1, 4)
+    loading = await ctx.send(content=ctx.author.mention, embed=embeds.LOADING_EMBED)
+    await ctx.send(file=await image_to_discord(await compose_tarot(_units[0], _units[1], _units[2], _units[3], _food),
+                                               "tarot.png"),
+                   content=ctx.author.mention)
+    await loading.delete()
+
+
 def start_up_bot(token_path: str = "data/bot_token.txt", is_beta: bool = False):
     global TOKEN, IS_BETA
     try:
@@ -2043,6 +2053,56 @@ def start_up_bot(token_path: str = "data/bot_token.txt", is_beta: bool = False):
 
         with open(token_path, 'r') as token_file:
             TOKEN = token_file.read()
+
+        for f_type in ["atk", "crit_ch", "crit_dmg", "pierce"]:
+            if f_type == "atk":
+                name = "Attack"
+            elif f_type == "crit_ch":
+                name = "Crit Chance"
+            elif f_type == "crit_dmg":
+                name = "Crit damage"
+            else:
+                name = "Pierce"
+            for i in range(1, 3):
+                with Image.open(f"gc/food/{f_type}_{i}.png") as food_image:
+                    TAROT_FOOD[1].append(Food(f_type, name, i, food_image))
+
+        for f_type in ["res", "crit_def", "crit_res", "lifesteal"]:
+            if f_type == "res":
+                name = "Resistance"
+            elif f_type == "crit_def":
+                name = "Crit Defense"
+            elif f_type == "crit_res":
+                name = "Crit Resistance"
+            else:
+                name = "Lifesteal"
+            for i in range(1, 3):
+                with Image.open(f"gc/food/{f_type}_{i}.png") as food_image:
+                    TAROT_FOOD[2].append(Food(f_type, name, i, food_image))
+
+        for f_type in ["cc", "ult", "evade"]:
+            if f_type == "cc":
+                name = "CC"
+            elif f_type == "ult":
+                name = "Ult Gauge"
+            else:
+                name = "Evasion"
+            for i in range(1, 3):
+                with Image.open(f"gc/food/{f_type}_{i}.png") as food_image:
+                    TAROT_FOOD[3].append(Food(f_type, name, i, food_image))
+
+        for f_type in ["def", "hp", "reg", "rec"]:
+            if f_type == "def":
+                name = "Defense"
+            elif f_type == "hp":
+                name = "HP"
+            elif f_type == "reg":
+                name = "Regeneration Rate"
+            else:
+                name = "Recovery Rate"
+            for i in range(1, 3):
+                with Image.open(f"gc/food/{f_type}_{i}.png") as food_image:
+                    TAROT_FOOD[4].append(Food(f_type, name, i, food_image))
 
         IS_BETA = is_beta
 

@@ -2,6 +2,14 @@ from enum import Enum
 from utilities import *
 
 
+class Food:
+    def __init__(self, f_type: str, true_name: str, _id: int, image: Image):
+        self.food_type = f_type
+        self.name = true_name
+        self.food_id = _id
+        self.icon = image.resize((IMG_SIZE, IMG_SIZE))
+
+
 class Grade(Enum):
     R = "r"
     SR = "sr"
@@ -224,6 +232,7 @@ class Unit:
     async def set_icon(self):
         if self.icon is None:
             await self.refresh_icon()
+        return self.icon
 
     async def refresh_icon(self):
         if self.unit_id <= 0:
