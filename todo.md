@@ -4,4 +4,3 @@
 - locale
 - awakening calc
 - options
-- random selected pvp
