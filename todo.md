@@ -4,6 +4,4 @@
 - locale
 - awakening calc
 - options
-- tarot re-roll
 - random selected pvp
-- fix shaft banner select
