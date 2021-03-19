@@ -111,11 +111,20 @@ async def get_top_shafts(bot: Bot, guild: discord.Guild):
             ' ORDER BY shafts'
             ' DESC LIMIT 10',
             (guild.id,))):
-        yield {
-            "place": i+1,
-            "name": (await bot.fetch_user(row[0])).mention,
-            "shafts": row[1]
-        }
+        try:
+            yield {
+                "place": i+1,
+                "name": (await bot.fetch_user(row[0])).mention,
+                "shafts": row[1]
+            }
+        except discord.NotFound:
+            connection.cursor().execute('DELETE FROM "user_pulls" WHERE main.user_pulls.guild=? AND user_pulls.user_id=?',
+                                        (guild.id, row[0]))
+            yield {
+                "place": i + 1,
+                "name": "User",
+                "shafts": row[1]
+            }
 
 
 async def get_top_lucky(bot: Bot, guild: discord.Guild):
@@ -129,12 +138,23 @@ async def get_top_lucky(bot: Bot, guild: discord.Guild):
             ' ORDER BY percent'
             ' DESC LIMIT 10',
             (guild.id,))):
-        yield {
-            "place": i+1,
-            "name": (await bot.fetch_user(row[0])).mention,
-            "luck": round(row[2], 2),
-            "pull-amount": row[1]
-        }
+        try:
+            yield {
+                "place": i+1,
+                "name": (await bot.fetch_user(row[0])).mention,
+                "luck": round(row[2], 2),
+                "pull-amount": row[1]
+            }
+        except discord.NotFound:
+            connection.cursor().execute(
+                'DELETE FROM "user_pulls" WHERE main.user_pulls.guild=? AND user_pulls.user_id=?',
+                (guild.id, row[0]))
+            yield {
+                "place": i + 1,
+                "name": "User",
+                "luck": round(row[2], 2),
+                "pull-amount": row[1]
+            }
 
 
 async def get_top_ssrs(bot: Bot, guild: discord.Guild):
@@ -147,12 +167,23 @@ async def get_top_ssrs(bot: Bot, guild: discord.Guild):
             ' ORDER BY ssr_amount'
             ' DESC LIMIT 10',
             (guild.id,))):
-        yield {
-            "place": i+1,
-            "name": (await bot.fetch_user(row[0])).mention,
-            "ssrs": row[1],
-            "pull-amount": row[2]
-        }
+        try:
+            yield {
+                "place": i+1,
+                "name": (await bot.fetch_user(row[0])).mention,
+                "ssrs": row[1],
+                "pull-amount": row[2]
+            }
+        except discord.NotFound:
+            connection.cursor().execute(
+                'DELETE FROM "user_pulls" WHERE main.user_pulls.guild=? AND user_pulls.user_id=?',
+                (guild.id, row[0]))
+            yield {
+                "place": i + 1,
+                "name": "User",
+                "ssrs": row[1],
+                "pull-amount": row[2]
+            }
 
 
 async def get_top_units(bot: Bot, guild: discord.Guild):
@@ -165,11 +196,21 @@ async def get_top_units(bot: Bot, guild: discord.Guild):
             ' ORDER BY pull_amount'
             ' DESC LIMIT 10',
             (guild.id,))):
-        yield {
-            "place": i+1,
-            "name": (await bot.fetch_user(row[1])).mention,
-            "pull-amount": row[2]
-        }
+        try:
+            yield {
+                "place": i+1,
+                "name": (await bot.fetch_user(row[0])).mention,
+                "pull-amount": row[2]
+            }
+        except discord.NotFound:
+            connection.cursor().execute(
+                'DELETE FROM "user_pulls" WHERE main.user_pulls.guild=? AND user_pulls.user_id=?',
+                (guild.id, row[0]))
+            yield {
+                "place": i + 1,
+                "name": "User",
+                "pull-amount": row[2]
+            }
 
 
 async def get_user_pull(user: discord.Member) -> dict:

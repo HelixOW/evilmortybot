@@ -1,17 +1,18 @@
-from discord.ext.commands import Context as cT
-
+import utilities.reactions as emojis
 import utilities.embeds as embeds
 import utilities.sql_helper as sql
 from utilities.banner_data import *
 from utilities.image_composer import *
 from utilities.sql_helper import *
 from utilities.unit_data import *
+from discord.ext.commands import Context as cT
 
 TOKEN = 0
 IS_BETA = False
 LOADING_IMAGE_URL = \
     "https://raw.githubusercontent.com/dokkanart/SDSGC/master/Loading%20Screens/Gacha/loading_gacha_start_01.png"
 AUTHOR_HELIX_ID = 204150777608929280
+TAROT_IMAGE = compose_tarot_list()
 
 intents = discord.Intents.default()
 intents.members = True
@@ -43,8 +44,7 @@ class MemberMentionConverter(commands.Converter):
         return ctx.message.mentions[0]
 
 
-TEAM_REROLL_EMOJIS = ["1️⃣", "2️⃣", "3️⃣", "4️⃣"]
-PVP_REROLL_EMOJIS = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣️"]
+TEAM_REROLL_EMOJIS = [emojis.NO_1, emojis.NO_2, emojis.NO_3, emojis.NO_4]
 
 TEAM_TIME_CHECK = []
 PVP_TIME_CHECK = []
@@ -317,8 +317,10 @@ def replace_duplicates(criteria: dict, team_to_deduplicate: List[Unit]):
 
 
 async def build_menu(ctx, prev_message, page: int = 0):
-    summon_menu_emojis = ["⬅️", "1️⃣", "🔟" if ALL_BANNERS[page].banner_type == BannerType.ELEVEN else "5️⃣", "🐋",
-                          "ℹ️", "➡️"]
+    of_banner = ALL_BANNERS[page]
+    summon_menu_emojis = [emojis.LEFT_ARROW, emojis.NO_1,
+                          emojis.NO_10 if of_banner.banner_type == BannerType.ELEVEN else
+                          emojis.NO_5, emojis.WHALE, emojis.INFO, emojis.RIGHT_ARROW]
     await prev_message.clear_reactions()
     draw = prev_message
 
@@ -854,11 +856,10 @@ async def multi(ctx, person: typing.Optional[discord.Member], *, banner_name: st
         while banner_name.startswith(tuple(str(i) for i in range(50))):
             amount_str += remove_trailing_whitespace(banner_name[0])
             banner_name = remove_trailing_whitespace(banner_name[1:])
+            amount = int(amount_str)
 
         if banner_name.replace(" ", "") == "":
             banner_name = "banner 1"
-
-        amount = int(amount_str)
 
     from_banner = banner_by_name(banner_name)
     if from_banner is None:
@@ -908,23 +909,23 @@ async def display_draw_menu(ctx: cT, last_message, person: discord.Member, from_
     if last_message is not None:
         await last_message.delete()
     if page != 0:
-        await msg.add_reaction("⬅️")
+        await msg.add_reaction(emojis.LEFT_ARROW)
 
     if page != len(images) - 1:
-        await msg.add_reaction("➡️")
+        await msg.add_reaction(emojis.RIGHT_ARROW)
 
     if page == 0 and len(images) == 1:
         return
 
     def check(added_reaction, user):
-        return user == ctx.message.author or user == person and str(added_reaction.emoji) in ["⬅️", "➡️"]
+        return user == ctx.message.author or user == person and str(added_reaction.emoji) in [emojis.LEFT_ARROW, emojis.RIGHT_ARROW]
 
     try:
         add_react, _ = await BOT.wait_for('reaction_add', check=check, timeout=30)
 
-        if str(add_react.emoji) == "⬅️":
+        if str(add_react.emoji) == emojis.LEFT_ARROW:
             return await display_draw_menu(ctx, msg, person, from_banner, page - 1, images)
-        elif str(add_react.emoji) == "➡️":
+        elif str(add_react.emoji) == emojis.RIGHT_ARROW:
             return await display_draw_menu(ctx, msg, person, from_banner, page + 1, images)
     except asyncio.TimeoutError:
         await msg.clear_reactions()
@@ -961,6 +962,10 @@ async def shaft(ctx, person: typing.Optional[MemberMentionConverter],
                 unit_name: typing.Optional[str] = "Helix is awesome", *, banner_name: str = "banner 1"):
     if person is None:
         person = ctx.message.author
+
+    if unit_name in ["banner", "part", "gssr", "race", "humans", "soluna", "commandments", "jp", "custom"]:
+        banner_name = unit_name + " " + banner_name
+        unit_name = "none"
 
     from_banner = banner_by_name(banner_name)
     if from_banner is None:
@@ -1263,10 +1268,10 @@ async def list_units(ctx, units_per_page: int = 5, *, criteria: str = "event: cu
         await _loading.delete()
 
         if page != 0:
-            await message.add_reaction("⬅️")
+            await message.add_reaction(emojis.LEFT_ARROW)
 
         if page != max_pages:
-            await message.add_reaction("➡️")
+            await message.add_reaction(emojis.RIGHT_ARROW)
 
         try:
             def check_page(added_reaction, user):
@@ -1294,6 +1299,46 @@ async def list_banners(ctx):
                                        description="\n\n".join(
                                            [f"**{x.name[0]}**: `{x.pretty_name}`" for x in ALL_BANNERS])))
     await loading.delete()
+
+
+@cmd_list.command(name="tarot")
+async def list_tarot(ctx: cT, paged="paged"):
+    loading = await ctx.send(content=f"{ctx.message.author.mention} -> Loading Tarot Cards", embed=embeds.LOADING_EMBED)
+    if paged != "paged":
+        await ctx.send(content=ctx.author.mention
+                       , file=await image_to_discord(await TAROT_IMAGE, "tarot_list.png")
+                       , embed=discord.Embed().set_image(url="attachment://tarot_list.png")
+                       )
+        return await loading.delete()
+
+    async def display(page: int, last_message):
+        msg = await ctx.send(content=ctx.author.mention,
+                             file=await image_to_discord(await compose_paged_tarot_list(page), "tarot_list.png"),
+                             embed=discord.Embed(title=tarot_name(page)).set_image(url="attachment://tarot_list.png")
+                             )
+        await last_message.delete()
+
+        if page != 1:
+            await msg.add_reaction(emojis.LEFT_ARROW)
+
+        if page != 22:
+            await msg.add_reaction(emojis.RIGHT_ARROW)
+
+        def check(added_reaction, user):
+            return user == ctx.message.author and str(added_reaction.emoji) in [emojis.LEFT_ARROW, emojis.RIGHT_ARROW]
+
+        try:
+            reaction, _ = await BOT.wait_for('reaction_add', check=check, timeout=15)
+
+            if str(reaction.emoji) == emojis.LEFT_ARROW and page != 1:
+                return await display(page - 1, msg)
+
+            if str(reaction.emoji) == emojis.RIGHT_ARROW and page != 22:
+                return await display(page + 1, msg)
+        except asyncio.TimeoutError:
+            await msg.clear_reactions()
+
+    await display(1, loading)
 
 
 @BOT.command(no_pm=True)
@@ -1470,9 +1515,6 @@ async def blackjack(ctx):
         bot_card_values = [ra.randint(1, 11) for _ in range(2)]
         player_card_values = [ra.randint(1, 11) for _ in range(2)]
 
-        hit = "✅"
-        stand = "🟥"
-
         cards_msg = await ctx.send(content=f"""
                     {ctx.message.author.mention}'s cards are: {player_card_values}. Total = {sum(player_card_values)}
                     Bot card is: {bot_card_values[0]}""")
@@ -1492,19 +1534,20 @@ async def blackjack(ctx):
             await last_msg.edit(content=f"""
                 {ctx.message.author.mention}'s cards are: {player_card_values}. Total = {sum(player_card_values)}
                 Bot card is: {bot_card_values[0]}""")
-            await last_msg.add_reaction(hit)
-            await last_msg.add_reaction(stand)
+
+            await last_msg.add_reaction(emojis.HIT)
+            await last_msg.add_reaction(emojis.STAND)
 
             def check(added_reaction, user):
-                return user == ctx.message.author and str(added_reaction.emoji) in [hit, stand]
+                return user == ctx.message.author and str(added_reaction.emoji) in [emojis.HIT, emojis.STAND]
 
             try:
                 reaction, _ = await BOT.wait_for('reaction_add', check=check)
 
-                if str(reaction.emoji) == hit:
+                if str(reaction.emoji) == emojis.HIT:
                     player_card_values.append(ra.randint(1, 11))
                     return await play(last_msg=cards_msg)
-                if str(reaction.emoji) == stand:
+                if str(reaction.emoji) == emojis.STAND:
                     await cards_msg.clear_reactions()
                     await add_blackjack_game(ctx.message.author,
                                              21 - sum(player_card_values) < 21 - sum(bot_card_values))
@@ -1626,7 +1669,7 @@ async def demon_offer(ctx, reds: int = 0, greys: int = 0, crimsons: int = 0, *, 
             )
         )
 
-        await to_claim.add_reaction("🆗")
+        await to_claim.add_reaction(emojis.OK)
 
         DEMON_OFFER_MESSAGES[to_claim.id] = {
             "created_in": guild_created_in,
@@ -1639,7 +1682,7 @@ async def demon_offer(ctx, reds: int = 0, greys: int = 0, crimsons: int = 0, *, 
         return await ctx.send(f"{author.mention} no channel to broadcast in found")
 
     def check(added_reaction, user):
-        return user != BOT.user and str(added_reaction.emoji) in "🆗"
+        return user != BOT.user and str(added_reaction.emoji) in emojis.OK
 
     try:
         added_reaction, user = await BOT.wait_for('reaction_add', check=check, timeout=60 * 60 * 4)
@@ -2043,17 +2086,45 @@ async def tournament_top(ctx: cT):
 
 @BOT.command(no_pm=True)
 async def tarot(ctx: cT):
-    _units = [ra.randint(1, 22) for _ in range(4)]
-    _food = ra.randint(1, 4)
+    __units = [ra.randint(1, 22) for _ in range(4)]
+    __food = ra.randint(1, 4)
 
-    while any(_units.count(element) > 1 for element in _units):
-        _units = [ra.randint(1, 22) for _ in range(4)]
+    async def send_msg(_units, _food):
+        while any(_units.count(element) > 1 for element in _units):
+            _units = [ra.randint(1, 22) for _ in range(4)]
 
-    loading = await ctx.send(content=ctx.author.mention, embed=embeds.LOADING_EMBED)
-    await ctx.send(file=await image_to_discord(await compose_tarot(_units[0], _units[1], _units[2], _units[3], _food),
-                                               "tarot.png"),
-                   content=ctx.author.mention)
-    await loading.delete()
+        loading = await ctx.send(content=ctx.author.mention, embed=embeds.LOADING_EMBED)
+        msg = await ctx.send(
+            file=await image_to_discord(await compose_tarot(_units[0], _units[1], _units[2], _units[3], _food),
+                                        "tarot.png"),
+            content=ctx.author.mention)
+        await loading.delete()
+
+        for emoji in [emojis.NO_1, emojis.NO_2, emojis.NO_3, emojis.NO_4]:
+            await msg.add_reaction(emoji)
+
+        def check(added_reaction, user):
+            return user == ctx.author and str(added_reaction.emoji) in [emojis.NO_1, emojis.NO_2, emojis.NO_3, emojis.NO_4]
+
+        try:
+            added_reaction, _ = await BOT.wait_for('reaction_add', check=check, timeout=15)
+
+            await msg.delete()
+
+            if str(added_reaction.emoji) == emojis.NO_1:
+                _units[0] = ra.randint(1, 22)
+            elif str(added_reaction.emoji) == emojis.NO_2:
+                _units[1] = ra.randint(1, 22)
+            elif str(added_reaction.emoji) == emojis.NO_3:
+                _units[2] = ra.randint(1, 22)
+            elif str(added_reaction.emoji) == emojis.NO_4:
+                _units[3] = ra.randint(1, 22)
+
+            await send_msg(_units, _food)
+        except asyncio.TimeoutError:
+            await msg.clear_reactions()
+
+    await send_msg(__units, __food)
 
 
 def start_up_bot(token_path: str = "data/bot_token.txt", is_beta: bool = False):

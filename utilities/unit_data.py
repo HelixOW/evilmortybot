@@ -239,6 +239,7 @@ class Unit:
                 async with session.get(self.icon_path) as resp:
                     self.icon: Image = await compose_icon(attribute=self.type, grade=self.grade,
                                                           background=Image.open(BytesIO(await resp.read())))
+        return self.icon
 
     def discord_color(self) -> discord.Color:
         if self.type == Type.RED:

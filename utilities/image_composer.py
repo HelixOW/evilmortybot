@@ -17,8 +17,7 @@ def get_text_dimensions(text_string, font=FONT_24):
     return text_width, text_height
 
 
-def text_with_shadow(draw: ImageDraw, text: str, base_xy):
-    font = ImageFont.truetype("pvp.ttf", 24)
+def text_with_shadow(draw: ImageDraw, text: str, base_xy, fill = (255, 255, 255), font = FONT_24):
     draw.text(
         xy=(base_xy[0] + 1, base_xy[1]),
         text=text,
@@ -40,7 +39,7 @@ def text_with_shadow(draw: ImageDraw, text: str, base_xy):
     draw.text(
         xy=(base_xy[0], base_xy[1]),
         text=text,
-        fill=(255, 255, 255),
+        fill=fill,
         font=font
     )
 
@@ -306,14 +305,51 @@ async def compose_unit_list(cus_units: List[Unit]) -> Image:
     return i
 
 
+async def compose_tarot_list() -> Image:
+    i = Image.new('RGBA', (
+        5 + get_text_dimensions("11) Wheel of Fortune")[0] + 5 + (IMG_SIZE * len(TAROT_UNITS[1])) + (5 * (len(TAROT_UNITS[1]) - 1)),
+        (IMG_SIZE * 22) + (9 * 21)
+    ))
+    draw = ImageDraw.Draw(i)
+
+    y_offset = 0
+    for unit_id in TAROT_UNITS:
+        text_with_shadow(draw,
+                         text=tarot_name(unit_id),
+                         base_xy=(0, y_offset + (IMG_SIZE / 2)))
+        x_offset = 5 + get_text_dimensions("11) Wheel of Fortune")[0] + 5
+        for _unit in [unit_by_id(x) for x in TAROT_UNITS[unit_id]]:
+            i.paste(await _unit.set_icon(), (x_offset, y_offset))
+            x_offset += IMG_SIZE + 5
+        y_offset += IMG_SIZE + 9
+
+    return i
+
+
+async def compose_paged_tarot_list(page: int) -> Image:
+    paged_list = list(chunks(TAROT_UNITS[page], 5))
+    i = Image.new('RGBA', (
+        (IMG_SIZE * 5) + (5 * 4),
+        (IMG_SIZE * len(paged_list)) + (5 * (len(paged_list) - 1))
+    ))
+
+    y_offset = 0
+    for row in paged_list:
+        x_offset = 0
+        for _unit in [unit_by_id(x) for x in row]:
+            i.paste(await _unit.set_icon(), (x_offset, y_offset))
+            x_offset += IMG_SIZE + 5
+        y_offset += IMG_SIZE + 5
+    return i
+
+
 async def compose_banner_list(b: Banner, include_all: bool = False) -> Image:
-    font = ImageFont.truetype("pvp.ttf", 24)
     if len(b.ssr_units + b.rate_up_units) == 0:
         return Image.new('RGBA', (0, 0))
     text_dim = get_text_dimensions(
         sorted(b.ssr_units + b.rate_up_units + ((b.sr_units + b.r_units) if include_all else []),
                key=lambda k: len(k.name), reverse=True)[0].name + " - 0.9999%",
-        font=font)
+        font=FONT_24)
     i = Image.new('RGBA', (IMG_SIZE + text_dim[0] + 5,
                            (IMG_SIZE * len(
                                b.ssr_units + b.rate_up_units + ((b.sr_units + b.r_units) if include_all else [])))
@@ -322,43 +358,17 @@ async def compose_banner_list(b: Banner, include_all: bool = False) -> Image:
     draw = ImageDraw.Draw(i)
 
     offset = 0
-    for rated_unit in b.rate_up_units:
-        await rated_unit.set_icon()
-        i.paste(rated_unit.icon, (0, offset))
-        draw.text(
-            xy=(5 + IMG_SIZE, offset + (IMG_SIZE / 2) - (text_dim[1] / 2)),
-            text=f"{rated_unit.name} - {b.ssr_unit_rate_up}%",
-            fill=(255, 255, 255),
-            font=font
-        )
-        offset += IMG_SIZE + 5
-    for cus_unit in b.ssr_units:
-        await cus_unit.set_icon()
-        i.paste(cus_unit.icon, (0, offset))
-        draw.text(
-            xy=(5 + IMG_SIZE, offset + (IMG_SIZE / 2) - (text_dim[1] / 2)),
-            text=f"{cus_unit.name} - {b.ssr_unit_rate}%",
-            fill=(255, 255, 255),
-            font=font)
-        offset += IMG_SIZE + 5
-    if include_all:
-        for cus_unit in b.sr_units:
-            await cus_unit.set_icon()
-            i.paste(cus_unit.icon, (0, offset))
-            draw.text(
-                xy=(5 + IMG_SIZE, offset + (IMG_SIZE / 2) - (text_dim[1] / 2)),
-                text=f"{cus_unit.name} - {b.sr_unit_rate}%",
-                fill=(255, 255, 255),
-                font=font)
-            offset += IMG_SIZE + 5
-        for cus_unit in b.r_units:
-            await cus_unit.set_icon()
-            i.paste(cus_unit.icon, (0, offset))
-            draw.text(
-                xy=(5 + IMG_SIZE, offset + (IMG_SIZE / 2) - (text_dim[1] / 2)),
-                text=f"{cus_unit.name} - {b.r_unit_rate}%",
-                fill=(255, 255, 255),
-                font=font)
+    for unit_list, unit_rate in [(b.rate_up_units, b.ssr_unit_rate_up),
+                                 (b.ssr_units, b.ssr_unit_rate),
+                                 (b.sr_units, b.sr_unit_rate),
+                                 (b.r_units, b.r_unit_rate)]:
+        for _unit in unit_list:
+            i.paste(await _unit.set_icon(), (0, offset))
+            text_with_shadow(
+                draw,
+                base_xy=(5 + IMG_SIZE, offset + (IMG_SIZE / 2) - (text_dim[1] / 2)),
+                text=f"{_unit.name} - {unit_rate}%"
+            )
             offset += IMG_SIZE + 5
 
     return i
