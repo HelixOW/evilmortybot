@@ -110,6 +110,18 @@ def get_matching_units(grades: List[Grade] = None,
     return possible_units
 
 
+def _get_random_unit(criteria: dict) -> Unit:
+    return get_random_unit(
+        grades=criteria["grade"],
+        types=criteria["type"],
+        races=criteria["race"],
+        events=criteria["event"],
+        affections=criteria["affection"],
+        names=criteria["name"],
+        jp=criteria["jp"]
+    )
+
+
 def get_random_unit(grades: List[Grade] = None,
                     types: List[Type] = None,
                     races: List[Race] = None,
@@ -758,6 +770,27 @@ async def pvp(ctx, enemy: discord.Member, attr: str = ""):
 @BOT.command(no_pm=True)
 async def team(ctx, *, args: str = ""):
     attr = parse_arguments(args)
+    amount = 1
+
+    if len(attr["unparsed"]) != 0:
+        try:
+            amount = int(attr["unparsed"][0])
+        except ValueError:
+            pass
+
+    if amount > 1:
+        if amount > 15:
+            amount = 15
+        loading = await ctx.send(content=ctx.author.mention, embed=embeds.LOADING_EMBED)
+        possible = [_get_random_unit(attr) for _ in range(amount * 4)]
+        teams = [[possible[i + 0], possible[i + 1], possible[i + 2], possible[i + 3]] for i in range(0, amount * 4, 4)]
+        for i, ele in enumerate(teams):
+            replace_duplicates(attr, ele)
+        possible = [item for sublist in teams for item in sublist]
+        await ctx.send(ctx.author.mention,
+                       file=await image_to_discord(await compose_random_select_team(possible),
+                                                   "random_select_team.png"))
+        return await loading.delete()
 
     try:
         proposed_team = [
@@ -2125,6 +2158,15 @@ async def tarot(ctx: cT):
             await msg.clear_reactions()
 
     await send_msg(__units, __food)
+
+
+@BOT.command()
+async def icon(ctx: cT, of: UnitConverter):
+    async with aiohttp.ClientSession() as session:
+        async with session.get(ctx.message.attachments[0].url) as resp:
+            with BytesIO(await resp.read()) as a:
+                img = await compose_icon(attribute=of.type, grade=of.grade, background=Image.open(a))
+                await ctx.send(file=await image_to_discord(img))
 
 
 def start_up_bot(token_path: str = "data/bot_token.txt", is_beta: bool = False):

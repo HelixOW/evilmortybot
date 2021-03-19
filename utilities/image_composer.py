@@ -414,3 +414,29 @@ async def compose_tarot(card1: int, card2: int, card3: int, card4: int, food: in
         y_offset += FOOD_SIZE + standard_y_offset
 
     return i
+
+
+async def compose_random_select_team(possible):
+    rows = list(chunks(possible, 4))
+
+    i = Image.new('RGBA', (
+        5 + get_text_dimensions("Team 15:")[0] + 5 + (IMG_SIZE * 4) + (5 * 3),
+        (IMG_SIZE * len(rows)) + (9 * (len(rows) - 1))
+    ))
+    draw = ImageDraw.Draw(i)
+
+    y = 0
+    counter = 0
+    for row in rows:
+        counter += 1
+        text_with_shadow(draw,
+                         text=f"Team: {counter}",
+                         base_xy=(5, y + (IMG_SIZE / 2)))
+        x = 5 + get_text_dimensions(f"Team: 15")[0] + 5
+        for _unit in row:
+            i.paste(_unit.icon, (x, y))
+            x += IMG_SIZE + 5
+        draw.line([(0, y + IMG_SIZE + 3), (i.size[0], y + IMG_SIZE + 3)], width=3)
+        y += IMG_SIZE + 9
+
+    return i

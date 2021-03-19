@@ -169,7 +169,7 @@ def map_affection(raw_affection: str) -> str:
     return Affection.NONE.value
 
 
-async def image_to_discord(img: Image, image_name: str) -> discord.File:
+async def image_to_discord(img: Image, image_name: str = "image.png") -> discord.File:
     with BytesIO() as image_bin:
         img.save(image_bin, 'PNG')
         image_bin.seek(0)
