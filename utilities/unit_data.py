@@ -278,7 +278,9 @@ def unit_by_vague_name(name: str) -> List[Unit]:
     return [x for x in UNITS if (name.lower() in x.name.lower()) or name.lower() in [y.lower() for y in x.alt_names]]
 
 
-def longest_named(chunk: List[Unit] = UNITS) -> Unit:
+def longest_named(chunk: List[Unit] = None) -> Unit:
+    if chunk is None:
+        chunk = UNITS.copy()
     if len(chunk) == 0:
         raise LookupError
     return sorted(chunk, key=lambda k: len(k.name), reverse=True)[0]
