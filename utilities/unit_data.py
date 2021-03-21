@@ -1,64 +1,71 @@
-from enum import Enum
 from utilities import *
+from PIL.Image import Image as Img
 
 
 class Food:
-    def __init__(self, f_type: str, true_name: str, images):
-        self.food_type = f_type
-        self.name = true_name
-        self.icons = images
+    def __init__(self, f_type: str, true_name: str, images: List[Img]) -> None:
+        self.food_type: str = f_type
+        self.name: str = true_name
+        self.icons: List[Img] = images
 
 
 class Grade(Enum):
-    R = "r"
-    SR = "sr"
-    SSR = "ssr"
+    R: str = "r"
+    SR: str = "sr"
+    SSR: str = "ssr"
+
+    def to_int(self) -> int:
+        if self.value == "ssr":
+            return 0
+        elif self.value == "sr":
+            return 1
+        return 2
 
 
 class Type(Enum):
-    RED = "red"
-    GRE = "green"
-    BLUE = "blue"
+    RED: str = "red"
+    GRE: str = "green"
+    BLUE: str = "blue"
 
 
 class Race(Enum):
-    DEMON = "demon"
-    GIANT = "giant"
-    HUMAN = "human"
-    FAIRY = "fairy"
-    GODDESS = "goddess"
-    UNKNOWN = "unknown"
+    DEMON: str = "demon"
+    GIANT: str = "giant"
+    HUMAN: str = "human"
+    FAIRY: str = "fairy"
+    GODDESS: str = "goddess"
+    UNKNOWN: str = "unknown"
 
 
 class Event(Enum):
-    GC = "gc"
-    SLI = "slime"
-    AOT = "aot"
-    KOF = "kof"
-    NEY = "newyear"
-    HAL = "halloween"
-    FES = "festival"
-    VAL = "valentine"
-    CUS = "custom"
+    GC: str = "gc"
+    SLI: str = "slime"
+    AOT: str = "aot"
+    KOF: str = "kof"
+    NEY: str = "newyear"
+    HAL: str = "halloween"
+    FES: str = "festival"
+    VAL: str = "valentine"
+    CUS: str = "custom"
 
 
 class Affection(Enum):
-    SIN = "sins"
-    COMMANDMENTS = "commandments"
-    KNIGHT = "holyknights"
-    CATASTROPHE = "catastrophes"
-    ANGEL = "archangels"
-    NONE = "none"
+    SIN: str = "sins"
+    COMMANDMENTS: str = "commandments"
+    KNIGHT: str = "holyknights"
+    CATASTROPHE: str = "catastrophes"
+    ANGEL: str = "archangels"
+    NONE: str = "none"
 
 
-RACES = [Race.DEMON, Race.GIANT, Race.HUMAN, Race.FAIRY, Race.GODDESS, Race.UNKNOWN]
-GRADES = [Grade.R, Grade.SR, Grade.SSR]
-TYPES = [Type.RED, Type.GRE, Type.BLUE]
-EVENTS = [Event.GC, Event.SLI, Event.AOT, Event.KOF, Event.FES, Event.NEY, Event.VAL, Event.HAL]
-AFFECTIONS = [Affection.SIN.value, Affection.COMMANDMENTS.value, Affection.CATASTROPHE.value,
-              Affection.ANGEL.value, Affection.KNIGHT.value, Affection.NONE.value]
+RACES: List[Race] = [Race.DEMON, Race.GIANT, Race.HUMAN, Race.FAIRY, Race.GODDESS, Race.UNKNOWN]
+GRADES: List[Grade] = [Grade.R, Grade.SR, Grade.SSR]
+TYPES: List[Type] = [Type.RED, Type.GRE, Type.BLUE]
+EVENTS: List[Event] = [Event.GC, Event.SLI, Event.AOT, Event.KOF, Event.FES, Event.NEY, Event.VAL, Event.HAL]
+AFFECTIONS: List[str] = [Affection.SIN.value, Affection.COMMANDMENTS.value, Affection.CATASTROPHE.value,
+                         Affection.ANGEL.value, Affection.KNIGHT.value, Affection.NONE.value]
 
-FRAMES = {
+FRAMES: Dict[Type, Dict[Grade, Img]] = {
     Type.BLUE: {
         Grade.R: Image.open("gc/frames/blue_r_frame.png").resize((IMG_SIZE, IMG_SIZE)).convert("RGBA"),
         Grade.SR: Image.open("gc/frames/blue_sr_frame.png").resize((IMG_SIZE, IMG_SIZE)).convert("RGBA"),
@@ -75,15 +82,15 @@ FRAMES = {
         Grade.SSR: Image.open("gc/frames/green_ssr_frame.png").resize((IMG_SIZE, IMG_SIZE)).convert("RGBA")
     }
 }
-FRAME_BACKGROUNDS = {
+FRAME_BACKGROUNDS: Dict[Grade, Img] = {
     Grade.R: Image.open("gc/frames/r_frame_background.png").resize((IMG_SIZE, IMG_SIZE)).convert("RGBA"),
     Grade.SR: Image.open("gc/frames/sr_frame_background.png").resize((IMG_SIZE, IMG_SIZE)).convert("RGBA"),
     Grade.SSR: Image.open("gc/frames/ssr_frame_background.png").resize((IMG_SIZE, IMG_SIZE)).convert("RGBA")
 }
 
 
-def map_attribute(raw_att: str) -> Type:
-    raw_att = raw_att.lower()
+def map_attribute(raw_att: str) -> Optional[Type]:
+    raw_att: str = raw_att.lower()
     if raw_att in ["blue", "speed", "b"]:
         return Type.BLUE
     if raw_att in ["red", "strength", "r"]:
@@ -93,8 +100,8 @@ def map_attribute(raw_att: str) -> Type:
     return None
 
 
-def map_grade(raw_grade: str) -> Grade:
-    raw_grade = raw_grade.lower()
+def map_grade(raw_grade: str) -> Optional[Grade]:
+    raw_grade: str = raw_grade.lower()
     if raw_grade == "r":
         return Grade.R
     if raw_grade == "sr":
@@ -104,16 +111,8 @@ def map_grade(raw_grade: str) -> Grade:
     return None
 
 
-def grade_to_int(grade: Grade) -> int:
-    if grade == Grade.SSR:
-        return 0
-    elif grade == Grade.SR:
-        return 1
-    return 2
-
-
-def map_race(raw_race: str) -> Race:
-    raw_race = raw_race.lower()
+def map_race(raw_race: str) -> Optional[Race]:
+    raw_race: str = raw_race.lower()
     if raw_race in ["demon", "demons"]:
         return Race.DEMON
     if raw_race in ["giant", "giants"]:
@@ -130,7 +129,7 @@ def map_race(raw_race: str) -> Race:
 
 
 def map_event(raw_event: str) -> Event:
-    raw_event = raw_event.replace(" ", "").lower()
+    raw_event: str = raw_event.replace(" ", "").lower()
     if raw_event in ["slime", "tensura"]:
         return Event.SLI
     if raw_event in ["aot", "attackontitan", "titan"]:
@@ -151,7 +150,7 @@ def map_event(raw_event: str) -> Event:
 
 
 def map_affection(raw_affection: str) -> str:
-    raw_affection = raw_affection.replace(" ", "").lower()
+    raw_affection: str = raw_affection.replace(" ", "").lower()
     if raw_affection in ["sins", "sin"]:
         return Affection.SIN.value
     if raw_affection in ["holyknight", "holyknights", "knights", "knight"]:
@@ -169,7 +168,8 @@ def map_affection(raw_affection: str) -> str:
     return Affection.NONE.value
 
 
-async def image_to_discord(img: Image, image_name: str = "image.png") -> discord.File:
+async def image_to_discord(img: Img, image_name: str = "image.png") -> \
+        discord.File:
     with BytesIO() as image_bin:
         img.save(image_bin, 'PNG')
         image_bin.seek(0)
@@ -177,13 +177,14 @@ async def image_to_discord(img: Image, image_name: str = "image.png") -> discord
     return image_file
 
 
-async def compose_icon(attribute: Type, grade: Grade, background: Image = None) -> Image:
-    background_frame = FRAME_BACKGROUNDS[grade].copy()
+async def compose_icon(attribute: Type, grade: Grade, background: Optional[Img] = None) -> \
+        Img:
+    background_frame: Img = FRAME_BACKGROUNDS[grade].copy()
     if background is None:
-        background = background_frame
+        background: Img = background_frame
     else:
-        background = background.resize((IMG_SIZE, IMG_SIZE)).convert("RGBA")
-    frame = FRAMES[attribute][grade]
+        background: Img = background.resize((IMG_SIZE, IMG_SIZE)).convert("RGBA")
+    frame: Img = FRAMES[attribute][grade]
     background_frame.paste(background, (0, 0), background)
     background_frame.paste(frame, (0, 0), frame)
 
@@ -200,11 +201,11 @@ class Unit:
                  event: Event = Event.GC,
                  affection_str: str = Affection.NONE.value,
                  icon_path: str = "gc/icons/{}.png",
-                 alt_names: List[str] = None,
-                 is_jp: bool = False):
+                 alt_names: Optional[List[str]] = None,
+                 is_jp: bool = False) -> None:
 
         if alt_names is None:
-            alt_names = []
+            alt_names: List[str] = []
 
         self.unit_id: int = unit_id
         self.name: str = name
@@ -219,26 +220,26 @@ class Unit:
         self.is_jp: bool = is_jp
 
         if unit_id > 0:
-            img = Image.new('RGBA', (IMG_SIZE, IMG_SIZE))
+            img: Img = Image.new('RGBA', (IMG_SIZE, IMG_SIZE))
             img.paste(Image.open(icon_path.format(unit_id)).resize((IMG_SIZE, IMG_SIZE)), (0, 0))
-            self.icon: Image = img
+            self.icon: Img = img
         else:
-            self.icon: Image = None
+            self.icon: Optional[Img] = None
 
     async def discord_icon(self) -> discord.File:
         return await image_to_discord(self.icon, "unit.png")
 
-    async def set_icon(self):
+    async def set_icon(self) -> Optional[Img]:
         if self.icon is None:
             await self.refresh_icon()
         return self.icon
 
-    async def refresh_icon(self):
+    async def refresh_icon(self) -> Optional[Img]:
         if self.unit_id <= 0:
             async with aiohttp.ClientSession() as session:
                 async with session.get(self.icon_path) as resp:
-                    self.icon: Image = await compose_icon(attribute=self.type, grade=self.grade,
-                                                          background=Image.open(BytesIO(await resp.read())))
+                    self.icon: Img = await compose_icon(attribute=self.type, grade=self.grade,
+                                                        background=Image.open(BytesIO(await resp.read())))
         return self.icon
 
     def discord_color(self) -> discord.Color:
@@ -250,24 +251,34 @@ class Unit:
             return discord.Color.blue()
         return discord.Color.gold()
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"Unit: {self.name} ({self.unit_id})"
 
 
 def units_by_id(ids: List[int]) -> List[Unit]:
+    x: Unit
     found = [x for x in UNITS if x.unit_id in ids]
     if len(found) == 0:
         raise LookupError
     return found
 
 
-def unit_by_id(unit_id: int) -> Unit:
+def unit_by_id(unit_id: int) -> Optional[Unit]:
+    x: Unit
     return next((x for x in UNITS if unit_id == x.unit_id), None)
 
 
-def unit_by_name(name: str) -> Unit:
+def unit_by_name(name: str) -> Optional[Unit]:
+    x: Unit
     return next((x for x in UNITS if name == x.name), None)
 
 
 def unit_by_vague_name(name: str) -> List[Unit]:
+    x: Unit
     return [x for x in UNITS if (name.lower() in x.name.lower()) or name.lower() in [y.lower() for y in x.alt_names]]
+
+
+def longest_named(chunk: List[Unit] = UNITS) -> Unit:
+    if len(chunk) == 0:
+        raise LookupError
+    return sorted(chunk, key=lambda k: len(k.name), reverse=True)[0]

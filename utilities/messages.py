@@ -1,12 +1,13 @@
-HELP_1_TITLE = "Help 1/2"
+HELP_1_TITLE: str = "Help 1/2"
 
-HELP_1 = """
+HELP_1: str = """
 __*Commands:*__
     `..unit` -> `Check Info`
-    `..team` -> `Check Info`
+    `..team [amount=1]` -> `Check Info`
     `..pvp <@Enemy>` -> `Check Info`
+    `..tarot` -> `Check Info`
     `..single [@For=You] [banner=banner 1]` 
-    `..multi [@For=You] [banner=banner 1]`
+    `..multi [@For=You] [amount=1] [banner=banner 1]`
     `..shaft [@For=You] [unit="Unit name"] [banner=banner 1]`
     `..summon`
     `..banner [banner=banner 1]`
@@ -16,13 +17,14 @@ __*Commands:*__
     `..find <unit name>`
     `..list unit [criteria=event: custom]` -> `for criteria check Info`
     `..list banner`
+    `..list tarot`
     `..demon` -> `Execute for more Info`
     `..custom` -> `Execute for more Info`
         """
 
-HELP_2_TITLE = "Help 2/2"
+HELP_2_TITLE: str = "Help 2/2"
 
-HELP_2 = """
+HELP_2: str = """
 __*Info:*__
     You can use different attributes to narrow down the possibilities:
         `race:` demons, giants, humans, fairies, goddess, unknown
@@ -52,35 +54,35 @@ __Examples:__
     `..custom create name:[Demon Slayer] Tanjiro & type: red & grade; sr & url: <URL to image> & race: human` ~ Creates a Red SR Tanjiro
         """
 
-HELP_FOOTER = "Feel free to ask questions!"
+HELP_FOOTER: str = "Feel free to ask questions!"
 
-SUCCESS = "Success"
-ERROR = "Error"
+SUCCESS: str = "Success"
+ERROR: str = "Error"
 
-LOADING = "Loading..."
-LOADED = "Images loaded!"
+LOADING: str = "Loading..."
+LOADED: str = "Images loaded!"
 
 
 class Unit:
-    LOOKUP = "Can't find any unit which meets those requirements"
+    LOOKUP: str = "Can't find any unit which meets those requirements"
 
 
 class Team:
-    LOOKUP = "Can't find any team which meets those requirements"
-    COOLDOWN = "Please wait before using another ..team"
+    LOOKUP: str = "Can't find any team which meets those requirements"
+    COOLDOWN: str = "Please wait before using another ..team"
 
 
 class PvP:
-    COOLDOWN = "Please wait before using another ..pvp"
+    COOLDOWN: str = "Please wait before using another ..pvp"
 
 
 class Affection:
     class Error:
-        UNMUTABLE = "This Affection can not be added/ edited/ removed!"
+        UNMUTABLE: str = "This Affection can not be added/ edited/ removed!"
 
     class Help:
-        TITLE = "Help for ..affection"
-        DESC = """
+        TITLE: str = "Help for ..affection"
+        DESC: str = """
         `..affection add <name>` 
             Creates a new Affection
         
@@ -101,15 +103,15 @@ class Affection:
             Displays this help message
         """
 
-    ADD = "Affection added!"
-    EDIT = "Affection edited!"
-    REMOVE = "Affection removed!"
+    ADD: str = "Affection added!"
+    EDIT: str = "Affection edited!"
+    REMOVE: str = "Affection removed!"
 
 
 class Custom:
     class Help:
-        TITLE = "Help for ..custom"
-        DESC = """
+        TITLE: str = "Help for ..custom"
+        DESC: str = """
         `..custom create name:<name> & type:<type> & grade:<grade> & url:<file_url> & race:[race] & affection:[affection]`
             Creates a new (custom) Unit
         
@@ -122,15 +124,15 @@ class Custom:
 
     class Add:
         class Error:
-            TITLE = "Error with ..custom create"
-            DESC = """
+            TITLE: str = "Error with ..custom create"
+            DESC: str = """
             `..custom create name:<name> & type:<type> & grade:<grade> & url:<file_url> & race:[race] & affection:[affection]`
             """
 
     class Edit:
         class Error:
-            TITLE = "Error with ..custom edit"
-            DESC = """
+            TITLE: str = "Error with ..custom edit"
+            DESC: str = """
             `..custom edit name:<name> & criteria:<value1> & criteria2:<value2>`
             
             You **__don't__** need to provide criteria if you don't want to edit it!
@@ -156,31 +158,31 @@ class Custom:
             """
 
         class Success:
-            TITLE = "Success"
-            DESC = "Unit successfully edited!"
+            TITLE: str = "Success"
+            DESC: str = "Unit successfully edited!"
 
     class Remove:
         class Error:
-            TITLE = "Error with ..custom remove"
-            DESC = """
+            TITLE: str = "Error with ..custom remove"
+            DESC: str = """
             `..custom remove name:<name>`
             """
 
-        SUCCESS = "Unit successfully removed!"
+        SUCCESS: str = "Unit successfully removed!"
 
 
 class Crop:
-    USAGE = "..crop requires at least a url of a file to crop (..help for more)"
+    USAGE: str = "..crop requires at least a url of a file to crop (..help for more)"
 
 
 class Resize:
-    USAGE = "..resize requires at least a url of a file to crop (..help for more)"
+    USAGE: str = "..resize requires at least a url of a file to crop (..help for more)"
 
 
 class Demon:
     class Help:
-        TITLE = "Help for ..demon"
-        DESC = """
+        TITLE: str = "Help for ..demon"
+        DESC: str = """
         `..demon offer <reds> <greys> <crimsons>`
             Offers Demons
             If you click "Ok" the offer gets deleted.
@@ -199,8 +201,8 @@ class Demon:
 
 class Tourney:
     class Help:
-        TITLE = "Help for ..tournament"
-        DESC = """
+        TITLE: str = "Help for ..tournament"
+        DESC: str = """
         `..tourney signup <GC Friendcode> <Team CC> <1. Unit> <2. Unit> <3. Unit> <4. Unit>`
             Singup for the Tournament.
             Please provide your Team CC like the following (e.g. `249.5`)

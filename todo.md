@@ -4,3 +4,4 @@
 - locale
 - awakening calc
 - options
+- documentation
