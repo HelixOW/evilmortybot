@@ -262,7 +262,7 @@ async def compose_box(units_dict: Dict[int, int]) -> Img:
     draw: ImageDraw = ImageDraw.Draw(i)
 
     y: int = 0
-    units_ids: List[int]
+    unit_ids: List[int]
     unit_id: int
     for unit_ids in box_rows:
         x: int = 0
@@ -282,7 +282,7 @@ async def compose_paged_unit_list(cus_units: List[Unit], per_page: int) -> List[
 
 
 async def compose_unit_list(cus_units: List[Unit]) -> Img:
-    name_dim: Tuple[int, int] = get_text_dimensions(longest_named().name + f" (Nr. 999)")
+    name_dim: Tuple[int, int] = get_text_dimensions(longest_named().name + " (Nr. 999)")
     i: Img = Image.new('RGBA', (
         IMG_SIZE + name_dim[0] + 5,
         (IMG_SIZE * len(cus_units)) + (5 * len(cus_units))
@@ -376,8 +376,8 @@ async def compose_tarot(card1: int, card2: int, card3: int, card4: int, food: in
     longest: List[Unit] = sorted([[unit_by_id(x) for x in TAROT_UNITS[card1]],
                                   [unit_by_id(x) for x in TAROT_UNITS[card2]],
                                   [unit_by_id(x) for x in TAROT_UNITS[card3]],
-                                  [unit_by_id(x) for x in TAROT_UNITS[card4]]], key=lambda k: len(k), reverse=True)[0]
-    longest_name: str = sorted([tarot_name(x) for x in [card1, card2, card3, card4]], key=lambda k: len(k), reverse=True)[0]
+                                  [unit_by_id(x) for x in TAROT_UNITS[card4]]], key=len, reverse=True)[0]
+    longest_name: str = sorted([tarot_name(x) for x in [card1, card2, card3, card4]], key=len, reverse=True)[0]
 
     i: Img = Image.new('RGBA', (
         (len(longest) * IMG_SIZE) + (X_OFFSET * (len(longest) - 1)) +  # x

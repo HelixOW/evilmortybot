@@ -17,7 +17,7 @@ class Grade(Enum):
     def to_int(self) -> int:
         if self.value == "ssr":
             return 0
-        elif self.value == "sr":
+        if self.value == "sr":
             return 1
         return 2
 

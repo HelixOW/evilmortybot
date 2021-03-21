@@ -35,45 +35,45 @@ TAROT_FOOD: Dict[int, Any] = {
 def tarot_name(num: int) -> str:
     if num == 1:
         return "1) The Fool"
-    elif num == 2:
+    if num == 2:
         return "2) The Magician"
-    elif num == 3:
+    if num == 3:
         return "3) The High Priestess"
-    elif num == 4:
+    if num == 4:
         return "4) The Empress"
-    elif num == 5:
+    if num == 5:
         return "5) The Emperor"
-    elif num == 6:
+    if num == 6:
         return "6) The Hierophant"
-    elif num == 7:
+    if num == 7:
         return "7) The Lovers"
-    elif num == 8:
+    if num == 8:
         return "8) The Chariot"
-    elif num == 9:
+    if num == 9:
         return "9) Strength"
-    elif num == 10:
+    if num == 10:
         return "10) The Hermit"
-    elif num == 11:
+    if num == 11:
         return "11) Wheel of Fortune"
-    elif num == 12:
+    if num == 12:
         return "12) Justice"
-    elif num == 13:
+    if num == 13:
         return "13) The Hanged Man"
-    elif num == 14:
+    if num == 14:
         return "14) Death"
-    elif num == 15:
+    if num == 15:
         return "15) Temperance"
-    elif num == 16:
+    if num == 16:
         return "16) The Devil"
-    elif num == 17:
+    if num == 17:
         return "17) The Tower"
-    elif num == 18:
+    if num == 18:
         return "18) The Star"
-    elif num == 19:
+    if num == 19:
         return "19) The Moon"
-    elif num == 20:
+    if num == 20:
         return "20) The Sun"
-    elif num == 21:
+    if num == 21:
         return "21) Judgement"
-    elif num == 22:
+    if num == 22:
         return "22) The World"

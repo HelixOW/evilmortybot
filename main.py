@@ -12,7 +12,6 @@ IS_BETA: bool = False
 LOADING_IMAGE_URL: str = \
     "https://raw.githubusercontent.com/dokkanart/SDSGC/master/Loading%20Screens/Gacha/loading_gacha_start_01.png"
 AUTHOR_HELIX_ID: int = 204150777608929280
-TAROT_IMAGE: Coro[Any, Any, Image] = compose_tarot_list()
 
 intents = discord.Intents.default()
 intents.members = True
@@ -45,11 +44,11 @@ BOT: Bot = commands.Bot(command_prefix='..', description='..help for Help', help
 async def get_top_users(guild: discord.Guild, action: LeaderboardType = LeaderboardType.LUCK) -> List[Dict[str, Any]]:
     if action == LeaderboardType.MOST_SHAFTS:
         return [x async for x in get_top_shafts(BOT, guild)]
-    elif action == LeaderboardType.LUCK:
+    if action == LeaderboardType.LUCK:
         return [x async for x in get_top_lucky(BOT, guild)]
-    elif action == LeaderboardType.MOST_SSR:
+    if action == LeaderboardType.MOST_SSR:
         return [x async for x in get_top_ssrs(BOT, guild)]
-    elif action == LeaderboardType.MOST_UNITS:
+    if action == LeaderboardType.MOST_UNITS:
         return [x async for x in get_top_units(BOT, guild)]
 
 
@@ -756,8 +755,8 @@ async def team(ctx: Context, *, args: str = ""):
             pass
 
     if amount > 1:
-        if amount > 15:
-            amount = 15
+        amount: int = min(amount, 15)
+
         loading: discord.Message = await ctx.send(content=ctx.author.mention, embed=embeds.LOADING_EMBED)
         possible: List[Unit] = [_get_random_unit(attr) for _ in range(amount * 4)]
         teams: List[Unit] = [[possible[i + 0], possible[i + 1], possible[i + 2], possible[i + 3]] for i in
@@ -941,7 +940,7 @@ async def display_draw_menu(ctx: Context, last_message: discord.Message, person:
 
         if str(add_react.emoji) == emojis.LEFT_ARROW:
             return await display_draw_menu(ctx, msg, person, from_banner, page - 1, images)
-        elif str(add_react.emoji) == emojis.RIGHT_ARROW:
+        if str(add_react.emoji) == emojis.RIGHT_ARROW:
             return await display_draw_menu(ctx, msg, person, from_banner, page + 1, images)
     except asyncio.TimeoutError:
         await msg.clear_reactions()
@@ -1323,7 +1322,7 @@ async def list_tarot(ctx: Context, paged: str = "paged"):
                                               embed=embeds.LOADING_EMBED)
     if paged != "paged":
         await ctx.send(content=ctx.author.mention,
-                       file=await image_to_discord(await TAROT_IMAGE, "tarot_list.png"),
+                       file=await image_to_discord(await compose_tarot_list(), "tarot_list.png"),
                        embed=discord.Embed().set_image(url="attachment://tarot_list.png")
                        )
         return await loading.delete()
@@ -1839,8 +1838,8 @@ async def tournament_signup(ctx: Context, gc_code: int = 0, team_cc: float = 0,
         u: Unit = unit_by_id(unit_id)
         if u is None:
             return await ctx.send(f"{ctx.author.mention}: No Unit with ID: {unit_id} found!")
-        else:
-            _team.append(u)
+
+        _team.append(u)
 
     if await create_tourney_profile(ctx.author, gc_code, team_cc, [unit1, unit2, unit3, unit4]):
         await ctx.send(f"{ctx.author.mention}:",
@@ -1923,8 +1922,8 @@ async def tournament_team(ctx: Context, unit1: int = 0, unit2: int = 0, unit3: i
         u: Unit = unit_by_id(unit_id)
         if u is None:
             return await ctx.send(f"{ctx.author.mention}: No Unit with ID: {unit_id} found!")
-        else:
-            _team.append(u)
+
+        _team.append(u)
 
     if await edit_tourney_team(ctx.author, [unit1, unit2, unit3, unit4]):
         await ctx.send(f"{ctx.author.mention}:",
@@ -1932,7 +1931,7 @@ async def tournament_team(ctx: Context, unit1: int = 0, unit2: int = 0, unit3: i
                        embed=discord.Embed(
                            title="Updated Profile!",
                            colour=discord.Color.green(),
-                           description=f"Your new team is:"
+                           description="Your new team is:"
                        ).set_image(url="attachment://team.png"))
     else:
         await ctx.send(f"{ctx.author.mention}:", embed=discord.Embed(
@@ -2016,7 +2015,7 @@ async def tournament_accept(ctx: Context, enemy: typing.Optional[discord.Member]
         return await ctx.send(f"{ctx.author.mention}:", embed=discord.Embed(
             title="Error: Enemy still in a game",
             colour=discord.Color.red(),
-            description=f"You are still in a game! \n\n `..tourney report <@Winner> <@Looser>` to finish the game"
+            description="You are still in a game! \n\n `..tourney report <@Winner> <@Looser>` to finish the game"
         ))
     if enemy.id not in [x async for x in get_tourney_challengers(ctx.author)]:
         return await ctx.send(f"{ctx.author.mention}: {enemy.display_name} didn't challenge you!")
@@ -2065,7 +2064,7 @@ async def tournament_report(ctx: Context, winner: typing.Optional[discord.Member
     if winner == looser:
         return await ctx.send(f"{ctx.author.mention} Winner and looser can't be the same person!")
 
-    if winner != ctx.author and looser != ctx.author:
+    if ctx.author not in (winner, looser):
         return await ctx.send(f"{ctx.author.mention}: You can't report the game of someone else.")
 
     if not tourney_in_game_with(winner, looser):
@@ -2154,7 +2153,7 @@ def start_up_bot(token_path: str = "data/bot_token.txt", is_beta: bool = False):
         read_banners_from_db()
 
         with open(token_path, 'r') as token_file:
-            TOKEN: str = token_file.read()
+            TOKEN = token_file.read()
 
         for f_type in ["atk", "crit_ch", "crit_dmg", "pierce"]:
             if f_type == "atk":
@@ -2214,7 +2213,7 @@ def start_up_bot(token_path: str = "data/bot_token.txt", is_beta: bool = False):
                     food_list.append(food_image.resize((FOOD_SIZE, FOOD_SIZE)))
             TAROT_FOOD[4].append(Food(f_type, name, food_list))
 
-        IS_BETA: bool = is_beta
+        IS_BETA = is_beta
 
         BOT.run(TOKEN)
     finally:

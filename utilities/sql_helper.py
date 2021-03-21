@@ -334,7 +334,6 @@ async def edit_custom_unit(to_set: str, values: List[str]) -> None:
 
 async def add_unit_to_banner(banner: str, units: str) -> None:
     cursor: Cursor = connection.cursor()
-    x: str
     for u_id in [int(x) for x in units.replace(" ", "").split(",")]:
         cursor.execute('INSERT INTO banners_rate_up_units VALUES (?, ?)', (banner, u_id))
     connection.commit()
@@ -342,7 +341,6 @@ async def add_unit_to_banner(banner: str, units: str) -> None:
 
 async def add_rate_up_unit_to_banner(banner: str, units: str) -> None:
     cursor: Cursor = connection.cursor()
-    x: str
     for u_id in [int(x) for x in units.replace(" ", "").split(",")]:
         cursor.execute('INSERT INTO banners_rate_up_units VALUES (?, ?)', (banner, u_id))
     connection.commit()
