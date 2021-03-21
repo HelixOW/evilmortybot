@@ -1,78 +1,56 @@
+import utilities.reactions as emojis
 import utilities.embeds as embeds
 import utilities.sql_helper as sql
 from utilities.banner_data import *
 from utilities.image_composer import *
 from utilities.sql_helper import *
 from utilities.unit_data import *
+from discord.ext.commands import Context
 
-TOKEN = 0
-IS_BETA = False
-IMG_SIZE = 150
-LOADING_IMAGE_URL = \
+TOKEN: int = 0
+IS_BETA: bool = False
+LOADING_IMAGE_URL: str = \
     "https://raw.githubusercontent.com/dokkanart/SDSGC/master/Loading%20Screens/Gacha/loading_gacha_start_01.png"
-AUTHOR_HELIX_ID = 204150777608929280
+AUTHOR_HELIX_ID: int = 204150777608929280
+TAROT_IMAGE: Coro[Any, Any, Image] = compose_tarot_list()
 
 intents = discord.Intents.default()
 intents.members = True
 
-
-class LeaderboardType(Enum):
-    LUCK = "luck"
-    MOST_SSR = "ssrs"
-    MOST_UNITS = "units"
-    MOST_SHAFTS = "shafts"
+TEAM_REROLL_EMOJIS = [emojis.NO_1, emojis.NO_2, emojis.NO_3, emojis.NO_4]
 
 
 class CustomHelp(HelpCommand):
-    async def send_bot_help(self, mapping):
-        await self.get_destination().send(embed=embeds.HELP_EMBED_1)
-        await self.get_destination().send(embed=embeds.HELP_EMBED_2)
+    async def send_bot_help(self, _):
+        await self.get_destination().send(embed=embeds.Help.General.HELP_1)
+        await self.get_destination().send(embed=embeds.Help.General.HELP_2)
 
 
 class UnitConverter(commands.Converter):
-    async def convert(self, ctx, argument):
-        return unit_by_vague_name(argument)[0]
+    async def convert(self, ctx: Context, argument: str) -> Unit:
+        try:
+            return unit_by_id(int(argument))
+        except ValueError:
+            return unit_by_vague_name(argument)[0]
 
 
 class MemberMentionConverter(commands.Converter):
-    async def convert(self, ctx, argument):
+    async def convert(self, ctx: Context, argument: str) -> discord.Member:
         return ctx.message.mentions[0]
 
 
-TEAM_REROLL_EMOJIS = ["1️⃣", "2️⃣", "3️⃣", "4️⃣"]
-PVP_REROLL_EMOJIS = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣️"]
-
-TEAM_TIME_CHECK = []
-PVP_TIME_CHECK = []
-
-DEMON_ROLES = {}
-DEMON_MESSAGES = {}
-DEMON_CONTRACTS = {}
-DEMON_OFFER_MESSAGES = {}
-
-BOT = commands.Bot(command_prefix='..', description='..help for Help', help_command=CustomHelp(), intents=intents)
+BOT: Bot = commands.Bot(command_prefix='..', description='..help for Help', help_command=CustomHelp(), intents=intents)
 
 
-def map_leaderboard(raw_leaderboard: str) -> LeaderboardType:
-    raw_leaderboard = raw_leaderboard.replace(" ", "").lower()
-    if raw_leaderboard in ["ssr", "ssrs", "mostssr", "mostssrs"]:
-        return LeaderboardType.MOST_SSR
-    if raw_leaderboard in ["units", "unit", "mostunits", "mostunit"]:
-        return LeaderboardType.MOST_UNITS
-    if raw_leaderboard in ["shaft", "shafts", "mostshafts", "mostshaft"]:
-        return LeaderboardType.MOST_SHAFTS
-    return LeaderboardType.LUCK
-
-
-async def get_top_users(guild: discord.Guild, action: LeaderboardType = LeaderboardType.LUCK) -> List[dict]:
+async def get_top_users(guild: discord.Guild, action: LeaderboardType = LeaderboardType.LUCK) -> List[Dict[str, Any]]:
     if action == LeaderboardType.MOST_SHAFTS:
-        return get_top_shafts(BOT, guild)
+        return [x async for x in get_top_shafts(BOT, guild)]
     elif action == LeaderboardType.LUCK:
-        return get_top_lucky(BOT, guild)
+        return [x async for x in get_top_lucky(BOT, guild)]
     elif action == LeaderboardType.MOST_SSR:
-        return get_top_ssrs(BOT, guild)
+        return [x async for x in get_top_ssrs(BOT, guild)]
     elif action == LeaderboardType.MOST_UNITS:
-        return get_top_units(BOT, guild)
+        return [x async for x in get_top_units(BOT, guild)]
 
 
 def get_matching_units(grades: List[Grade] = None,
@@ -95,12 +73,16 @@ def get_matching_units(grades: List[Grade] = None,
     if names is None or names == []:
         names = [x.name.lower().replace(" ", "") for x in UNITS]
 
-    def test(x):
-        return x.race in races and x.type in types and x.grade in grades and x.event in events and x.affection.lower().replace(
-            " ", "") in affections \
-               and x.name.lower().replace(" ", "") in names and (x.is_jp if jp else True)
+    def test(x: Unit):
+        return x.race in races \
+               and x.type in types \
+               and x.grade in grades \
+               and x.event in events \
+               and x.affection.lower().replace(" ", "") in affections \
+               and x.name.lower().replace(" ", "") in names \
+               and (x.is_jp if jp else True)
 
-    possible_units = [x for x in UNITS if test(x)]
+    possible_units: List[Unit] = [x for x in UNITS if test(x)]
 
     if len(possible_units) == 0:
         raise LookupError
@@ -108,24 +90,36 @@ def get_matching_units(grades: List[Grade] = None,
     return possible_units
 
 
-def get_random_unit(grades: List[Grade] = None,
-                    types: List[Type] = None,
-                    races: List[Race] = None,
-                    events: List[Event] = None,
-                    affections: List[str] = None,
-                    names: List[str] = None,
+def _get_random_unit(criteria: Dict[str, Any]) -> Unit:
+    return get_random_unit(
+        grades=criteria["grade"],
+        types=criteria["type"],
+        races=criteria["race"],
+        events=criteria["event"],
+        affections=criteria["affection"],
+        names=criteria["name"],
+        jp=criteria["jp"]
+    )
+
+
+def get_random_unit(grades: Optional[List[Grade]] = None,
+                    types: Optional[List[Type]] = None,
+                    races: Optional[List[Race]] = None,
+                    events: Optional[List[Event]] = None,
+                    affections: Optional[List[str]] = None,
+                    names: Optional[List[str]] = None,
                     jp: bool = False) -> Unit:
-    possible_units = get_matching_units(grades=grades,
-                                        types=types,
-                                        races=races,
-                                        events=events,
-                                        affections=affections,
-                                        names=names,
-                                        jp=jp)
+    possible_units: List[Unit] = get_matching_units(grades=grades,
+                                                    types=types,
+                                                    races=races,
+                                                    events=events,
+                                                    affections=affections,
+                                                    names=names,
+                                                    jp=jp)
     return possible_units[ra.randint(0, len(possible_units) - 1)]
 
 
-def remove_trailing_whitespace(to_remove: str):
+def remove_trailing_whitespace(to_remove: str) -> str:
     while to_remove.startswith(" "):
         to_remove = to_remove[1:]
 
@@ -134,17 +128,17 @@ def remove_trailing_whitespace(to_remove: str):
     return to_remove
 
 
-def remove_beginning_ignore_case(remove_from: str, beginning: str):
+def remove_beginning_ignore_case(remove_from: str, beginning: str) -> str:
     if remove_from.lower().startswith(beginning.lower()):
         return remove_from[len(beginning):]
     return remove_from
 
 
-def parse_arguments(given_args: str, list_seperator: str = "&") -> dict:
-    args = given_args.split(list_seperator)
-    parsed_races = []
-    parsed_names = []
-    parsed_race_count = {
+def parse_arguments(given_args: str, list_seperator: str = "&") -> Dict[str, Any]:
+    args: List[str] = given_args.split(list_seperator)
+    parsed_races: List[Race] = []
+    parsed_names: List[str] = []
+    parsed_race_count: Dict[Race, int] = {
         Race.HUMAN: 0,
         Race.FAIRY: 0,
         Race.GIANT: 0,
@@ -152,18 +146,18 @@ def parse_arguments(given_args: str, list_seperator: str = "&") -> dict:
         Race.DEMON: 0,
         Race.GODDESS: 0
     }
-    parsed_grades = []
-    parsed_types = []
-    parsed_events = []
-    parsed_affections = []
-    parsed_url = ""
-    parsed_new_name = ""
-    parsed_owner = 0
-    jp = False
-    unparsed = []
+    parsed_grades: List[Grade] = []
+    parsed_types: List[Type] = []
+    parsed_events: List[Event] = []
+    parsed_affections: List[Affection] = []
+    parsed_url: str = ""
+    parsed_new_name: str = ""
+    parsed_owner: int = 0
+    jp: bool = False
+    unparsed: List[str] = []
 
     for _, ele in enumerate(args):
-        arg = remove_trailing_whitespace(ele)
+        arg: str = remove_trailing_whitespace(ele)
 
         if arg.lower().startswith("new_name:"):
             parsed_new_name = remove_trailing_whitespace(remove_beginning_ignore_case(arg, "new_name:"))
@@ -262,9 +256,9 @@ def parse_arguments(given_args: str, list_seperator: str = "&") -> dict:
     }
 
 
-def replace_duplicates(criteria: dict, team_to_deduplicate: List[Unit]):
-    team_simple_names = ["", "", "", ""]
-    team_races = {
+def replace_duplicates(criteria: Dict[str, Any], team_to_deduplicate: List[Unit]) -> None:
+    team_simple_names: List[str] = ["", "", "", ""]
+    team_races: Dict[Race, int] = {
         Race.HUMAN: 0,
         Race.FAIRY: 0,
         Race.GIANT: 0,
@@ -272,37 +266,37 @@ def replace_duplicates(criteria: dict, team_to_deduplicate: List[Unit]):
         Race.DEMON: 0,
         Race.GODDESS: 0
     }
-    max_races = criteria["max race count"]
+    max_races: Dict[Race, int] = criteria["max race count"]
 
-    checker = 0
+    checker: int = 0
     for i in max_races:
         checker += max_races[i]
 
     if checker not in (4, 0):
         raise ValueError("Too many Races")
 
-    def check_races(abba):
+    def check_races(_i: int) -> bool:
         if checker == 0:
             return True
-        if team_races[team_to_deduplicate[abba].race] >= max_races[team_to_deduplicate[abba].race]:
-            if team_to_deduplicate[abba].race in criteria["race"]:
-                criteria["race"].remove(team_to_deduplicate[abba].race)
-            team_to_deduplicate[abba] = get_random_unit(races=criteria["race"], grades=criteria["grade"],
-                                                        types=criteria["type"],
-                                                        events=criteria["event"], affections=criteria["affection"],
-                                                        names=criteria["name"], jp=criteria["jp"])
+        if team_races[team_to_deduplicate[_i].race] >= max_races[team_to_deduplicate[_i].race]:
+            if team_to_deduplicate[_i].race in criteria["race"]:
+                criteria["race"].remove(team_to_deduplicate[_i].race)
+            team_to_deduplicate[_i] = get_random_unit(races=criteria["race"], grades=criteria["grade"],
+                                                      types=criteria["type"],
+                                                      events=criteria["event"], affections=criteria["affection"],
+                                                      names=criteria["name"], jp=criteria["jp"])
             return False
-        team_races[team_to_deduplicate[abba].race] += 1
+        team_races[team_to_deduplicate[_i].race] += 1
         return True
 
-    def check_names(abba):
-        if team_to_deduplicate[abba].simple_name not in team_simple_names:
-            team_simple_names[abba] = team_to_deduplicate[abba].simple_name
+    def check_names(_i: int) -> bool:
+        if team_to_deduplicate[_i].simple_name not in team_simple_names:
+            team_simple_names[_i] = team_to_deduplicate[_i].simple_name
             return True
-        team_to_deduplicate[abba] = get_random_unit(races=criteria["race"], grades=criteria["grade"],
-                                                    types=criteria["type"],
-                                                    events=criteria["event"], affections=criteria["affection"],
-                                                    names=criteria["name"], jp=criteria["jp"])
+        team_to_deduplicate[_i] = get_random_unit(races=criteria["race"], grades=criteria["grade"],
+                                                  types=criteria["type"],
+                                                  events=criteria["event"], affections=criteria["affection"],
+                                                  names=criteria["name"], jp=criteria["jp"])
         return False
 
     for i, _ in enumerate(team_to_deduplicate):
@@ -314,11 +308,13 @@ def replace_duplicates(criteria: dict, team_to_deduplicate: List[Unit]):
             raise ValueError("Not enough Units available")
 
 
-async def build_menu(ctx, prev_message, page: int = 0):
-    summon_menu_emojis = ["⬅️", "1️⃣", "🔟" if ALL_BANNERS[page].banner_type == BannerType.ELEVEN else "5️⃣", "🐋",
-                          "ℹ️", "➡️"]
+async def build_menu(ctx: Context, prev_message: discord.Message, page: int = 0) -> None:
+    of_banner: Banner = ALL_BANNERS[page]
+    summon_menu_emojis: List[str] = [emojis.LEFT_ARROW, emojis.NO_1,
+                                     emojis.NO_10 if of_banner.banner_type == BannerType.ELEVEN else emojis.NO_5,
+                                     emojis.WHALE, emojis.INFO, emojis.RIGHT_ARROW]
     await prev_message.clear_reactions()
-    draw = prev_message
+    draw: discord.Message = prev_message
 
     await draw.edit(content=f"{ctx.message.author.mention}",
                     embed=discord.Embed(
@@ -377,8 +373,8 @@ async def build_menu(ctx, prev_message, page: int = 0):
         pass
 
 
-def parse_custom_unit_args(arg: str):
-    all_parsed = parse_arguments(arg)
+def parse_custom_unit_args(arg: str) -> Dict[str, Any]:
+    all_parsed: Dict[str, Any] = parse_arguments(arg)
 
     return {
         "name": all_parsed["name"][0] if len(all_parsed["name"]) > 0 else "",
@@ -392,16 +388,18 @@ def parse_custom_unit_args(arg: str):
     }
 
 
-def get_demon_role(guild_id: int, demon_type: str = "red") -> discord.Role:
-    guild_roles = DEMON_ROLES[guild_id]
+def get_demon_role(guild_id: int, demon_type: str = "red") -> typing.Optional[discord.Role]:
+    guild_roles: List[discord.Role] = DEMON_ROLES[guild_id]
     if guild_roles is not None and len(guild_roles[demon_type]) != 0:
         return guild_roles[demon_type][0]
     return None
 
 
-def parse_demon_roles():
+def parse_demon_roles() -> None:
     DEMON_ROLES.clear()
+    guild: discord.Guild
     for guild in BOT.guilds:
+        x: discord.Role
         red_demons = [x for x in guild.roles if "red" in x.name.lower() and "demon" in x.name.lower()]
         grey_demons = [x for x in guild.roles if "grey" in x.name.lower() and "demon" in x.name.lower()]
         crimson_demons = [x for x in guild.roles if
@@ -414,18 +412,12 @@ def parse_demon_roles():
         }
 
 
-def mutual_guilds(person: discord.User):
+def mutual_guilds(person: discord.User) -> List[discord.Guild]:
     return [g for g in BOT.guilds if g.get_member(person.id) is not None]
 
 
-def shared_guilds(person1: discord.User, person2: discord.User):
+def shared_guilds(person1: discord.User, person2: discord.User) -> List[discord.Guild]:
     return [x for x in mutual_guilds(person1) if x in mutual_guilds(person2)]
-
-
-class Dict2Obj(object):
-    def __init__(self, dictionary):
-        for key in dictionary:
-            setattr(self, key, dictionary[key])
 
 
 @BOT.event
@@ -442,19 +434,19 @@ async def on_ready():
 
 
 @BOT.event
-async def on_guild_join(guild):
+async def on_guild_join(_):
     parse_demon_roles()
 
 
 @BOT.group()
-async def top(ctx):
+async def top(ctx: Context):
     if ctx.invoked_subcommand is None:
         return await top_luck(ctx)
 
 
 @top.command(name="luck", aliases=["lucky", "luckiness"])
-async def top_luck(ctx):
-    top_users = await get_top_users(ctx.message.guild, LeaderboardType.LUCK)
+async def top_luck(ctx: Context):
+    top_users: List[Dict[str, Any]] = await get_top_users(ctx.guild, LeaderboardType.LUCK)
     if len(top_users) == 0:
         return await ctx.send(
             embed=discord.Embed(
@@ -465,7 +457,7 @@ async def top_luck(ctx):
 
     await ctx.send(
         embed=discord.Embed(
-            title=f"Luckiest Members in {ctx.message.guild.name}",
+            title=f"Luckiest Members in {ctx.guild.name}",
             description='\n'.join([
                 "**{}.** {} with a *{}%* SSR drop rate in their pulls. (Total: *{}*)".format(top_user["place"],
                                                                                              top_user["name"],
@@ -473,13 +465,13 @@ async def top_luck(ctx):
                                                                                              top_user["pull-amount"])
                 for top_user in top_users]),
             colour=discord.Colour.gold()
-        ).set_thumbnail(url=ctx.message.guild.icon_url)
+        ).set_thumbnail(url=ctx.guild.icon_url)
     )
 
 
 @top.command(name="ssrs", aliases=["ssr"])
-async def top_ssrs(ctx):
-    top_users = await get_top_users(ctx.message.guild, LeaderboardType.MOST_SSR)
+async def top_ssrs(ctx: Context):
+    top_users: List[Dict[str, Any]] = await get_top_users(ctx.guild, LeaderboardType.MOST_SSR)
     if len(top_users) == 0:
         return await ctx.send(
             embed=discord.Embed(
@@ -489,19 +481,21 @@ async def top_ssrs(ctx):
         )
     await ctx.send(
         embed=discord.Embed(
-            title=f"Members with most drawn SSRs in {ctx.message.guild.name}",
+            title=f"Members with most drawn SSRs in {ctx.guild.name}",
             description='\n'.join([
-                "**{}.** {} with *{} SSRs*. (Total: *{}*)".format(top_user["place"], top_user["name"],
-                                                                  top_user["ssrs"], top_user["pull-amount"])
+                "**{}.** {} with *{} SSRs*. (Total: *{}*)".format(top_user["place"],
+                                                                  top_user["name"],
+                                                                  top_user["ssrs"],
+                                                                  top_user["pull-amount"])
                 for top_user in top_users]),
             colour=discord.Colour.gold()
-        ).set_thumbnail(url=ctx.message.guild.icon_url)
+        ).set_thumbnail(url=ctx.guild.icon_url)
     )
 
 
 @top.command(name="units", aliases=["unit"])
-async def top_units(ctx):
-    top_users = await get_top_users(ctx.message.guild, LeaderboardType.MOST_UNITS)
+async def top_units(ctx: Context):
+    top_users: List[Dict[str, Any]] = await get_top_users(ctx.guild, LeaderboardType.MOST_UNITS)
     if len(top_users) == 0:
         return await ctx.send(
             embed=discord.Embed(
@@ -511,19 +505,20 @@ async def top_units(ctx):
         )
     await ctx.send(
         embed=discord.Embed(
-            title=f"Members with most drawn Units in {ctx.message.guild.name}",
+            title=f"Members with most drawn Units in {ctx.guild.name}",
             description='\n'.join([
-                "**{}.** {} with *{} Units*".format(
-                    top_user["place"], top_user["name"], top_user["pull-amount"])
+                "**{}.** {} with *{} Units*".format(top_user["place"],
+                                                    top_user["name"],
+                                                    top_user["pull-amount"])
                 for top_user in top_users]),
             colour=discord.Colour.gold()
-        ).set_thumbnail(url=ctx.message.guild.icon_url)
+        ).set_thumbnail(url=ctx.guild.icon_url)
     )
 
 
 @top.command(name="shafts", aliases=["shaft"])
-async def top_shafts(ctx):
-    top_users = await get_top_users(ctx.message.guild, LeaderboardType.MOST_SHAFTS)
+async def top_shafts(ctx: Context):
+    top_users: List[Dict[str, Any]] = await get_top_users(ctx.message.guild, LeaderboardType.MOST_SHAFTS)
     if len(top_users) == 0:
         return await ctx.send(
             embed=discord.Embed(
@@ -533,29 +528,27 @@ async def top_shafts(ctx):
         )
     return await ctx.send(
         embed=discord.Embed(
-            title=f"Members with most Shafts in {ctx.message.guild.name}",
+            title=f"Members with most Shafts in {ctx.guild.name}",
             description='\n'.join([
-                "**{}.** {} with *{} Shafts*".format(
-                    top_user["place"], top_user["name"], top_user["shafts"])
+                "**{}.** {} with *{} Shafts*".format(top_user["place"],
+                                                     top_user["name"],
+                                                     top_user["shafts"])
                 for top_user in top_users]),
             colour=discord.Colour.gold()
-        ).set_thumbnail(url=ctx.message.guild.icon_url)
+        ).set_thumbnail(url=ctx.guild.icon_url)
     )
 
 
-STAT_HELPER = {}
-
-
 @BOT.group()
-async def stats(ctx, person: typing.Optional[discord.Member]):
+async def stats(ctx: Context, person: typing.Optional[discord.Member]):
     if person is None:
-        person = ctx.message.author
+        person: discord.Member = ctx.author
 
-    data = await get_user_pull(person)
-    ssrs = data["ssr_amount"] if len(data) != 0 else 0
-    pulls = data["pull_amount"] if len(data) != 0 else 0
-    shafts = data["shafts"] if len(data) != 0 else 0
-    percent = round((ssrs / pulls if len(data) != 0 else 0) * 100, 2)
+    data: Dict[str, int] = await get_user_pull(person)
+    ssrs: int = data["ssr_amount"] if len(data) != 0 else 0
+    pulls: int = data["pull_amount"] if len(data) != 0 else 0
+    shafts: int = data["shafts"] if len(data) != 0 else 0
+    percent: float = round((ssrs / pulls if len(data) != 0 else 0) * 100, 2)
 
     STAT_HELPER[ctx] = {
         "data": data,
@@ -566,94 +559,98 @@ async def stats(ctx, person: typing.Optional[discord.Member]):
         "person": person
     }
 
+    if ctx.invoked_subcommand is None:
+        return await stats_luck(ctx)
+
 
 @stats.command(name="luck", aliases=["lucky", "luckiness"])
 async def stats_luck(ctx):
-    person = STAT_HELPER[ctx]["person"]
-    percent = STAT_HELPER[ctx]["percent"]
-    ssrs = STAT_HELPER[ctx]["ssrs"]
-    pulls = STAT_HELPER[ctx]["pulls"]
+    person: discord.Member = STAT_HELPER[ctx]["person"]
+    percent: float = STAT_HELPER[ctx]["percent"]
+    ssrs: int = STAT_HELPER[ctx]["ssrs"]
+    pulls: int = STAT_HELPER[ctx]["pulls"]
     await ctx.send(
-        content=f"{person.mention}'s luck:" if person == ctx.message.author
-        else f"{ctx.message.author.mention}: {person.display_name}'s luck:",
+        content=f"{person.mention}'s luck:" if person == ctx.author
+        else f"{ctx.author.mention}: {person.display_name}'s luck:",
         embed=discord.Embed(
             description=f"**{person.display_name}** currently got a *{percent}%* SSR droprate in their pulls, with *{ssrs} SSRs* in *{pulls} Units*"
         )
     )
+    STAT_HELPER[ctx] = None
 
 
 @stats.command(name="ssrs", aliases=["ssr"])
-async def stats_ssrs(ctx):
-    person = STAT_HELPER[ctx]["person"]
-    ssrs = STAT_HELPER[ctx]["ssrs"]
+async def stats_ssrs(ctx: Context):
+    person: discord.Member = STAT_HELPER[ctx]["person"]
+    ssrs: int = STAT_HELPER[ctx]["ssrs"]
     await ctx.send(
-        content=f"{person.mention}'s SSRs:" if person == ctx.message.author
-        else f"{ctx.message.author.mention}: {person.display_name}'s SSRs:",
+        content=f"{person.mention}'s SSRs:" if person == ctx.author
+        else f"{ctx.author.mention}: {person.display_name}'s SSRs:",
         embed=discord.Embed(
             description=f"**{person.display_name}** currently has *{ssrs} SSRs*"
         )
     )
+    STAT_HELPER[ctx] = None
 
 
 @stats.command(name="units", aliases=["unit"])
-async def stats_units(ctx):
-    person = STAT_HELPER[ctx]["person"]
-    pulls = STAT_HELPER[ctx]["pulls"]
+async def stats_units(ctx: Context):
+    person: discord.Member = STAT_HELPER[ctx]["person"]
+    pulls: int = STAT_HELPER[ctx]["pulls"]
     await ctx.send(
-        content=f"{person.mention}'s Units:" if person == ctx.message.author
-        else f"{ctx.message.author.mention}: {person.display_name}'s Units:",
+        content=f"{person.mention}'s Units:" if person == ctx.author
+        else f"{ctx.author.mention}: {person.display_name}'s Units:",
         embed=discord.Embed(
             description=f"**{person.display_name}** currently has *{pulls} Units*"
         )
     )
+    STAT_HELPER[ctx] = None
 
 
 @stats.command(name="shafts", aliases=["shaft"])
-async def stats_shafts(ctx):
-    person = STAT_HELPER[ctx]["person"]
-    shafts = STAT_HELPER[ctx]["shafts"]
+async def stats_shafts(ctx: Context):
+    person: discord.Member = STAT_HELPER[ctx]["person"]
+    shafts: int = STAT_HELPER[ctx]["shafts"]
     await ctx.send(
-        content=f"{person.mention}'s Shafts:" if person == ctx.message.author
-        else f"{ctx.message.author.mention}: {person.display_name}'s Shafts:",
+        content=f"{person.mention}'s Shafts:" if person == ctx.author
+        else f"{ctx.author.mention}: {person.display_name}'s Shafts:",
         embed=discord.Embed(
             description=f"**{person.display_name}** currently got shafted {shafts}x"
         )
     )
 
 
-# ..unit
 @BOT.command(no_pm=True)
-async def unit(ctx, *, args: str = ""):
-    attributes = parse_arguments(args)
+async def unit(ctx: Context, *, args: str = ""):
+    attributes: Dict[str, Any] = parse_arguments(args)
     try:
-        random_unit = get_random_unit(grades=attributes["grade"],
-                                      types=attributes["type"],
-                                      races=attributes["race"],
-                                      events=attributes["event"],
-                                      affections=attributes["affection"],
-                                      names=attributes["name"],
-                                      jp=attributes["jp"])
+        random_unit: Unit = get_random_unit(grades=attributes["grade"],
+                                            types=attributes["type"],
+                                            races=attributes["race"],
+                                            events=attributes["event"],
+                                            affections=attributes["affection"],
+                                            names=attributes["name"],
+                                            jp=attributes["jp"])
 
         await random_unit.set_icon()
 
-        await ctx.send(content=f"{ctx.message.author.mention} this is your unit",
+        await ctx.send(content=f"{ctx.author.mention} this is your unit",
                        embed=discord.Embed(title=random_unit.name, colour=random_unit.discord_color())
                        .set_image(url="attachment://unit.png"),
                        file=await random_unit.discord_icon())
     except LookupError:
-        await ctx.send(content=f"{ctx.message.author.mention}",
+        await ctx.send(content=f"{ctx.author.mention}",
                        embed=embeds.UNIT_LOOKUP_ERROR_EMBED)
 
 
-# ..pvp
 @BOT.command(no_pm=True)
-async def pvp(ctx, enemy: discord.Member, attr: str = ""):
-    attr = parse_arguments(attr)
-    proposed_team_p1 = [
+async def pvp(ctx: Context, enemy: discord.Member, attr: str = ""):
+    attr: Dict[str, Any] = parse_arguments(attr)
+    proposed_team_p1: List[Unit] = [
         get_random_unit(races=attr["race"], grades=attr["grade"], types=attr["type"], events=attr["event"],
                         affections=attr["affection"], names=attr["name"], jp=attr["jp"])
         for _ in range(4)]
-    proposed_team_p2 = [
+    proposed_team_p2: List[Unit] = [
         get_random_unit(races=attr["race"], grades=attr["grade"], types=attr["type"], events=attr["event"],
                         affections=attr["affection"], names=attr["name"], jp=attr["jp"])
         for _ in range(4)]
@@ -665,33 +662,28 @@ async def pvp(ctx, enemy: discord.Member, attr: str = ""):
         return await ctx.send(content=f"{ctx.message.author.mention} -> {e}",
                               embed=embeds.TEAM_LOOKUP_ERROR_EMBED)
 
-    player1 = ctx.message.author
+    player1 = ctx.author
 
     if player1 in PVP_TIME_CHECK or enemy in PVP_TIME_CHECK:
-        return await ctx.send(content=f"{ctx.message.author.mention}",
+        return await ctx.send(content=f"{ctx.author.mention}",
                               embed=embeds.PVP_COOLDOWN_ERROR_EMBED)
 
-    changed_units = {
-        0: [],
-        1: [],
-        2: [],
-        3: []
-    }
+    changed_units: Dict[int, List[Unit]] = {0: [], 1: [], 2: [], 3: []}
 
-    async def send(player: discord.Member, last_message=None):
+    async def send(player: discord.Member, last_message: Optional[discord.Message] = None) -> None:
         if last_message is not None:
             await last_message.delete()
 
         if player not in PVP_TIME_CHECK:
             PVP_TIME_CHECK.append(player)
 
-        loading_message = await ctx.send(embed=embeds.LOADING_EMBED)
-        team_message = await ctx.send(file=await image_to_discord(
-            await compose_team(rerolled_team=proposed_team_p1 if player == player1 else proposed_team_p2,
-                               re_units=changed_units),
-            "team.png"),
-                                      content=f"{player.mention} please check if you have those units",
-                                      embed=discord.Embed().set_image(url="attachment://team.png"))
+        loading_message: discord.Message = await ctx.send(embed=embeds.LOADING_EMBED)
+        team_message: discord.Message = await ctx.send(
+            file=await image_to_discord(await compose_team(
+                rerolled_team=proposed_team_p1 if player == player1 else proposed_team_p2,
+                re_units=changed_units), "team.png"),
+            content=f"{player.mention} please check if you have those units",
+            embed=discord.Embed().set_image(url="attachment://team.png"))
         await loading_message.delete()
 
         for emoji in TEAM_REROLL_EMOJIS:
@@ -740,11 +732,12 @@ async def pvp(ctx, enemy: discord.Member, attr: str = ""):
 
     await send(player1)
 
-    changed_units = {0: [], 1: [], 2: [], 3: []}
+    changed_units: Dict[int, List[Unit]] = {0: [], 1: [], 2: [], 3: []}
 
     await send(enemy)
 
-    await ctx.send(file=await image_to_discord(await compose_pvp(player1=player1, player2=enemy,
+    await ctx.send(file=await image_to_discord(await compose_pvp(player1=player1,
+                                                                 player2=enemy,
                                                                  team1=proposed_team_p1,
                                                                  team2=proposed_team_p2),
                                                "pvp.png"))
@@ -752,11 +745,33 @@ async def pvp(ctx, enemy: discord.Member, attr: str = ""):
 
 # ..team
 @BOT.command(no_pm=True)
-async def team(ctx, *, args: str = ""):
-    attr = parse_arguments(args)
+async def team(ctx: Context, *, args: str = ""):
+    attr: Dict[str, Any] = parse_arguments(args)
+    amount: int = 1
+
+    if len(attr["unparsed"]) != 0:
+        try:
+            amount: int = int(attr["unparsed"][0])
+        except ValueError:
+            pass
+
+    if amount > 1:
+        if amount > 15:
+            amount = 15
+        loading: discord.Message = await ctx.send(content=ctx.author.mention, embed=embeds.LOADING_EMBED)
+        possible: List[Unit] = [_get_random_unit(attr) for _ in range(amount * 4)]
+        teams: List[Unit] = [[possible[i + 0], possible[i + 1], possible[i + 2], possible[i + 3]] for i in
+                             range(0, amount * 4, 4)]
+        for i, ele in enumerate(teams):
+            replace_duplicates(attr, ele)
+        possible: List[Unit] = [item for sublist in teams for item in sublist]
+        await ctx.send(ctx.author.mention,
+                       file=await image_to_discord(await compose_random_select_team(possible),
+                                                   "random_select_team.png"))
+        return await loading.delete()
 
     try:
-        proposed_team = [
+        proposed_team: List[Unit] = [
             get_random_unit(races=attr["race"], grades=attr["grade"], types=attr["type"], events=attr["event"],
                             affections=attr["affection"], names=attr["name"], jp=attr["jp"])
             for _ in range(4)]
@@ -764,14 +779,14 @@ async def team(ctx, *, args: str = ""):
         try:
             replace_duplicates(criteria=attr, team_to_deduplicate=proposed_team)
         except ValueError as e:
-            return await ctx.send(content=f"{ctx.message.author.mention} -> {e}",
+            return await ctx.send(content=f"{ctx.author.mention} -> {e}",
                                   embed=embeds.TEAM_LOOKUP_ERROR_EMBED)
 
         if ctx.message.author in TEAM_TIME_CHECK:
-            return await ctx.send(content=f"{ctx.message.author.mention}",
+            return await ctx.send(content=f"{ctx.author.mention}",
                                   embed=embeds.TEAM_COOLDOWN_ERROR_EMBED)
 
-        changed_units = {
+        changed_units: Dict[int, List[Unit]] = {
             0: [],
             1: [],
             2: [],
@@ -784,19 +799,20 @@ async def team(ctx, *, args: str = ""):
 
             if ctx.message.author not in TEAM_TIME_CHECK:
                 TEAM_TIME_CHECK.append(ctx.message.author)
-            loading_message = await ctx.send(embed=embeds.LOADING_EMBED)
-            team_message = await ctx.send(file=await image_to_discord(await compose_team(
-                rerolled_team=proposed_team, re_units=changed_units
-            ),
-                                                                      "units.png"),
-                                          content=f"{ctx.message.author.mention} this is your team",
-                                          embed=discord.Embed().set_image(url="attachment://units.png"))
+
+            loading_message: discord.Message = await ctx.send(embed=embeds.LOADING_EMBED)
+            team_message: discord.Message = await ctx.send(
+                file=await image_to_discord(await compose_team(
+                    rerolled_team=proposed_team, re_units=changed_units), "units.png"),
+                content=f"{ctx.author.mention} this is your team",
+                embed=discord.Embed().set_image(url="attachment://units.png"))
             await loading_message.delete()
+
             for emoji in TEAM_REROLL_EMOJIS:
                 await team_message.add_reaction(emoji)
 
             def check_reroll(added_reaction, user):
-                return user == ctx.message.author and str(added_reaction.emoji) in TEAM_REROLL_EMOJIS \
+                return user == ctx.author and str(added_reaction.emoji) in TEAM_REROLL_EMOJIS \
                        and added_reaction.message == team_message
 
             try:
@@ -824,102 +840,175 @@ async def team(ctx, *, args: str = ""):
                 await send_message(last_team_message=team_message)
             except asyncio.TimeoutError:
                 if ctx.message.author in TEAM_TIME_CHECK:
-                    TEAM_TIME_CHECK.remove(ctx.message.author)
+                    TEAM_TIME_CHECK.remove(ctx.author)
                 await team_message.clear_reactions()
 
         await send_message()
     except LookupError:
-        await ctx.send(content=f"{ctx.message.author.mention}",
+        await ctx.send(content=f"{ctx.author.mention}",
                        embed=embeds.TEAM_LOOKUP_ERROR_EMBED)
 
 
-# ..multi
 @BOT.command(no_pm=True)
-async def multi(ctx, person: typing.Optional[discord.Member], *, banner_name: str = "banner 1"):
+async def multi(ctx: Context, person: typing.Optional[discord.Member], *, banner_name: str = "1 banner 1"):
     if person is None:
-        person = ctx.message.author
+        person: discord.Member = ctx.author
 
-    from_banner = banner_by_name(banner_name)
+    amount_str: str = ""
+    amount: int = 1
+    rot: bool = False
+
+    if banner_name.startswith("rot") or banner_name.startswith("rotation"):
+        rot: bool = True
+        banner_name: str = remove_trailing_whitespace(banner_name.replace("rotation", "").replace("rot", ""))
+        if banner_name.replace(" ", "") == "":
+            banner_name: str = "banner 1"
+    else:
+        while banner_name.startswith(tuple(str(i) for i in range(50))):
+            amount_str += remove_trailing_whitespace(banner_name[0])
+            banner_name: str = remove_trailing_whitespace(banner_name[1:])
+            amount: int = int(amount_str)
+
+        if banner_name.replace(" ", "") == "":
+            banner_name: str = "banner 1"
+
+    from_banner: Optional[Banner] = banner_by_name(banner_name)
     if from_banner is None:
-        return await ctx.send(content=f"{ctx.message.author.mention}",
+        return await ctx.send(content=f"{ctx.author.mention}",
                               embed=discord.Embed(title="Error", colour=discord.Color.dark_red(),
                                                   description=f"Can't find the \"{banner_name}\" banner"
                                                   )
                               )
 
-    draw = await ctx.send(embed=embeds.LOADING_EMBED.set_image(url=LOADING_IMAGE_URL))
+    draw: discord.Message = await ctx.send(embed=embeds.LOADING_EMBED.set_image(url=LOADING_IMAGE_URL))
 
-    img = await compose_multi_draw(from_banner=from_banner, user=person) if from_banner.banner_type == BannerType.ELEVEN \
-        else await compose_five_multi_draw(from_banner=from_banner, user=person)
-    await ctx.send(file=await image_to_discord(img, "units.png"),
-                   content=f"{person.mention} this is your multi" if person is ctx.message.author
-                   else f"{person.mention} this is your multi coming from {ctx.message.author.mention}",
-                   embed=discord.Embed(title=f"{from_banner.pretty_name} "
-                                             f"({11 if from_banner.banner_type == BannerType.ELEVEN else 5}x summon)")
-                   .set_image(url="attachment://units.png"))
-    return await draw.delete()
+    if rot:
+        units: Dict[Unit, int] = {}
+        for _ in range(30 * 11):
+            _unit: Unit = await unit_with_chance(from_banner, person)
+            if _unit in units:
+                units[_unit] += 1
+            else:
+                units[_unit]: int = 1
+        connection.commit()
+        await ctx.send(
+            file=await image_to_discord(await compose_banner_rotation(
+                dict(sorted(units.items(), key=lambda x: x[0].grade.to_int()))
+            ), "rotation.png"),
+            content=f"{person.display_name} those are the units you pulled in 1 rotation" if person is ctx.author
+            else f"{person.display_name} those are the units you pulled in 1 rotation coming from {ctx.author.display_name}",
+            embed=discord.Embed(
+                title=f"{from_banner.pretty_name} ~ 1 Rotation (900 Gems)",
+            ).set_image(url="attachment://rotation.png"))
+        return await draw.delete()
+
+    images: List[Img] = [await compose_multi_draw(from_banner=from_banner, user=person)
+                         if from_banner.banner_type == BannerType.ELEVEN else
+                         await compose_five_multi_draw(from_banner=from_banner, user=person) for _ in range(amount)]
+
+    await display_draw_menu(ctx, draw, person, from_banner, 0, images)
 
 
-# ..summon
+async def display_draw_menu(ctx: Context, last_message: discord.Message, person: discord.Member, from_banner: Banner,
+                            page: int, images: List[Img]):
+    img: discord.File = await image_to_discord(images[page], "units.png")
+    msg: discord.Message = await ctx.send(file=img,
+                                          content=
+                                          f"{person.display_name} this is your {page + 1}. multi"
+                                          if person is ctx.author else
+                                          f"{person.display_name} this is your {page + 1}. multi coming from {ctx.author.display_name}",
+                                          embed=discord.Embed(
+                                              title=f"{from_banner.pretty_name}"
+                                                    f"({11 if from_banner.banner_type == BannerType.ELEVEN else 5}x summon)")
+                                          .set_image(url="attachment://units.png"))
+    if last_message is not None:
+        await last_message.delete()
+    if page != 0:
+        await msg.add_reaction(emojis.LEFT_ARROW)
+
+    if page != len(images) - 1:
+        await msg.add_reaction(emojis.RIGHT_ARROW)
+
+    if page == 0 and len(images) == 1:
+        return
+
+    def check(added_reaction, user):
+        return user == ctx.message.author or user == person and str(added_reaction.emoji) in [emojis.LEFT_ARROW,
+                                                                                              emojis.RIGHT_ARROW]
+
+    try:
+        add_react, _ = await BOT.wait_for('reaction_add', check=check, timeout=30)
+
+        if str(add_react.emoji) == emojis.LEFT_ARROW:
+            return await display_draw_menu(ctx, msg, person, from_banner, page - 1, images)
+        elif str(add_react.emoji) == emojis.RIGHT_ARROW:
+            return await display_draw_menu(ctx, msg, person, from_banner, page + 1, images)
+    except asyncio.TimeoutError:
+        await msg.clear_reactions()
+
+
 @BOT.command(no_pm=True)
-async def summon(ctx):
-    draw = await ctx.send(embed=embeds.LOADING_EMBED)
+async def summon(ctx: Context):
+    draw: discord.Message = await ctx.send(embed=embeds.LOADING_EMBED)
     await build_menu(ctx, prev_message=draw)
 
 
-# ..single
 @BOT.command(no_pm=True)
-async def single(ctx, person: typing.Optional[discord.Member], *, banner_name: str = "banner 1"):
+async def single(ctx: Context, person: typing.Optional[discord.Member], *, banner_name: str = "banner 1"):
     if person is None:
-        person = ctx.message.author
-    from_banner = banner_by_name(banner_name)
+        person: discord.Member = ctx.author
+    from_banner: Optional[Banner] = banner_by_name(banner_name)
     if from_banner is None:
-        return await ctx.send(content=f"{ctx.message.author.mention}",
+        return await ctx.send(content=f"{ctx.author.mention}",
                               embed=discord.Embed(title="Error", colour=discord.Color.dark_red(),
                                                   description=f"Can't find the \"{banner_name}\" banner"))
 
     return await ctx.send(file=await compose_draw(from_banner, person),
-                          content=f"{person.mention} this is your single" if person is ctx.message.author
-                          else f"{person.mention} this is your single coming from {ctx.message.author.mention}",
+                          content=f"{person.mention} this is your single"
+                          if person is ctx.message.author else
+                          f"{person.mention} this is your single coming from {ctx.author.mention}",
                           embed=discord.Embed(title=f"{from_banner.pretty_name} (1x summon)").set_image(
                               url="attachment://unit.png"))
 
 
-# ..shaft
 @BOT.command(no_pm=True)
-async def shaft(ctx, person: typing.Optional[MemberMentionConverter],
+async def shaft(ctx: Context, person: typing.Optional[MemberMentionConverter],
                 unit_name: typing.Optional[str] = "Helix is awesome", *, banner_name: str = "banner 1"):
     if person is None:
-        person = ctx.message.author
+        person: discord.Member = ctx.author
 
-    from_banner = banner_by_name(banner_name)
+    if unit_name in ["banner", "part", "gssr", "race", "humans", "soluna", "commandments", "jp", "custom"]:
+        banner_name: str = unit_name + " " + banner_name
+        unit_name: str = "none"
+
+    from_banner: Banner = banner_by_name(banner_name)
     if from_banner is None:
-        return await ctx.send(content=f"{ctx.message.author.mention}",
+        return await ctx.send(content=f"{ctx.author.mention}",
                               embed=discord.Embed(
                                   title="Error",
                                   colour=discord.Color.dark_red(),
                                   description=f"Can't find the \"{banner_name}\" banner"
                               ))
 
-    unit_ssr = False
-    if unit_name.startswith("ssr:"):
-        unit_ssr = True
-        unit_name = unit_name.replace("ssr:", "")
+    unit_ssr: bool = False
+    if ssr_pattern.match(unit_name, 0):
+        unit_ssr: bool = True
+        unit_name: str = ssr_pattern.sub("", unit_name)
 
-    possible_units = [a.unit_id for a in unit_by_vague_name(unit_name)]
+    possible_units: List[int] = [a.unit_id for a in unit_by_vague_name(unit_name)]
 
     if len(possible_units) != 0 and len(
             [a for a in possible_units if a in [b.unit_id for b in from_banner.all_units]]) == 0:
-        possible_other_banner = None
+        possible_other_banner: Optional[Banner] = None
         for b1 in ALL_BANNERS:
-            matching_units = [x for x in b1.all_units if x.unit_id in possible_units]
+            matching_units: List[Unit] = [x for x in b1.all_units if x.unit_id in possible_units]
             if len(matching_units) > 0:
-                possible_other_banner = b1
+                possible_other_banner: Banner = b1
                 break
-        from_banner = possible_other_banner
+        from_banner: Banner = possible_other_banner
 
     if from_banner is None:
-        return await ctx.send(content=f"{ctx.message.author.mention}",
+        return await ctx.send(content=f"{ctx.author.mention}",
                               embed=discord.Embed(
                                   title="Error",
                                   colour=discord.Color.dark_red(),
@@ -927,24 +1016,24 @@ async def shaft(ctx, person: typing.Optional[MemberMentionConverter],
                               ))
 
     if not from_banner.shaftable:
-        return await ctx.send(content=f"{ctx.message.author.mention}",
+        return await ctx.send(content=f"{ctx.author.mention}",
                               embed=discord.Embed(
                                   title="Error",
                                   colour=discord.Color.dark_red(),
                                   description=f"Can't get shafted on the \"{from_banner.pretty_name}\" banner"
                               ))
 
-    unit_to_draw = [a.unit_id for a in unit_by_vague_name(unit_name)
-                    if a.unit_id in [b.unit_id for b in from_banner.all_units]]
+    unit_to_draw: List[int] = [a.unit_id for a in unit_by_vague_name(unit_name)
+                               if a.unit_id in [b.unit_id for b in from_banner.all_units]]
 
     draw = await ctx.send(
-        content=f"{person.mention} this is your shaft" if person is ctx.message.author
-        else f"{person.mention} this is your shaft coming from {ctx.message.author.mention}",
+        content=f"{person.mention} you are getting shafted" if person is ctx.author
+        else f"{person.mention} you are getting shafted from {ctx.author.mention}",
         embed=discord.Embed(
             title="Shafting..."
         ).set_image(url=LOADING_IMAGE_URL))
 
-    rang = 11 if from_banner.banner_type == BannerType.ELEVEN else 5
+    rang: int = 11 if from_banner.banner_type == BannerType.ELEVEN else 5
 
     async def has_ssr(du: List[Unit]) -> bool:
         for u in du:
@@ -959,58 +1048,67 @@ async def shaft(ctx, person: typing.Optional[MemberMentionConverter],
                     return True
         return False
 
-    async def loop():
-        i = 0
-        drawn_units = [(await unit_with_chance(from_banner, person)) for _ in range(rang)]
-        drawn_ssrs = [x for x in drawn_units if x.grade == Grade.SSR]
+    i: int = 0
+    drawn_units: List[Unit] = [(await unit_with_chance(from_banner, person)) for _ in range(rang)]
+    drawn_ssrs: Dict[Unit, int] = {}
+    for x in drawn_units:
+        if x.grade == Grade.SSR:
+            if x not in drawn_ssrs:
+                drawn_ssrs[x] = 1
+            else:
+                drawn_ssrs[x] += 1
 
-        while not await has_ssr(drawn_units) and i < 1000:
-            i += 1
-            drawn_units = [(await unit_with_chance(from_banner, person)) for _ in range(rang)]
-            drawn_ssrs.extend([x for x in drawn_units if x.grade == Grade.SSR])
+    while not await has_ssr(drawn_units) and i < 1000:
+        i += 1
+        drawn_units: List[Unit] = [(await unit_with_chance(from_banner, person)) for _ in range(rang)]
+        for x in drawn_units:
+            if x.grade == Grade.SSR:
+                if x not in drawn_ssrs:
+                    drawn_ssrs[x] = 1
+                else:
+                    drawn_ssrs[x] += 1
 
-        return i, drawn_units, drawn_ssrs
-
-    shafts_and_units = await loop()
+    connection.commit()
+    multi_msg: str = "Multi" if i == 0 else "Multis"
 
     await ctx.send(
         file=await image_to_discord(
-            await compose_unit_multi_draw(units=shafts_and_units[1],
-                                          ssrs=shafts_and_units[2]) if from_banner.banner_type == BannerType.ELEVEN
-            else await compose_unit_five_multi_draw(units=shafts_and_units[1]),
+            await compose_unit_multi_draw(units=drawn_units,
+                                          ssrs=drawn_ssrs) if from_banner.banner_type == BannerType.ELEVEN
+            else await compose_unit_five_multi_draw(units=drawn_units),
             "units.png"),
-        content=f"{person.mention}" if person is ctx.message.author
-        else f"{person.mention} coming from {ctx.message.author.mention}",
+        content=f"{person.mention}: Your shaft" if person is ctx.author
+        else f"{person.mention}: Your shaft coming from {ctx.author.mention}",
         embed=discord.Embed(
             title=f"{from_banner.pretty_name} ({rang}x summon)",
-            description=f"Shafted {shafts_and_units[0]} times \n This is your final pull").set_image(
+            description=f"You did {i + 1}x {multi_msg}. \n With this being your final pull:").set_image(
             url="attachment://units.png"))
     await draw.delete()
-    await add_shaft(person, shafts_and_units[0])
+    await add_shaft(person, i)
 
 
 @BOT.group(no_pm=True)
-async def custom(ctx):
+async def custom(ctx: Context):
     if ctx.invoked_subcommand is None:
-        await ctx.send(f"{ctx.message.author.mention}:", embed=embeds.CUSTOM_HELP_EMBED)
+        await ctx.send(f"{ctx.author.mention}:", embed=embeds.CUSTOM_HELP_EMBED)
 
 
 @custom.command(name="add", aliases=["create", "+"])
-async def custom_create(ctx, *, args: typing.Optional[str] = ""):
-    data = parse_custom_unit_args(args)
+async def custom_create(ctx: Context, *, args: typing.Optional[str] = ""):
+    data: Dict[str, Any] = parse_custom_unit_args(args)
 
     if data["url"] == "" or data["name"] == "" or data["type"] is None or data["grade"] is None:
-        return await ctx.send(content=f"{ctx.message.author.mention}", embed=embeds.CUSTOM_ADD_COMMAND_USAGE_EMBED)
+        return await ctx.send(content=f"{ctx.author.mention}", embed=embeds.CUSTOM_ADD_COMMAND_USAGE_EMBED)
 
     async with aiohttp.ClientSession() as session:
         async with session.get(data["url"]) as resp:
             with BytesIO(await resp.read()) as image_bytes:
-                icon = await compose_icon(attribute=data["type"], grade=data["grade"],
-                                          background=Image.open(image_bytes))
+                _icon: Img = await compose_icon(attribute=data["type"], grade=data["grade"],
+                                                background=Image.open(image_bytes))
 
                 await ctx.send(
-                    file=await image_to_discord(img=icon, image_name="unit.png"),
-                    content=f"{ctx.message.author.mention} this is your created unit",
+                    file=await image_to_discord(img=_icon, image_name="unit.png"),
+                    content=f"{ctx.author.mention} this is your created unit",
                     embed=discord.Embed(
                         title=data["name"],
                         color=discord.Color.red() if data["type"] == Type.RED
@@ -1019,10 +1117,10 @@ async def custom_create(ctx, *, args: typing.Optional[str] = ""):
                     ).set_image(url="attachment://unit.png"))
 
                 if data["race"] is None:
-                    data["race"] = Race.UNKNOWN
+                    data["race"]: Race = Race.UNKNOWN
 
                 if data["affection"] is None:
-                    data["affection"] = Affection.NONE.value
+                    data["affection"]: str = Affection.NONE.value
 
                 await add_custom_unit(name=data["name"],
                                       type_enum=data["type"],
@@ -1030,59 +1128,60 @@ async def custom_create(ctx, *, args: typing.Optional[str] = ""):
                                       race=data["race"],
                                       affection_str=data["affection"],
                                       url=data["url"],
-                                      creator=ctx.message.author.id)
+                                      creator=ctx.author.id)
 
 
 @custom.command(name="remove", aliases=["delete", "-"])
-async def custom_remove(ctx, *, args: typing.Optional[str] = ""):
-    data = parse_custom_unit_args(args)
+async def custom_remove(ctx: Context, *, args: typing.Optional[str] = ""):
+    data: Dict[str, Any] = parse_custom_unit_args(args)
     if data["name"] == "":
-        return await ctx.send(content=f"{ctx.message.author.mention}", embed=embeds.CUSTOM_REMOVE_COMMAND_USAGE_EMBED)
+        return await ctx.send(content=f"{ctx.author.mention}", embed=embeds.CUSTOM_REMOVE_COMMAND_USAGE_EMBED)
 
-    edit_unit = unit_by_name(data["name"])
+    edit_unit: Unit = unit_by_name(data["name"])
 
-    if int(edit_unit.simple_name) != ctx.message.author.id:
-        return await ctx.send(content=f"{ctx.message.author.mention}", embed=discord.Embed(
+    if int(edit_unit.simple_name) != ctx.author.id:
+        return await ctx.send(content=f"{ctx.author.mention}", embed=discord.Embed(
             title="Error with ..custom remove", colour=discord.Color.dark_red(),
             description=f"**{edit_unit.name}** wasn't created by you!"))
 
     await remove_custom_unit(data["name"])
     UNITS.remove(edit_unit)
     create_custom_unit_banner()
-    return await ctx.send(content=f"{ctx.message.author.mention}", embed=embeds.CUSTOM_REMOVE_COMMAND_SUCCESS_EMBED)
+    return await ctx.send(content=f"{ctx.author.mention}", embed=embeds.CUSTOM_REMOVE_COMMAND_SUCCESS_EMBED)
 
 
 @custom.command(name="list")
-async def custom_list(ctx, *, args: typing.Optional[str] = ""):
-    data = parse_custom_unit_args(args)
+async def custom_list(ctx: Context, *, args: typing.Optional[str] = ""):
+    data: Dict[str, Any] = parse_custom_unit_args(args)
     if data["owner"] == 0:
         return await list_units(ctx, criteria="event: custom")
 
-    unit_list = []
-    async for row in parse_custom_unit_list(data["owner"]):
-        unit_list.append(unit_by_id(-1 * row[0]))
+    unit_list: List[Unit] = []
+    async for unit_id in parse_custom_unit_ids(data["owner"]):
+        unit_list.append(unit_by_id(-1 * unit_id))
 
-    loading = await ctx.send(content=f"{ctx.message.author.mention} -> Loading Units", embed=embeds.LOADING_EMBED)
+    loading: discord.Message = await ctx.send(content=f"{ctx.author.mention} -> Loading Units",
+                                              embed=embeds.LOADING_EMBED)
     await ctx.send(file=await image_to_discord(await compose_unit_list(unit_list), "units.png"),
                    embed=discord.Embed().set_image(url="attachment://units.png"))
     await loading.delete()
 
 
 @custom.command(name="edit")
-async def custom_edit(ctx, *, args: typing.Optional[str] = ""):
-    data = parse_custom_unit_args(args)
+async def custom_edit(ctx: Context, *, args: typing.Optional[str] = ""):
+    data: Dict[str, Any] = parse_custom_unit_args(args)
     if data["name"] == "":
-        return await ctx.send(content=f"{ctx.message.author.mention}", embed=embeds.CUSTOM_EDIT_COMMAND_USAGE_EMBED)
+        return await ctx.send(content=f"{ctx.author.mention}", embed=embeds.CUSTOM_EDIT_COMMAND_USAGE_EMBED)
 
-    edit_unit = unit_by_name(data["name"])
+    edit_unit: Unit = unit_by_name(data["name"])
 
-    if int(edit_unit.simple_name) != ctx.message.author.id:
-        return await ctx.send(content=f"{ctx.message.author.mention}", embed=discord.Embed(
+    if int(edit_unit.simple_name) != ctx.author.id:
+        return await ctx.send(content=f"{ctx.author.mention}", embed=discord.Embed(
             title="Error with ..custom remove", colour=discord.Color.dark_red(),
             description=f"**{edit_unit.name}** wasn't created by you!"))
 
-    to_set = []
-    values = []
+    to_set: List[str] = []
+    values: List[str] = []
     if data["grade"] is not None:
         edit_unit.grade = data["grade"]
         to_set.append("grade=?")
@@ -1112,82 +1211,82 @@ async def custom_edit(ctx, *, args: typing.Optional[str] = ""):
         values.append(data["affection"])
 
     if len(to_set) == 0:
-        return await ctx.send(content=f"{ctx.message.author.mention}", embed=embeds.CUSTOM_EDIT_COMMAND_SUCCESS_EMBED)
+        return await ctx.send(content=f"{ctx.author.mention}", embed=embeds.CUSTOM_EDIT_COMMAND_SUCCESS_EMBED)
 
-    to_set = ", ".join(to_set)
+    to_set: str = ", ".join(to_set)
 
     values.append(data["name"])
     await edit_custom_unit(to_set, values)
 
     await edit_unit.refresh_icon()
-    return await ctx.send(content=f"{ctx.message.author.mention}", embed=embeds.CUSTOM_EDIT_COMMAND_SUCCESS_EMBED)
+    return await ctx.send(content=f"{ctx.author.mention}", embed=embeds.CUSTOM_EDIT_COMMAND_SUCCESS_EMBED)
 
 
-# ..crop
 @BOT.command(no_pm=True)
-async def crop(ctx, file_url=None, starting_width=0, starting_height=0, ending_width=75, ending_height=75):
+async def crop(ctx: Context, file_url: Optional[str] = "",
+               starting_width: Optional[int] = 0, starting_height: Optional[int] = 0,
+               ending_width: Optional[int] = 75, ending_height: Optional[int] = 75):
     if file_url in [None, ""]:
-        return await ctx.send(content=f"{ctx.message.author.mention}",
-                              embed=embeds.CROP_COMMAND_USAGE_ERROR_EMBED)
+        return await ctx.send(content=f"{ctx.author.mention}", embed=embeds.CROP_COMMAND_USAGE_ERROR_EMBED)
     async with aiohttp.ClientSession() as session:
         async with session.get(file_url) as resp:
             img = Image.open(BytesIO(await resp.read()))
-            await ctx.send(content=f"{ctx.message.author.mention} this is your cropped image",
+            await ctx.send(content=f"{ctx.author.mention} this is your cropped image",
                            file=await image_to_discord(
                                img.crop((starting_width, starting_height, ending_width, ending_height)),
                                "cropped.png"),
                            embed=discord.Embed().set_image(url="attachment://cropped.png"))
 
 
-# ..resize
 @BOT.command(no_pm=True)
-async def resize(ctx, file_url=None, width=75, height=75):
+async def resize(ctx: Context, file_url: Optional[str] = "", width: int = 75, height: int = 75):
     if file_url in [None, ""]:
-        return await ctx.send(content=f"{ctx.message.author.mention}",
-                              embed=embeds.RESIZE_COMMAND_USAGE_ERROR_EMBED)
+        return await ctx.send(content=f"{ctx.author.mention}", embed=embeds.RESIZE_COMMAND_USAGE_ERROR_EMBED)
     async with aiohttp.ClientSession() as session:
         async with session.get(file_url) as resp:
             img = Image.open(BytesIO(await resp.read()))
-            await ctx.send(content=f"{ctx.message.author.mention} this is your resized image",
+            await ctx.send(content=f"{ctx.author.mention} this is your resized image",
                            file=await image_to_discord(img.resize((width, height)), "resized.png"),
                            embed=discord.Embed().set_image(url="attachment://resized.png"))
 
 
 @BOT.group(name="list", no_pm=True)
-async def cmd_list(ctx):
+async def cmd_list(ctx: Context):
     if ctx.invoked_subcommand is None:
         return await list_units(ctx)
 
 
 @cmd_list.command(name="unit", aliases=["units"])
-async def list_units(ctx, units_per_page: int = 5, *, criteria: str = "event: custom"):
-    loading = await ctx.send(content=f"{ctx.message.author.mention} -> Loading Units", embed=embeds.LOADING_EMBED)
-    attr = parse_arguments(criteria)
-    matching_units = get_matching_units(races=attr["race"],
-                                        grades=attr["grade"],
-                                        types=attr["type"],
-                                        events=attr["event"],
-                                        affections=attr["affection"],
-                                        names=attr["name"],
-                                        jp=attr["jp"])
-    paged_unit_list = await compose_paged_unit_list(matching_units, units_per_page)
-    max_pages = math.ceil(len(matching_units) / units_per_page) - 1
+async def list_units(ctx: Context, units_per_page: Optional[int] = 5, *, criteria: str = "event: custom"):
+    loading: discord.Message = await ctx.send(content=f"{ctx.author.mention} -> Loading Units",
+                                              embed=embeds.LOADING_EMBED)
+    attr: Dict[str, Any] = parse_arguments(criteria)
+    matching_units: List[Unit] = get_matching_units(races=attr["race"],
+                                                    grades=attr["grade"],
+                                                    types=attr["type"],
+                                                    events=attr["event"],
+                                                    affections=attr["affection"],
+                                                    names=attr["name"],
+                                                    jp=attr["jp"])
+    paged_unit_list: List[Img] = await compose_paged_unit_list(matching_units, units_per_page)
+    max_pages: float = math.ceil(len(matching_units) / units_per_page) - 1
     await loading.delete()
 
     async def display(page: int):
-        _loading = await ctx.send(content=f"{ctx.message.author.mention} -> Loading Units", embed=embeds.LOADING_EMBED)
-        message = await ctx.send(file=await image_to_discord(paged_unit_list[page], "units.png"),
-                                 embed=discord.Embed(
-                                     title=f"Units matching {criteria} ({page + 1}/{max_pages + 1})"
-                                 ).set_image(url="attachment://units.png"),
-                                 content=f"{ctx.message.author.mention}")
+        _loading: discord.Message = await ctx.send(content=f"{ctx.author.mention} -> Loading Units",
+                                                   embed=embeds.LOADING_EMBED)
+        message: discord.Message = await ctx.send(file=await image_to_discord(paged_unit_list[page], "units.png"),
+                                                  embed=discord.Embed(
+                                                      title=f"Units matching {criteria} ({page + 1}/{max_pages + 1})"
+                                                  ).set_image(url="attachment://units.png"),
+                                                  content=f"{ctx.author.mention}")
         await _loading.delete()
 
         if page != 0:
-            await message.add_reaction("⬅️")
+            await message.add_reaction(emojis.LEFT_ARROW)
 
         if page != max_pages:
-            await message.add_reaction("➡️")
+            await message.add_reaction(emojis.RIGHT_ARROW)
 
         try:
             def check_page(added_reaction, user):
@@ -1208,226 +1307,265 @@ async def list_units(ctx, units_per_page: int = 5, *, criteria: str = "event: cu
 
 
 @cmd_list.command(name="banner", aliases=["banners"])
-async def list_banners(ctx):
-    loading = await ctx.send(content=f"{ctx.message.author.mention} -> Loading Banners", embed=embeds.LOADING_EMBED)
-    await ctx.send(content=f"{ctx.message.author.mention}",
+async def list_banners(ctx: Context):
+    loading: discord.Message = await ctx.send(content=f"{ctx.author.mention} -> Loading Banners",
+                                              embed=embeds.LOADING_EMBED)
+    await ctx.send(content=f"{ctx.author.mention}",
                    embed=discord.Embed(title="All Banners",
                                        description="\n\n".join(
                                            [f"**{x.name[0]}**: `{x.pretty_name}`" for x in ALL_BANNERS])))
     await loading.delete()
 
 
+@cmd_list.command(name="tarot")
+async def list_tarot(ctx: Context, paged: str = "paged"):
+    loading: discord.Message = await ctx.send(content=f"{ctx.author.mention} -> Loading Tarot Cards",
+                                              embed=embeds.LOADING_EMBED)
+    if paged != "paged":
+        await ctx.send(content=ctx.author.mention,
+                       file=await image_to_discord(await TAROT_IMAGE, "tarot_list.png"),
+                       embed=discord.Embed().set_image(url="attachment://tarot_list.png")
+                       )
+        return await loading.delete()
+
+    async def display(page: int, last_message):
+        msg = await ctx.send(content=ctx.author.mention,
+                             file=await image_to_discord(await compose_paged_tarot_list(page), "tarot_list.png"),
+                             embed=discord.Embed(title=tarot_name(page)).set_image(url="attachment://tarot_list.png")
+                             )
+        await last_message.delete()
+
+        if page != 1:
+            await msg.add_reaction(emojis.LEFT_ARROW)
+
+        if page != 22:
+            await msg.add_reaction(emojis.RIGHT_ARROW)
+
+        def check(added_reaction, user):
+            return user == ctx.author and str(added_reaction.emoji) in [emojis.LEFT_ARROW, emojis.RIGHT_ARROW]
+
+        try:
+            reaction, _ = await BOT.wait_for('reaction_add', check=check, timeout=15)
+
+            if str(reaction.emoji) == emojis.LEFT_ARROW and page != 1:
+                return await display(page - 1, msg)
+
+            if str(reaction.emoji) == emojis.RIGHT_ARROW and page != 22:
+                return await display(page + 1, msg)
+        except asyncio.TimeoutError:
+            await msg.clear_reactions()
+
+    await display(1, loading)
+
+
 @BOT.command(no_pm=True)
-async def banner(ctx, *, banner_name: str = "banner one"):
-    from_banner = banner_by_name(banner_name)
+async def banner(ctx: Context, *, banner_name: str = "banner one"):
+    from_banner: Banner = banner_by_name(banner_name)
     if from_banner is None:
-        return await ctx.send(content=f"{ctx.message.author.mention}",
+        return await ctx.send(content=f"{ctx.author.mention}",
                               embed=discord.Embed(title="Error", colour=discord.Color.dark_red(),
                                                   description=f"Can't find the \"{banner_name}\" banner"
                                                   )
                               )
-    loading = await ctx.send(content=f"{ctx.message.author.mention} -> Loading Banner", embed=embeds.LOADING_EMBED)
+    loading: discord.Message = await ctx.send(content=f"{ctx.author.mention} -> Loading Banner",
+                                              embed=embeds.LOADING_EMBED)
     await ctx.send(
         file=await image_to_discord(await compose_banner_list(from_banner, "custom" in from_banner.name),
                                     "banner.png"),
         embed=discord.Embed(title=f"SSRs in {from_banner.pretty_name} ({from_banner.ssr_chance}%)").set_image(
             url="attachment://banner.png"),
-        content=f"{ctx.message.author.mention}")
+        content=f"{ctx.author.mention}")
     await loading.delete()
 
 
 @BOT.command(no_pm=True)
-async def add_banner_unit(ctx, banner_name: str, *, units: str):
+async def add_banner_unit(ctx: Context, banner_name: str, *, units: str):
     await add_unit_to_banner(banner_name, units)
-    ctx.send(content=f"Units ({units}) added to {banner_name}")
+    await ctx.send(content=f"Units ({units}) added to {banner_name}")
 
 
 @BOT.command(no_pm=True)
-async def add_banner_rate_up_unit(ctx, banner_name: str, *, units: str):
+async def add_banner_rate_up_unit(ctx: Context, banner_name: str, *, units: str):
     await add_rate_up_unit_to_banner(banner_name, units)
-    ctx.send(content=f"Rate up units ({units}) added to {banner_name}")
+    await ctx.send(content=f"Rate up units ({units}) added to {banner_name}")
 
 
 @BOT.command(no_pm=True)
-async def update(ctx):
+async def update(ctx: Context):
     read_units_from_db()
     read_banners_from_db()
     create_custom_unit_banner()
     parse_demon_roles()
-    await ctx.send(content=f"{ctx.message.author.mention} Updated Units & Banners")
+    await ctx.send(content=f"{ctx.author.mention} Updated Units & Banners")
 
 
 @BOT.group(no_pm=True)
-async def affection(ctx):
+async def affection(ctx: Context):
     if ctx.invoked_subcommand is None:
-        return await ctx.send(content=f"{ctx.message.author.mention}",
+        return await ctx.send(content=f"{ctx.author.mention}",
                               embed=embeds.AFFECTION_HELP_EMBED)
 
 
 @affection.command(name="add", aliases=["create", "plus", "+"])
-async def affection_add(ctx, *, name: typing.Optional[str]):
+async def affection_add(ctx: Context, *, name: typing.Optional[str]):
     if name.lower in [Affection.SIN.value, Affection.KNIGHT.value, Affection.NONE.value, Affection.ANGEL.value,
                       Affection.CATASTROPHE.value,
                       Affection.COMMANDMENTS.value]:
-        return await ctx.send(content=f"{ctx.message.author.mention}",
+        return await ctx.send(content=f"{ctx.author.mention}",
                               embed=embeds.AFFECTION_UNMUTABLE_ERROR_EMBED)
 
-    await add_affection(name, ctx.message.author.id)
+    await add_affection(name, ctx.author.id)
     AFFECTIONS.append(name.lower())
-    await ctx.send(content=f"{ctx.message.author.mention}",
-                   embed=embeds.AFFECTION_ADDED_EMBED)
+    await ctx.send(content=f"{ctx.author.mention}", embed=embeds.AFFECTION_ADDED_EMBED)
 
 
 @affection.command(name="edit")
-async def affection_edit(ctx, old_name: str, *, new_name: str):
+async def affection_edit(ctx: Context, old_name: str, *, new_name: str):
     if old_name.lower() not in AFFECTIONS:
-        return await ctx.send(content=f"{ctx.message.author.mention}",
+        return await ctx.send(content=f"{ctx.author.mention}",
                               embed=embeds.AFFECTION_EDITED_EMBED)
 
-    if get_affection_creator(old_name.lower()) != ctx.message.author.id:
-        return await ctx.send(content=f"{ctx.message.author.mention}",
+    if get_affection_creator(old_name.lower()) != ctx.author.id:
+        return await ctx.send(content=f"{ctx.author.mention}",
                               embed=discord.Embed(title="Error with ..affections edit",
                                                   colour=discord.Color.dark_red(),
                                                   description=f"**{old_name.lower()}** is not your affection!"))
 
     await update_affection_name(old_name, new_name)
     AFFECTIONS.append(new_name.lower())
-    await ctx.send(content=f"{ctx.message.author.mention}",
-                   embed=embeds.AFFECTION_EDITED_EMBED)
+    await ctx.send(content=f"{ctx.author.mention}", embed=embeds.AFFECTION_EDITED_EMBED)
 
 
 @affection.command(name="transfer", aliases=["move", ">"])
-async def affection_transfer(ctx, name: str, owner: discord.Member):
+async def affection_transfer(ctx: Context, name: str, owner: discord.Member):
     if name.lower() not in AFFECTIONS:
-        return await ctx.send(content=f"{ctx.message.author.mention}",
+        return await ctx.send(content=f"{ctx.author.mention}",
                               embed=embeds.AFFECTION_EDITED_EMBED)
 
-    if get_affection_creator(name.lower()) != ctx.message.author.id:
-        return await ctx.send(content=f"{ctx.message.author.mention}",
+    if get_affection_creator(name.lower()) != ctx.author.id:
+        return await ctx.send(content=f"{ctx.author.mention}",
                               embed=discord.Embed(title="Error with ..affections edit",
                                                   colour=discord.Color.dark_red(),
                                                   description=f"**{name.lower()}** is not your affection!"))
 
     await update_affection_owner(name, owner)
-    await ctx.send(content=f"{ctx.message.author.mention}",
-                   embed=embeds.AFFECTION_EDITED_EMBED)
+    await ctx.send(content=f"{ctx.author.mention}", embed=embeds.AFFECTION_EDITED_EMBED)
 
 
 @affection.command(name="remove", aliases=["delete", "minus", "-"])
-async def affection_remove(ctx, *, name: str):
+async def affection_remove(ctx: Context, *, name: str):
     if name.lower() not in AFFECTIONS:
-        return await ctx.send(content=f"{ctx.message.author.mention}",
+        return await ctx.send(content=f"{ctx.author.mention}",
                               embed=embeds.AFFECTION_REMOVED_EMBED)
 
-    if get_affection_creator(name.lower()) != ctx.message.author.id:
-        return await ctx.send(content=f"{ctx.message.author.mention}",
+    if get_affection_creator(name.lower()) != ctx.author.id:
+        return await ctx.send(content=f"{ctx.author.mention}",
                               embed=discord.Embed(title="Error with ..affections edit",
                                                   colour=discord.Color.dark_red(),
                                                   description=f"**{name.lower()}** is not your affection!"))
     await remove_affection(name)
     AFFECTIONS.remove(name.lower())
-    await ctx.send(content=f"{ctx.message.author.mention}",
-                   embed=embeds.AFFECTION_REMOVED_EMBED)
+    await ctx.send(content=f"{ctx.author.mention}", embed=embeds.AFFECTION_REMOVED_EMBED)
 
 
 @affection.command(name="list")
-async def affection_list(ctx):
-    return await ctx.send(content=f"{ctx.message.author.mention}",
+async def affection_list(ctx: Context):
+    return await ctx.send(content=f"{ctx.author.mention}",
                           embed=discord.Embed(title="All Affections", description=",\n".join(AFFECTIONS)))
 
 
 @BOT.command(no_pm=True)
-async def box(ctx, user: typing.Optional[discord.Member]):
+async def box(ctx: Context, user: typing.Optional[discord.Member]):
     if user is None:
-        user = ctx.message.author
-    box_d = await read_box(user)
+        user: discord.Member = ctx.author
+    box_d: Dict[int, int] = await read_box(user)
     if len(box_d) == 0:
-        return await ctx.send(content=f"{ctx.message.author.mention}",
+        return await ctx.send(content=f"{ctx.author.mention}",
                               embed=discord.Embed(title="Error", colour=discord.Color.dark_red(),
                                                   description=f"{user.display_name} has no units!"))
-    loading = await ctx.send(content=f"{ctx.message.author.mention} -> Loading {user.display_name}'s box",
-                             embed=embeds.LOADING_EMBED)
+    loading: discord.Member = await ctx.send(content=f"{ctx.author.mention} -> Loading {user.display_name}'s box",
+                                             embed=embeds.LOADING_EMBED)
     await ctx.send(file=await image_to_discord(await compose_box(box_d), "box.png"),
-                   content=f"{ctx.message.author.mention}",
+                   content=f"{ctx.author.mention}",
                    embed=discord.Embed(title=f"{user.display_name}'s box", colour=discord.Color.gold()).set_image(
                        url="attachment://box.png"))
     await loading.delete()
 
 
 @BOT.command(no_pm=True)
-async def find(ctx, *, units=""):
+async def find(ctx: Context, *, units: str = ""):
     if units.replace(" ", "") == "":
-        return await ctx.send(content=f"{ctx.message.author.mention} -> Please provide at least 1 name `..find name1, "
+        return await ctx.send(content=f"{ctx.author.mention} -> Please provide at least 1 name `..find name1, "
                                       f"name2, ..., nameN`")
-    unit_vague_name_list = units.split(",")
-    found = []
+    unit_vague_name_list: List[str] = units.split(",")
+    found: List[Unit] = []
 
     for _, ele in enumerate(unit_vague_name_list):
-        while ele.startswith(" "):
-            ele = ele[1:]
+        ele = remove_trailing_whitespace(ele)
 
-        while ele.endswith(" "):
-            ele = ele[:-1]
-
-        found.extend(unit_by_vague_name(ele))
+        try:
+            pot_unit: Unit = unit_by_id(int(ele))
+            if pot_unit is not None:
+                found.append(pot_unit)
+        except ValueError:
+            found.extend(unit_by_vague_name(ele))
 
     if len(found) == 0:
-        return await ctx.send(content=f"{ctx.message.author.mention} -> No units found!")
+        return await ctx.send(content=f"{ctx.author.mention} -> No units found!")
 
-    loading = await ctx.send(content=f"{ctx.message.author.mention} -> Loading Units", embed=embeds.LOADING_EMBED)
+    loading: discord.Message = await ctx.send(content=f"{ctx.author.mention} -> Loading Units",
+                                              embed=embeds.LOADING_EMBED)
     await ctx.send(file=await image_to_discord(await compose_unit_list(found), "units.png"),
                    embed=discord.Embed().set_image(url="attachment://units.png"))
     await loading.delete()
 
 
 @BOT.group(no_pm=True, aliases=["bj", "jack", "blackj"])
-async def blackjack(ctx):
+async def blackjack(ctx: Context):
     if ctx.invoked_subcommand is None:
-        bot_card_values = [ra.randint(1, 11) for _ in range(2)]
-        player_card_values = [ra.randint(1, 11) for _ in range(2)]
+        bot_card_values: List[int] = [ra.randint(1, 11) for _ in range(2)]
+        player_card_values: List[int] = [ra.randint(1, 11) for _ in range(2)]
 
-        hit = "✅"
-        stand = "🟥"
-
-        cards_msg = await ctx.send(content=f"""
-                    {ctx.message.author.mention}'s cards are: {player_card_values}. Total = {sum(player_card_values)}
+        cards_msg: discord.Message = await ctx.send(content=f"""
+                    {ctx.author.mention}'s cards are: {player_card_values}. Total = {sum(player_card_values)}
                     Bot card is: {bot_card_values[0]}""")
 
-        async def play(last_msg=None):
+        async def play(last_msg: discord.Message = None):
             await last_msg.clear_reactions()
             if sum(player_card_values) > 21:
-                await add_blackjack_game(ctx.message.author, False)
+                await add_blackjack_game(ctx.author, False)
                 return await last_msg.edit(
-                    content=f"{ctx.message.author.mention} you lost! -> Hand of {sum(player_card_values)}")
+                    content=f"{ctx.author.mention} you lost! -> Hand of {sum(player_card_values)}")
             if sum(player_card_values) == 21:
-                await add_blackjack_game(ctx.message.author, True)
+                await add_blackjack_game(ctx.author, True)
                 if last_msg is None:
-                    return await ctx.send(content=f"{ctx.message.author.mention} you got a Blackjack and won!")
-                return await last_msg.edit(content=f"{ctx.message.author.mention} you got a Blackjack and won!")
+                    return await ctx.send(content=f"{ctx.author.mention} you got a Blackjack and won!")
+                return await last_msg.edit(content=f"{ctx.author.mention} you got a Blackjack and won!")
 
             await last_msg.edit(content=f"""
-                {ctx.message.author.mention}'s cards are: {player_card_values}. Total = {sum(player_card_values)}
+                {ctx.author.mention}'s cards are: {player_card_values}. Total = {sum(player_card_values)}
                 Bot card is: {bot_card_values[0]}""")
-            await last_msg.add_reaction(hit)
-            await last_msg.add_reaction(stand)
+
+            await last_msg.add_reaction(emojis.HIT)
+            await last_msg.add_reaction(emojis.STAND)
 
             def check(added_reaction, user):
-                return user == ctx.message.author and str(added_reaction.emoji) in [hit, stand]
+                return user == ctx.author and str(added_reaction.emoji) in [emojis.HIT, emojis.STAND]
 
             try:
                 reaction, _ = await BOT.wait_for('reaction_add', check=check)
 
-                if str(reaction.emoji) == hit:
+                if str(reaction.emoji) == emojis.HIT:
                     player_card_values.append(ra.randint(1, 11))
                     return await play(last_msg=cards_msg)
-                if str(reaction.emoji) == stand:
+                if str(reaction.emoji) == emojis.STAND:
                     await cards_msg.clear_reactions()
                     await add_blackjack_game(ctx.message.author,
                                              21 - sum(player_card_values) < 21 - sum(bot_card_values))
                     return await last_msg.edit(
-                        content=f"{ctx.message.author.mention} you won! -> Your hand ({sum(player_card_values)}) & Bot hand ({sum(bot_card_values)})" if 21 - sum(
+                        content=f"{ctx.author.mention} you won! -> Your hand ({sum(player_card_values)}) & Bot hand ({sum(bot_card_values)})" if 21 - sum(
                             player_card_values) < 21 - sum(bot_card_values)
-                        else f"{ctx.message.author.mention} you lost! -> Your hand ({sum(player_card_values)}) & Bot hand ({sum(bot_card_values)})")
+                        else f"{ctx.author.mention} you lost! -> Your hand ({sum(player_card_values)}) & Bot hand ({sum(bot_card_values)})")
             except TimeoutError:
                 pass
 
@@ -1435,37 +1573,34 @@ async def blackjack(ctx):
 
 
 @blackjack.command(name="top", aliases=["leaderboard", "lead", "leader", "leading"])
-async def blackjack_top(ctx):
-    data = await get_blackjack_top(ctx.message.guild)
-    if data is None:
+async def blackjack_top(ctx: Context):
+    if len([x async for x in get_blackjack_top(ctx.message.guild)]) is None:
         return await ctx.send(content="Nobody played Blackjack yet!")
 
-    top_l = []
-    i = 0
-    for row in data:
-        i += 1
-        top_l.append(f"**{i}.** *{(await BOT.fetch_user(row[0])).display_name}* ~ Streak of {row[1]} wins")
-
-    return await ctx.send(content=f"{ctx.message.author.mention}",
+    return await ctx.send(content=f"{ctx.author.mention}",
                           embed=discord.Embed(
-                              title=f"Blackjack Leaderboard in {ctx.message.guild.name} (Highest Winning Streaks)",
-                              description=",\n".join(top_l)
-                          ).set_thumbnail(url=ctx.message.guild.icon_url))
+                              title=f"Blackjack Leaderboard in {ctx.guild.name} (Highest Winning Streaks)",
+                              description=",\n".join(["**{}.** *{}* ~ Streak of {} wins".format(
+                                  data["place"],
+                                  await BOT.fetch_user(data["user"]),
+                                  data["highest_streak"]
+                              ) async for data in get_blackjack_top(ctx.guild)])
+                          ).set_thumbnail(url=ctx.guild.icon_url))
 
 
 @blackjack.command(name="record", aliases=["stats"])
-async def blackjack_record(ctx, person: typing.Optional[discord.Member] = None):
+async def blackjack_record(ctx: Context, person: typing.Optional[discord.Member] = None):
     if person is None:
-        person = ctx.message.author
-    data = await get_blackjack_stats(person)
+        person: discord.Member = ctx.author
+    data: Optional[Tuple[int, int, int, int, int]] = await get_blackjack_stats(person)
 
     if data is None:
         return await ctx.send(
-            content=f"{ctx.message.author.mention} hasn't played Blackjack yet!" if person == ctx.message.author
-            else f"{ctx.message.author.mention}: {person.display_name} hasn't played Blackjack yet!")
+            content=f"{ctx.author.mention}: You haven't played Blackjack yet!" if person == ctx.author
+            else f"{ctx.author.mention}: {person.display_name} hasn't played Blackjack yet!")
 
     return await ctx.send(
-        content=f"{ctx.message.author.mention} Blackjack History:" if person == ctx.message.author else f"{ctx.message.author.mention}: {person.display_name}'s Blackjack History:",
+        content=f"{ctx.author.mention} Blackjack History:" if person == ctx.author else f"{ctx.author.mention}: {person.display_name}'s Blackjack History:",
         embed=discord.Embed(
             title=f"History of {person.display_name}",
             description=f"""
@@ -1481,64 +1616,56 @@ async def blackjack_record(ctx, person: typing.Optional[discord.Member] = None):
 
 
 @BOT.group(no_pm=True)
-async def demon(ctx):
+async def demon(ctx: Context):
     if ctx.invoked_subcommand is None:
-        await ctx.send(f"{ctx.message.author.mention}:", embed=embeds.DEMON_HELP_EMBED)
+        await ctx.send(f"{ctx.author.mention}:", embed=embeds.DEMON_HELP_EMBED)
 
 
 @demon.command(name="friend", aliases=["friendcode", "code"])
-async def demon_friend(ctx, of: typing.Optional[discord.Member]):
-    if of == None:
-        of = ctx.message.author
+async def demon_friend(ctx: Context, of: typing.Optional[discord.Member]):
+    if of is None:
+        of = ctx.author
 
-    friendcode = await get_friendcode(ctx.message.author)
+    friendcode: Optional[Tuple[int]] = await get_friendcode(of)
 
     if friendcode is None:
-        if of == ctx.message.author:
-            ctx.send(f"{ctx.message.author.mention}: You are not registered in the bot yet! `..demon tag <grandcross friendcode> <profile name>` to create one")
+        if of == ctx.author:
+            await ctx.send(
+                f"{ctx.author.mention}: You are not registered in the bot yet! `..demon tag <grandcross friendcode> <profile name>` to create one")
         else:
-            ctx.send(f"{ctx.message.author.mention}: {of.display_name} is not registered in the bot yet!")
+            await ctx.send(f"{ctx.author.mention}: {of.display_name} is not registered in the bot yet!")
     else:
-        ctx.send(f"{ctx.message.author.mention}: {friendcode[0]}")
+        await ctx.send(f"{ctx.author.mention}: {friendcode[0]}")
 
 
 @demon.command(name="offer")
-async def demon_offer(ctx, reds: int = 0, greys: int = 0, crimsons: int = 0, *, additional_message: str = ""):
+async def demon_offer(ctx: Context, reds: int = 0, greys: int = 0, crimsons: int = 0, *, additional_message: str = ""):
     if reds == 0 and greys == 0 and crimsons == 0:
         return await ctx.send(
-            content=f"{ctx.message.author.mention}",
+            content=f"{ctx.author.mention}",
             embed=discord.Embed(
                 title="Error",
                 description="Please provide at least one demon",
                 color=discord.Color.dark_red()
             )
         )
-    author = ctx.message.author
-    guild_created_in = ctx.message.guild
+    author: discord.Member = ctx.author
+    guild_created_in: discord.Guild = ctx.guild
 
-    if author.id in DEMON_CONTRACTS.keys():
-        del DEMON_CONTRACTS[author.id]
+    async for channel_list_item in get_raid_channels():
+        channel: discord.TextChannel = await BOT.fetch_channel(channel_list_item["channel_id"])
+        guild: discord.Guild = await BOT.fetch_guild(channel_list_item["guild"])
 
-    if author.id not in DEMON_CONTRACTS:
-        DEMON_CONTRACTS[author.id] = {
-            "guild": ctx.message.guild.id
-        }
-
-    for channel_list_item in get_raid_channels():
-        channel = await BOT.fetch_channel(channel_list_item[1])
-        guild = await BOT.fetch_guild(channel_list_item[0])
-
-        mentions = []
+        mentions: List[str] = []
         if reds != 0 and get_demon_role(guild.id, "red") is not None:
             mentions.append(get_demon_role(guild.id, "red").mention)
         if greys != 0 and get_demon_role(guild.id, "grey") is not None:
             mentions.append(get_demon_role(guild.id, "grey").mention)
         if crimsons != 0 and get_demon_role(guild.id, "crimson") is not None:
             mentions.append(get_demon_role(guild.id, "crimson").mention)
-        mention_str = ", ".join(mentions)
 
-        to_claim = await channel.send(
-            content=mention_str,
+        to_claim: discord.Message = await channel.send(
+            content=", ".join(mentions),
             embed=discord.Embed(
                 title=f"{author.display_name} offers:",
                 description="\n" +
@@ -1552,9 +1679,9 @@ async def demon_offer(ctx, reds: int = 0, greys: int = 0, crimsons: int = 0, *, 
             )
         )
 
-        await to_claim.add_reaction("🆗")
+        await to_claim.add_reaction(emojis.OK)
 
-        DEMON_OFFER_MESSAGES[to_claim.id] = {
+        DEMON_OFFER_MESSAGES[to_claim.id]: Dict[str, Any] = {
             "created_in": guild_created_in,
             "guild": guild,
             "channel": channel,
@@ -1565,7 +1692,7 @@ async def demon_offer(ctx, reds: int = 0, greys: int = 0, crimsons: int = 0, *, 
         return await ctx.send(f"{author.mention} no channel to broadcast in found")
 
     def check(added_reaction, user):
-        return user != BOT.user and str(added_reaction.emoji) in "🆗"
+        return user != BOT.user and str(added_reaction.emoji) in emojis.OK
 
     try:
         added_reaction, user = await BOT.wait_for('reaction_add', check=check, timeout=60 * 60 * 4)
@@ -1573,8 +1700,8 @@ async def demon_offer(ctx, reds: int = 0, greys: int = 0, crimsons: int = 0, *, 
         if user == author:
             await ctx.send(f"{author.mention} deleted your demon offer.")
         else:
-            author_friendcode = await get_friendcode(author)
-            claim_friendcode = await get_friendcode(user)
+            author_friendcode: Optional[Tuple[int]] = await get_friendcode(author)
+            claim_friendcode: Optional[Tuple[int]] = await get_friendcode(user)
 
             if author_friendcode is None and claim_friendcode is None:
                 await ctx.send(f"{author.mention}: {user.mention} has claimed your demons!")
@@ -1593,14 +1720,12 @@ async def demon_offer(ctx, reds: int = 0, greys: int = 0, crimsons: int = 0, *, 
                 await author.send(
                     content=f"Please contact {user.mention} (from {shared_guilds(author, user)[0]}) for your demons")
 
-        offer_messages = [message_id for message_id in DEMON_OFFER_MESSAGES if
-                          DEMON_OFFER_MESSAGES[message_id]["creator"].id == author.id]
-
-        for offer_id in offer_messages:
+        for offer_id in [message_id for message_id in DEMON_OFFER_MESSAGES if
+                         DEMON_OFFER_MESSAGES[message_id]["creator"].id == author.id]:
             try:
                 DEMON_OFFER_MESSAGES[offer_id]["claimed_by"] = user
-                offer_message = await DEMON_OFFER_MESSAGES[offer_id]["channel"].fetch_message(offer_id)
-                new_embed = discord.Embed(
+                offer_message: discord.Message = await DEMON_OFFER_MESSAGES[offer_id]["channel"].fetch_message(offer_id)
+                new_embed: discord.Embed = discord.Embed(
                     title=f"~~{offer_message.embeds[0].title}~~ Claimed",
                     description=f"~~{offer_message.embeds[0].description}~~"
                 ).set_footer(text=f"Claimed by {user.display_name}")
@@ -1610,12 +1735,12 @@ async def demon_offer(ctx, reds: int = 0, greys: int = 0, crimsons: int = 0, *, 
                 pass
 
     except asyncio.TimeoutError:
-        offer_messages = [message_id for message_id in DEMON_OFFER_MESSAGES if
-                          DEMON_OFFER_MESSAGES[message_id]["creator"].id == author.id]
+        offer_messages: List[int] = [message_id for message_id in DEMON_OFFER_MESSAGES if
+                                     DEMON_OFFER_MESSAGES[message_id]["creator"].id == author.id]
         for offer_id in offer_messages:
             try:
-                msg = await DEMON_OFFER_MESSAGES[offer_id]["channel"].fetch_message(offer_id)
-                new_embed = discord.Embed(
+                msg: discord.Message = await DEMON_OFFER_MESSAGES[offer_id]["channel"].fetch_message(offer_id)
+                new_embed: discord.Embed = discord.Embed(
                     title=f"~~{msg.embeds[0].title}~~ Timed out",
                     description=f"~~{msg.embeds[0].description}~~"
                 ).set_footer(text="Time ran out.")
@@ -1624,89 +1749,404 @@ async def demon_offer(ctx, reds: int = 0, greys: int = 0, crimsons: int = 0, *, 
             except discord.errors.NotFound:
                 pass
 
-    if author.id in DEMON_MESSAGES:
-        del DEMON_MESSAGES[author.id]
-
 
 @BOT.event
-async def on_message(message):  # if people dont share a server. reply to the offer message
+async def on_message(message: discord.Message):  # if people dont share a server. reply to the offer message
     if message.reference is None:
         return await BOT.process_commands(message)
 
-    demon_msg_id = message.reference.message_id
+    demon_msg_id: int = message.reference.message_id
 
     if demon_msg_id not in DEMON_OFFER_MESSAGES:
         return await BOT.process_commands(message)
 
-    offer_data = Dict2Obj(DEMON_OFFER_MESSAGES[demon_msg_id])
+    offer_data: Dict[str, Any] = DEMON_OFFER_MESSAGES[demon_msg_id]
 
-    if "claimed_by" not in DEMON_OFFER_MESSAGES[demon_msg_id]:
+    if "claimed_by" not in offer_data:
         return await BOT.process_commands(message)
 
-    if len(shared_guilds(offer_data.creator, offer_data.claimed_by)) == 0:
-        if message.author.id == offer_data.creator.id:
-            await offer_data.claimed_by.send(
-                content=f"Message from {offer_data.creator.mention} regarding your demon offer:",
+    if len(shared_guilds(offer_data['creator'], offer_data['claimed_by'])) == 0:
+        if message.author.id == offer_data['creator'].id:
+            await offer_data['claimed_by'].send(
+                content=f"Message from {offer_data['creator'].mention} regarding your demon offer:",
                 embed=discord.Embed(description=message.content))
         else:
-            await offer_data.creator.send(
-                content=f"Message from {offer_data.claimed_by.mention} regarding your demon offer:",
+            await offer_data['creator'].send(
+                content=f"Message from {offer_data['claimed_by'].mention} regarding your demon offer:",
                 embed=discord.Embed(description=message.content))
 
 
 @demon.command(name="profile", aliases=["create", "tag"])
-async def demon_profile(ctx, gc_id: int = 0, name: str = "main"):
+async def demon_profile(ctx: Context, gc_id: int = 0, name: str = "main"):
     if gc_id == 0:
-        return await ctx.send(
-            content=f"{ctx.message.author.mention}",
-            embed=discord.Embed(
-                title=f"Info about {ctx.message.author.display_name}",
-                description="Names: \n" + "\n".join([
-                    "{}: {}".format(x[0], x[1])
-                    for x in await get_profile_name_and_friendcode(ctx.message.author)
-                ])
-            ))
+        return demon_info(ctx)
 
-    if get_demon_profile(ctx.message.author, name) is None:
-        await create_demon_profile(ctx.message.author, gc_id, name)
-        await ctx.send(f"{ctx.message.author.mention}: Added profile {name}  with friendcode {gc_id}")
+    if await get_demon_profile(ctx.author, name) is None:
+        await create_demon_profile(ctx.author, gc_id, name)
+        await ctx.send(f"{ctx.author.mention}: Added profile {name}  with friendcode {gc_id}")
     else:
         if gc_id == -1:
-            await delete_demon_profile(ctx.message.author, name)
-            await ctx.send(f"{ctx.message.author.mention}: Deleted profile {name}")
+            await delete_demon_profile(ctx.author, name)
+            await ctx.send(f"{ctx.author.mention}: Deleted profile {name}")
         else:
-            await update_demon_profile(ctx.message.author, gc_id, name)
-            await ctx.send(f"{ctx.message.author.mention}: Edited profile {name} to friendcode {gc_id}")
+            await update_demon_profile(ctx.author, gc_id, name)
+            await ctx.send(f"{ctx.author.mention}: Edited profile {name} to friendcode {gc_id}")
 
 
 @demon.command(name="info", aliases=["me"])
-async def demon_info(ctx, of: typing.Optional[discord.Member]):
+async def demon_info(ctx: Context, of: typing.Optional[discord.Member]):
     if of is None:
-        of = ctx.message.author
+        of: discord.Member = ctx.message.author
     await ctx.send(
-        content=f"{ctx.message.author.mention}",
+        content=f"{ctx.author.mention}",
         embed=discord.Embed(
             title=f"Info about {of.display_name}",
             description="Names: \n" + "\n".join([
-                "{}: {}".format(x[0], x[1])
-                for x in await get_profile_name_and_friendcode(of)
+                "{}: {}".format(x["name"], x["code"])
+                async for x in get_profile_name_and_friendcode(of)
             ])
         ))
 
 
 @demon.command(name="channel")
 @has_permissions(manage_channels=True)
-async def demon_channel(ctx, action="none"):
+async def demon_channel(ctx: Context, action: str = "none"):
     if action == "none":
         await add_raid_channel(ctx.message)
-        return await ctx.send(f"{ctx.message.author.mention} added demon channel!")
+        return await ctx.send(f"{ctx.author.mention} added demon channel!")
 
-    channels = [(await BOT.fetch_channel(x[1])).name + " in " + (await BOT.fetch_guild(x[0])).name for x in
-                await get_raid_channels()]
-    await ctx.message.author.send("\n".join(channels))
+    channels: List[discord.TextChannel] = [
+        (await BOT.fetch_channel(x["channel_id"])).name + " in " + (await BOT.fetch_guild(x["guild"])).name
+        async for x in get_raid_channels()]
+    await ctx.author.send("\n".join(channels))
 
 
-def start_up_bot(token_path: str = "data/bot_token.txt", db_path: str = "data/data.db", is_beta: bool = False):
+@BOT.group(no_pm=True, aliases=["tourney"])
+async def tournament(ctx: Context):
+    if ctx.invoked_subcommand is None:
+        await ctx.send(content=ctx.author.mention, embed=embeds.TourneyEmbeds.HELP)
+
+
+@tournament.command(name="signup")
+async def tournament_signup(ctx: Context, gc_code: int = 0, team_cc: float = 0,
+                            unit1: int = 0, unit2: int = 0, unit3: int = 0, unit4: int = 0):
+    if 0 in [gc_code, team_cc, unit1, unit2, unit3, unit4]:
+        return await ctx.send(content=ctx.author.mention, embed=embeds.TourneyEmbeds.HELP)
+
+    _team: List[Unit] = []
+
+    for unit_id in [unit1, unit2, unit3, unit4]:
+        u: Unit = unit_by_id(unit_id)
+        if u is None:
+            return await ctx.send(f"{ctx.author.mention}: No Unit with ID: {unit_id} found!")
+        else:
+            _team.append(u)
+
+    if await create_tourney_profile(ctx.author, gc_code, team_cc, [unit1, unit2, unit3, unit4]):
+        await ctx.send(f"{ctx.author.mention}:",
+                       file=await image_to_discord(await compose_team(_team), "team.png"),
+                       embed=discord.Embed(
+                           title="Registered Profile!",
+                           colour=discord.Color.green(),
+                           description=f"""
+            CC: `{team_cc}`
+
+            To edit your Team CC: 
+                `..tourney cc <new cc>`
+
+            Friend code: `{gc_code}`
+
+            To edit your Friend code:
+                `..tourney code <new friend code>`
+
+            Registered Team:
+            """
+                       ).set_image(url="attachment://team.png"))
+    else:
+        await ctx.send(f"{ctx.author.mention}:", embed=discord.Embed(
+            title="Error: Profile already exist",
+            colour=discord.Color.red(),
+            description="""
+            To edit your team cc: `..tourney cc <new cc>`
+
+            To edit your friend code: `..tourney code <new friend code>`
+            """
+        ))
+
+
+@tournament.command(name="code")
+async def tournament_code(ctx: Context, gc_code: int = 0):
+    if gc_code == 0:
+        return await ctx.send(content=ctx.author.mention, embed=embeds.TourneyEmbeds.HELP)
+
+    if await edit_tourney_friendcode(ctx.author, gc_code):
+        await ctx.send(f"{ctx.author.mention}:", embed=discord.Embed(
+            title="Updated Profile!",
+            colour=discord.Color.green(),
+            description=f"Your new friend code is: {gc_code}"
+        ))
+    else:
+        await ctx.send(f"{ctx.author.mention}:", embed=discord.Embed(
+            title="Error: Profile doesn't exist",
+            colour=discord.Color.red(),
+            description="To create one: `..tourney signup <friend code> <team cc>`"
+        ))
+
+
+@tournament.command(name="cc")
+async def tournament_cc(ctx: Context, cc: float = 0):
+    if cc == 0:
+        return await ctx.send(content=ctx.author.mention, embed=embeds.TourneyEmbeds.HELP)
+
+    if await edit_tourney_cc(ctx.author, cc):
+        await ctx.send(f"{ctx.author.mention}:", embed=discord.Embed(
+            title="Updated Profile!",
+            colour=discord.Color.green(),
+            description=f"Your new cc is: {cc}"
+        ))
+    else:
+        await ctx.send(f"{ctx.author.mention}:", embed=discord.Embed(
+            title="Error: Profile doesn't exist",
+            colour=discord.Color.red(),
+            description="To create one: `..tourney signup <friend code> <team cc>`"
+        ))
+
+
+@tournament.command(name="team")
+async def tournament_team(ctx: Context, unit1: int = 0, unit2: int = 0, unit3: int = 0, unit4: int = 0):
+    if 0 in [unit1, unit2, unit3, unit4]:
+        return await ctx.send(content=ctx.author.mention, embed=embeds.TourneyEmbeds.HELP)
+
+    _team: List[Unit] = []
+
+    for unit_id in [unit1, unit2, unit3, unit4]:
+        u: Unit = unit_by_id(unit_id)
+        if u is None:
+            return await ctx.send(f"{ctx.author.mention}: No Unit with ID: {unit_id} found!")
+        else:
+            _team.append(u)
+
+    if await edit_tourney_team(ctx.author, [unit1, unit2, unit3, unit4]):
+        await ctx.send(f"{ctx.author.mention}:",
+                       file=await image_to_discord(await compose_team(_team), "team.png"),
+                       embed=discord.Embed(
+                           title="Updated Profile!",
+                           colour=discord.Color.green(),
+                           description=f"Your new team is:"
+                       ).set_image(url="attachment://team.png"))
+    else:
+        await ctx.send(f"{ctx.author.mention}:", embed=discord.Embed(
+            title="Error: Profile doesn't exist",
+            colour=discord.Color.red(),
+            description="To create one: `..tourney signup <friend code> <team cc>`"
+        ))
+
+
+@tournament.command(name="stats", aliases=["profile"])
+async def tournament_stats(ctx: Context, of: typing.Optional[discord.Member]):
+    if of is None:
+        of: discord.Member = ctx.author
+
+    data: Optional[Dict[str, Union[int, float, List[int]]]] = await get_tourney_profile(of)
+    if data is None:
+        return await ctx.send(content=ctx.author.mention, embed=discord.Embed(
+            title="Error",
+            colour=discord.Color.red(),
+            description=f"{of.display_name} has no registered profile"
+        ))
+
+    _team: List[Unit] = [unit_by_id(x) for x in data["team"]]
+
+    return await ctx.send(content=ctx.author.mention,
+                          file=await image_to_discord(await compose_team(_team), "team.png"),
+                          embed=discord.Embed(
+                              title=f"Profile of: {of.display_name}",
+                              description=f"""
+        Friend code: `{data["gc_code"]}` 
+
+        Team CC: `{data["team_cc"]}`
+
+        Won: `{data["won"]}`
+
+        Lost: `{data["lost"]}`
+
+        Registered Team:
+        """
+                          ).set_image(url="attachment://team.png"))
+
+
+@tournament.command(name="challenge", aliases=["fight"])
+async def tournament_challenge(ctx: Context, enemy: typing.Optional[discord.Member]):
+    if enemy is None or enemy == ctx.author:
+        return await ctx.send(f"{ctx.author.mention}: Please provide a enemy you want to challenge")
+
+    author_data: Optional[Dict[str, Union[int, float, List[int]]]] = await get_tourney_profile(ctx.author)
+    enemy_data: Optional[Dict[str, Union[int, float, List[int]]]] = await get_tourney_profile(enemy)
+
+    if author_data is None or enemy_data is None:
+        return await ctx.send(f"{ctx.author.mention}:", embed=discord.Embed(
+            title="Error: Profile doesn't exist",
+            colour=discord.Color.red(),
+            description="To create one: `..tourney signup <friend code> <team cc>`"
+        ))
+
+    if author_data["team_cc"] > enemy_data["team_cc"]:
+        return await ctx.send(f"{ctx.author.mention}:", embed=discord.Embed(
+            title="Error: Too high CC",
+            colour=discord.Color.red(),
+            description="You can't challenge someone who has __less__ CC then you."
+        ))
+
+    await add_tourney_challenge(ctx.author, enemy)
+    await ctx.send(f"{enemy.mention}: {ctx.author.mention} has challenged you!")
+
+
+@tournament.command(name="accept")
+async def tournament_accept(ctx: Context, enemy: typing.Optional[discord.Member]):
+    if enemy is None or enemy == ctx.author:
+        return await ctx.send(f"{ctx.author.mention}: Please provide a challenger you want to accept")
+
+    if await tourney_in_game(enemy):
+        return await ctx.send(f"{ctx.author.mention}:", embed=discord.Embed(
+            title="Error: Enemy still in a game",
+            colour=discord.Color.red(),
+            description=f"{enemy.display_name} is still in a game!"
+        ))
+    if await tourney_in_game(ctx.author):
+        return await ctx.send(f"{ctx.author.mention}:", embed=discord.Embed(
+            title="Error: Enemy still in a game",
+            colour=discord.Color.red(),
+            description=f"You are still in a game! \n\n `..tourney report <@Winner> <@Looser>` to finish the game"
+        ))
+    if enemy.id not in [x async for x in get_tourney_challengers(ctx.author)]:
+        return await ctx.send(f"{ctx.author.mention}: {enemy.display_name} didn't challenge you!")
+
+    p1_profile: Optional[Dict[str, Union[int, float, List[int]]]] = await get_tourney_profile(ctx.author)
+    p2_profile: Optional[Dict[str, Union[int, float, List[int]]]] = await get_tourney_profile(enemy)
+
+    p1_team: List[Unit] = [unit_by_id(x) for x in p1_profile["team"]]
+    p2_team: List[Unit] = [unit_by_id(x) for x in p2_profile["team"]]
+
+    await accept_challenge(ctx.author, enemy)
+    await ctx.send(f"{ctx.author.mention} ({p1_profile['gc_code']}) vs {enemy.mention} ({p2_profile['gc_code']})",
+                   file=await image_to_discord(await compose_pvp(ctx.author, p1_team, enemy, p2_team), "match.png"),
+                   embed=discord.Embed(
+                       title=f"{ctx.author.display_name} vs {enemy.display_name}",
+                       description=f"{p1_profile['team_cc']}CC vs {p2_profile['team_cc']}CC \n\n Please do `..tourney report <@Winner> <@Looser>` to end the game!"
+                   ).set_image(url="attachment://match.png"))
+
+
+@tournament.command(name="decline")
+async def tournament_decline(ctx: Context, enemy: typing.Optional[discord.Member]):
+    if enemy is None or enemy == ctx.author:
+        return await ctx.send(f"{ctx.author.mention}: Please provide a challenger you want to accept")
+
+    if enemy.id not in [x async for x in get_tourney_challengers(ctx.author)]:
+        return await ctx.send(f"{ctx.author.mention}: {enemy.display_name} didn't challenge you!")
+
+    await decline_challenge(ctx.author, enemy)
+    await ctx.send(f"{enemy.mention} {ctx.author.mention} has declined your challenge.")
+
+
+@tournament.command(name="challengers")
+async def tournament_challengers(ctx: Context):
+    if len([x async for x in get_tourney_challengers(ctx.author)]) == 0:
+        return await ctx.send(f"{ctx.author.mention}: No challengers.")
+    await ctx.send(ctx.author.mention, embed=discord.Embed(
+        title=f"{ctx.author.display_name}'s challengers",
+        description="\n".join(
+            [(await BOT.fetch_user(x)).display_name async for x in get_tourney_challengers(ctx.author)])
+    ))
+
+
+@tournament.command(name="report")
+async def tournament_report(ctx: Context, winner: typing.Optional[discord.Member],
+                            looser: typing.Optional[discord.Member]):
+    if winner == looser:
+        return await ctx.send(f"{ctx.author.mention} Winner and looser can't be the same person!")
+
+    if winner != ctx.author and looser != ctx.author:
+        return await ctx.send(f"{ctx.author.mention}: You can't report the game of someone else.")
+
+    if not tourney_in_game_with(winner, looser):
+        return await ctx.send(f"{winner.display_name} & {looser.display_name} were not in a game!")
+
+    await report_tourney_game(winner, looser)
+
+    unit_to_build = get_random_unit()
+
+    await ctx.send(f"{winner.mention} won against {looser.mention}",
+                   file=await image_to_discord(unit_to_build.icon, "unit.png"),
+                   embed=discord.Embed(
+                       title=f"{looser.display_name} you now have to build out:",
+                       description=unit_to_build.name
+                   ).set_image(url="attachment://unit.png"))
+
+
+@tournament.command(name="top")
+async def tournament_top(ctx: Context):
+    await ctx.send(ctx.author.mention, embed=discord.Embed(
+        title="Tournament Participants with most wins",
+        description="\n".join(
+            [f"**{x['place']}.** {(await BOT.fetch_user(x['member_id'])).mention} with {x['won']} wins"
+             async for x in get_tourney_top_profiles()])
+    ))
+
+
+@BOT.command(no_pm=True)
+async def tarot(ctx: Context):
+    __units: List[int] = [ra.randint(1, 22) for _ in range(4)]
+    __food: List[int] = ra.randint(1, 4)
+
+    async def send_msg(_units, _food) -> None:
+        while any(_units.count(element) > 1 for element in _units):
+            _units: List[int] = [ra.randint(1, 22) for _ in range(4)]
+
+        loading: discord.Message = await ctx.send(content=ctx.author.mention, embed=embeds.LOADING_EMBED)
+        msg: discord.Message = await ctx.send(
+            file=await image_to_discord(await compose_tarot(_units[0], _units[1], _units[2], _units[3], _food),
+                                        "tarot.png"),
+            content=ctx.author.mention)
+        await loading.delete()
+
+        for emoji in [emojis.NO_1, emojis.NO_2, emojis.NO_3, emojis.NO_4]:
+            await msg.add_reaction(emoji)
+
+        def check(added_reaction, user):
+            return user == ctx.author and str(added_reaction.emoji) in [emojis.NO_1, emojis.NO_2, emojis.NO_3,
+                                                                        emojis.NO_4]
+
+        try:
+            added_reaction, _ = await BOT.wait_for('reaction_add', check=check, timeout=15)
+
+            await msg.delete()
+
+            if str(added_reaction.emoji) == emojis.NO_1:
+                _units[0] = ra.randint(1, 22)
+            elif str(added_reaction.emoji) == emojis.NO_2:
+                _units[1] = ra.randint(1, 22)
+            elif str(added_reaction.emoji) == emojis.NO_3:
+                _units[2] = ra.randint(1, 22)
+            elif str(added_reaction.emoji) == emojis.NO_4:
+                _units[3] = ra.randint(1, 22)
+
+            await send_msg(_units, _food)
+        except asyncio.TimeoutError:
+            await msg.clear_reactions()
+
+    await send_msg(__units, __food)
+
+
+@BOT.command()
+async def icon(ctx: Context, of: UnitConverter):
+    async with aiohttp.ClientSession() as session:
+        async with session.get(ctx.message.attachments[0].url) as resp:
+            with BytesIO(await resp.read()) as a:
+                img: Img = await compose_icon(attribute=of.type, grade=of.grade, background=Image.open(a))
+                await ctx.send(file=await image_to_discord(img))
+
+
+def start_up_bot(token_path: str = "data/bot_token.txt", is_beta: bool = False):
     global TOKEN, IS_BETA
     try:
         read_affections_from_db()
@@ -1714,12 +2154,67 @@ def start_up_bot(token_path: str = "data/bot_token.txt", db_path: str = "data/da
         read_banners_from_db()
 
         with open(token_path, 'r') as token_file:
-            TOKEN = token_file.read()
+            TOKEN: str = token_file.read()
 
-        sql.connection.close()
-        sql.connection = sql.sqlite.connect(db_path)
+        for f_type in ["atk", "crit_ch", "crit_dmg", "pierce"]:
+            if f_type == "atk":
+                name: str = "Attack"
+            elif f_type == "crit_ch":
+                name: str = "Crit Chance"
+            elif f_type == "crit_dmg":
+                name: str = "Crit damage"
+            else:
+                name: str = "Pierce"
+            food_list: List[Food] = []
+            for i in range(1, 4):
+                with Image.open(f"gc/food/{f_type}_{i}.png") as food_image:
+                    food_list.append(food_image.resize((FOOD_SIZE, FOOD_SIZE)))
+            TAROT_FOOD[1].append(Food(f_type, name, food_list))
 
-        IS_BETA = is_beta
+        for f_type in ["res", "crit_def", "crit_res", "lifesteal"]:
+            if f_type == "res":
+                name: str = "Resistance"
+            elif f_type == "crit_def":
+                name: str = "Crit Defense"
+            elif f_type == "crit_res":
+                name: str = "Crit Resistance"
+            else:
+                name: str = "Lifesteal"
+            food_list: List[Food] = []
+            for i in range(1, 4):
+                with Image.open(f"gc/food/{f_type}_{i}.png") as food_image:
+                    food_list.append(food_image.resize((FOOD_SIZE, FOOD_SIZE)))
+            TAROT_FOOD[2].append(Food(f_type, name, food_list))
+
+        for f_type in ["cc", "ult", "evade"]:
+            if f_type == "cc":
+                name: str = "CC"
+            elif f_type == "ult":
+                name: str = "Ult Gauge"
+            else:
+                name: str = "Evasion"
+            food_list: List[Food] = []
+            for i in range(1, 4):
+                with Image.open(f"gc/food/{f_type}_{i}.png") as food_image:
+                    food_list.append(food_image.resize((FOOD_SIZE, FOOD_SIZE)))
+            TAROT_FOOD[3].append(Food(f_type, name, food_list))
+
+        for f_type in ["def", "hp", "reg", "rec"]:
+            if f_type == "def":
+                name: str = "Defense"
+            elif f_type == "hp":
+                name: str = "HP"
+            elif f_type == "reg":
+                name: str = "Regeneration Rate"
+            else:
+                name: str = "Recovery Rate"
+            food_list: List[Food] = []
+            for i in range(1, 4):
+                with Image.open(f"gc/food/{f_type}_{i}.png") as food_image:
+                    food_list.append(food_image.resize((FOOD_SIZE, FOOD_SIZE)))
+            TAROT_FOOD[4].append(Food(f_type, name, food_list))
+
+        IS_BETA: bool = is_beta
 
         BOT.run(TOKEN)
     finally:

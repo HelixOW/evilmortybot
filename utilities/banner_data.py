@@ -1,4 +1,3 @@
-from enum import Enum
 from utilities import *
 from utilities.unit_data import Unit, R_UNITS, SR_UNITS, Grade, Event
 
@@ -22,11 +21,11 @@ class Banner:
                  sr_unit_rate: float,
                  bg_url: str,
                  r_unit_rate: float = 6.6667,
-                 rate_up_units=None,
+                 rate_up_units: List[Unit] = None,
                  ssr_unit_rate_up: float = 0.5,
                  includes_all_sr: bool = True,
                  includes_all_r: bool = True,
-                 banner_type: BannerType = BannerType.ELEVEN):
+                 banner_type: BannerType = BannerType.ELEVEN) -> None:
 
         if rate_up_units is None:
             rate_up_units = []
@@ -67,8 +66,14 @@ class Banner:
 
         self.shaftable: bool = len([x for x in name if "gssr" in name]) == 0
 
+    def __repr__(self) -> str:
+        return "Banner: " + ", ".join([f"{x}: {self.__getattribute__(x)} " for x in dir(self)])
 
-def banner_by_name(name: str) -> Banner:
+    def __str__(self) -> str:
+        return f"Banner: {self.name}"
+
+
+def banner_by_name(name: str) -> Optional[Banner]:
     return next((x for x in ALL_BANNERS if name in x.name), None)
 
 
@@ -79,11 +84,11 @@ def banners_by_name(names: List[str]) -> List[Banner]:
     return found
 
 
-def create_custom_unit_banner():
-    cus_units = [x for x in UNITS if x.event == Event.CUS]
-    ssrs = [x for x in cus_units if x.grade == Grade.SSR]
-    srs = [x for x in cus_units if x.grade == Grade.SR]
-    rs = [x for x in cus_units if x.grade == Grade.R]
+def create_custom_unit_banner() -> None:
+    cus_units: List[Unit] = [x for x in UNITS if x.event == Event.CUS]
+    ssrs: List[Unit] = [x for x in cus_units if x.grade == Grade.SSR]
+    srs: List[Unit] = [x for x in cus_units if x.grade == Grade.SR]
+    rs: List[Unit] = [x for x in cus_units if x.grade == Grade.R]
     if banner_by_name("custom") is not None:
         ALL_BANNERS.remove(banner_by_name("custom"))
     ALL_BANNERS.append(
