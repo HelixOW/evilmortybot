@@ -35,6 +35,15 @@ DEMON_OFFER_MESSAGES = {}
 
 STAT_HELPER: Dict[discord.ext.commands.Context, Dict[str, Any]] = {}
 
+PERIODS: Dict[str, int] = [
+    ('year', 60 * 60 * 24 * 365),
+    ('month', 60 * 60 * 24 * 30),
+    ('day', 60 * 60 * 24),
+    ('hour', 60 * 60),
+    ('minute', 60),
+    ('second', 1)
+]
+
 
 def chunks(lst: List[Any], n: int) -> Generator[None, List[Any], None]:
     for i in range(0, len(lst), n):
@@ -67,3 +76,16 @@ def map_leaderboard(raw_leaderboard: str) -> LeaderboardType:
     if raw_leaderboard in ["shaft", "shafts", "mostshafts", "mostshaft"]:
         return LeaderboardType.MOST_SHAFTS
     return LeaderboardType.LUCK
+
+
+def td_format(td_object):
+    seconds = int(td_object.total_seconds())
+
+    strings = []
+    for period_name, period_seconds in PERIODS:
+        if seconds > period_seconds:
+            period_value, seconds = divmod(seconds, period_seconds)
+            has_s = 's' if period_value > 1 else ''
+            strings.append("%s %s%s" % (period_value, period_name, has_s))
+
+    return ", ".join(strings)

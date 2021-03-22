@@ -254,6 +254,13 @@ class Unit:
     def __str__(self) -> str:
         return f"Unit: {self.name} ({self.unit_id})"
 
+    @classmethod
+    async def convert(cls, _, argument: str):
+        try:
+            return unit_by_id(int(argument))
+        except ValueError:
+            return unit_by_vague_name(argument)[0]
+
 
 def units_by_id(ids: List[int]) -> List[Unit]:
     x: Unit

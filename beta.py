@@ -6,7 +6,8 @@ from utilities.image_composer import *
 from utilities.sql_helper import *
 from utilities.unit_data import *
 from utilities.cc_register import *
-from discord.ext.commands import Context
+from discord.ext.commands import Context, HelpCommand
+from datetime import datetime
 
 TOKEN: int = 0
 IS_BETA: bool = False
@@ -24,14 +25,6 @@ class CustomHelp(HelpCommand):
     async def send_bot_help(self, _):
         await self.get_destination().send(embed=embeds.Help.General.HELP_1)
         await self.get_destination().send(embed=embeds.Help.General.HELP_2)
-
-
-class UnitConverter(commands.Converter):
-    async def convert(self, ctx: Context, argument: str) -> Unit:
-        try:
-            return unit_by_id(int(argument))
-        except ValueError:
-            return unit_by_vague_name(argument)[0]
 
 
 class MemberMentionConverter(commands.Converter):
@@ -2126,7 +2119,7 @@ async def tarot(ctx: Context):
 
 
 @BOT.command()
-async def icon(ctx: Context, of: UnitConverter):
+async def icon(ctx: Context, of: Unit):
     async with aiohttp.ClientSession() as session:
         async with session.get(ctx.message.attachments[0].url) as resp:
             with BytesIO(await resp.read()) as a:
@@ -2178,6 +2171,11 @@ async def cc_cmd(ctx: Context):
 async def cc_role_register(ctx: Context, role: discord.Role, min_cc: float, is_knighthood_only: bool):
     await add_cc_role(role, min_cc, is_knighthood_only)
     await ctx.send(f"Role: {role.name} added!")
+
+
+@BOT.command(name="age")
+async def age_cmd(ctx: Context):
+    await ctx.send(f"Your are on {ctx.guild.name} for {td_format((datetime.now() - ctx.author.joined_at))}")
 
 
 def start_up_bot(token_path: str = "data/bot_token.txt", is_beta: bool = False):

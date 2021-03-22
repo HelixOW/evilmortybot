@@ -5,6 +5,7 @@ from utilities.banner_data import *
 from utilities.image_composer import *
 from utilities.sql_helper import *
 from utilities.unit_data import *
+from utilities.cc_register import *
 from discord.ext.commands import Context
 
 TOKEN: int = 0
@@ -387,30 +388,6 @@ def parse_custom_unit_args(arg: str) -> Dict[str, Any]:
     }
 
 
-def get_demon_role(guild_id: int, demon_type: str = "red") -> typing.Optional[discord.Role]:
-    guild_roles: List[discord.Role] = DEMON_ROLES[guild_id]
-    if guild_roles is not None and len(guild_roles[demon_type]) != 0:
-        return guild_roles[demon_type][0]
-    return None
-
-
-def parse_demon_roles() -> None:
-    DEMON_ROLES.clear()
-    guild: discord.Guild
-    for guild in BOT.guilds:
-        x: discord.Role
-        red_demons = [x for x in guild.roles if "red" in x.name.lower() and "demon" in x.name.lower()]
-        grey_demons = [x for x in guild.roles if "grey" in x.name.lower() and "demon" in x.name.lower()]
-        crimson_demons = [x for x in guild.roles if
-                          ("crimson" in x.name.lower() or "howlex" in x.name.lower()) and "demon" in x.name.lower()]
-
-        DEMON_ROLES[guild.id] = {
-            "red": red_demons,
-            "grey": grey_demons,
-            "crimson": crimson_demons
-        }
-
-
 def mutual_guilds(person: discord.User) -> List[discord.Guild]:
     return [g for g in BOT.guilds if g.get_member(person.id) is not None]
 
@@ -424,17 +401,11 @@ async def on_ready():
     await BOT.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name="..help"))
 
     create_custom_unit_banner()
-    parse_demon_roles()
 
     print('Logged in as')
     print(BOT.user.name)
     print(BOT.user.id)
     print('--------')
-
-
-@BOT.event
-async def on_guild_join(_):
-    parse_demon_roles()
 
 
 @BOT.group()
@@ -1394,7 +1365,6 @@ async def update(ctx: Context):
     read_units_from_db()
     read_banners_from_db()
     create_custom_unit_banner()
-    parse_demon_roles()
     await ctx.send(content=f"{ctx.author.mention} Updated Units & Banners")
 
 
@@ -1652,16 +1622,28 @@ async def demon_offer(ctx: Context, reds: int = 0, greys: int = 0, crimsons: int
     guild_created_in: discord.Guild = ctx.guild
 
     async for channel_list_item in get_raid_channels():
-        channel: discord.TextChannel = await BOT.fetch_channel(channel_list_item["channel_id"])
+        try:
+            channel: discord.TextChannel = await BOT.fetch_channel(channel_list_item["channel_id"])
+        except discord.Forbidden:
+            continue
         guild: discord.Guild = await BOT.fetch_guild(channel_list_item["guild"])
 
         mentions: List[str] = []
-        if reds != 0 and get_demon_role(guild.id, "red") is not None:
-            mentions.append(get_demon_role(guild.id, "red").mention)
-        if greys != 0 and get_demon_role(guild.id, "grey") is not None:
-            mentions.append(get_demon_role(guild.id, "grey").mention)
-        if crimsons != 0 and get_demon_role(guild.id, "crimson") is not None:
-            mentions.append(get_demon_role(guild.id, "crimson").mention)
+
+        red_role = await get_demon_role(guild, "red")
+        grey_role = await get_demon_role(guild, "grey")
+        crimson_role = await get_demon_role(guild, "red")
+        all_role = await get_demon_role(guild, "all")
+
+        if reds != 0 and red_role is not None:
+            mentions.append(guild.get_role(red_role[0]).mention)
+        if greys != 0 and grey_role is not None:
+            mentions.append(guild.get_role(grey_role[0]).mention)
+        if crimsons != 0 and crimson_role is not None:
+            mentions.append(guild.get_role(crimson_role[0]).mention)
+
+        if all_role is not None and red_role is None and grey_role is None and crimson_role is None:
+            mentions.append(guild.get_role(all_role[0]).mention)
 
         to_claim: discord.Message = await channel.send(
             content=", ".join(mentions),
@@ -1818,6 +1800,13 @@ async def demon_channel(ctx: Context, action: str = "none"):
         (await BOT.fetch_channel(x["channel_id"])).name + " in " + (await BOT.fetch_guild(x["guild"])).name
         async for x in get_raid_channels()]
     await ctx.author.send("\n".join(channels))
+
+
+@demon.command(name="role")
+@has_permissions(manage_roles=True)
+async def demon_role(ctx: Context, role: discord.Role, demon_type: str):
+    await add_demon_role(role, demon_type)
+    await ctx.send(f"{ctx.author.mention}: Added Demon role!")
 
 
 @BOT.group(no_pm=True, aliases=["tourney"])
@@ -2143,6 +2132,52 @@ async def icon(ctx: Context, of: UnitConverter):
             with BytesIO(await resp.read()) as a:
                 img: Img = await compose_icon(attribute=of.type, grade=of.grade, background=Image.open(a))
                 await ctx.send(file=await image_to_discord(img))
+
+
+@BOT.group(name="cc", no_pm=True)
+async def cc_cmd(ctx: Context):
+    if ctx.invoked_subcommand is not None:
+        return
+
+    if len(ctx.message.attachments) == 0:
+        return ctx.send(f"{ctx.author.mention}: no image attached!")
+
+    loading: discord.Message = await ctx.send(f"{ctx.author.mention}: Reading your CC...")
+    async with aiohttp.ClientSession() as session:
+        async with session.get(ctx.message.attachments[0].url) as resp:
+            with BytesIO(await resp.read()) as a:
+                if await is_cc_knighthood(ctx.guild):
+                    read_cc: float = await read_kh_cc_from_image(Image.open(a))
+
+                    if read_cc == -1:
+                        return await loading.edit(
+                            content=f"{ctx.author.mention} Can't read CC from Image. Please make sure to provide a full screenshot")
+                else:
+                    read_cc: float = await read_base_cc_from_image(Image.open(a))
+
+                    if read_cc == -1:
+                        return await loading.edit(
+                            content=f"{ctx.author.mention} Can't read CC from Image. Please make sure to provide a full screenshot")
+                role_id: Optional[Tuple[int]] = await get_cc_role(ctx.guild, read_cc)
+
+                if role_id is None:
+                    return await loading.edit(content=f"{ctx.author.mention} no CC roles registered for {read_cc} CC!")
+
+                role: discord.Role = ctx.guild.get_role(role_id[0])
+
+                for cc_role in [ctx.guild.get_role(x) async for x in get_cc_roles(ctx.guild)]:
+                    if cc_role in ctx.author.roles:
+                        await ctx.author.remove_roles(cc_role)
+
+                await ctx.author.add_roles(role)
+                await loading.edit(content=f"Gave {role.name} to {ctx.author.mention}")
+
+
+@cc_cmd.command(name="role")
+@has_permissions(manage_roles=True)
+async def cc_role_register(ctx: Context, role: discord.Role, min_cc: float, is_knighthood_only: bool):
+    await add_cc_role(role, min_cc, is_knighthood_only)
+    await ctx.send(f"Role: {role.name} added!")
 
 
 def start_up_bot(token_path: str = "data/bot_token.txt", is_beta: bool = False):
