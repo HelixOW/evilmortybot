@@ -2175,7 +2175,7 @@ async def cc_role_register(ctx: Context, role: discord.Role, min_cc: float, is_k
 
 @BOT.command(name="age")
 async def age_cmd(ctx: Context):
-    await ctx.send(f"Your are on {ctx.guild.name} for {td_format((datetime.now() - ctx.author.joined_at))}")
+    await ctx.send(f"{ctx.author.mention} you're on {ctx.guild.name} for {td_format((datetime.now() - ctx.author.joined_at))}")
 
 
 def start_up_bot(token_path: str = "data/bot_token.txt", is_beta: bool = False):

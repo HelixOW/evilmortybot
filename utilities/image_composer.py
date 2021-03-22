@@ -56,6 +56,7 @@ async def compose_team(rerolled_team: List[Unit],
         re_units = {0: [], 1: [], 2: [], 3: []}
 
     icons: list[Img] = [_icon.resize([IMG_SIZE, IMG_SIZE]) for _icon in [_unit.icon for _unit in rerolled_team]]
+    longest_named_unit = get_text_dimensions(longest_named(re_units[3]).name, FONT_12)[0] if len(re_units[3]) != 0 else 0
 
     if re_units[0] == 0 and re_units[1] == 0 and re_units[2] == 0 and re_units[3] == 0:
         img: Img = Image.new('RGBA', (
@@ -71,7 +72,7 @@ async def compose_team(rerolled_team: List[Unit],
 
     dummy_height: int = get_text_dimensions("[Dummy] Bot", FONT_12)[1]
     img: Img = Image.new('RGBA', (
-        (IMG_SIZE * 4) + (X_OFFSET * 3),
+        (IMG_SIZE * 4) + (X_OFFSET * 3) + ((longest_named_unit - IMG_SIZE) if longest_named_unit > IMG_SIZE else 0),
         IMG_SIZE + ((Y_OFFSET + dummy_height) * len(flatten(re_units.values())))
     ))
     draw: ImageDraw = ImageDraw.Draw(img)
@@ -92,7 +93,8 @@ async def compose_team(rerolled_team: List[Unit],
                                  (IMG_SIZE * re_unit_index) + (re_unit_index * X_OFFSET),
                                  (Y_OFFSET + dummy_height) * pointer
                              ),
-                             text=ele.name)
+                             text=ele.name,
+                             font=FONT_12)
             pointer += 1
 
     return img
