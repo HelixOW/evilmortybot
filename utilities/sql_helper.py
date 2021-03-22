@@ -609,3 +609,40 @@ async def tourney_in_game_with(p1: discord.Member, p2: discord.Member) -> bool:
     return len(
         cursor.execute('SELECT * FROM "tourney_games" WHERE (person1=? AND person2=?) OR (person1=? AND person2=?)',
                        (p1.id, p2.id, p2.id, p1.id)).fetchall()) != 0
+
+
+async def add_cc_role(role: discord.Role, cc: float, guild_cc: bool) -> None:
+    cursor: Cursor = connection.cursor()
+    cursor.execute('INSERT INTO cc_roles VALUES (?, ?, ?, ?)', (role.id, role.guild.id, cc, 1 if guild_cc else 0))
+    connection.commit()
+
+
+async def is_cc_knighthood(guild: discord.Guild) -> bool:
+    cursor: Cursor = connection.cursor()
+    data: Optional[Tuple[int]] = cursor.execute('SELECT knighthood_cc FROM cc_roles WHERE guild=?', (guild.id, )).fetchone()
+
+    if data is None:
+        return False
+    return data[0] == 1
+
+
+async def get_cc_role(guild: discord.Guild, cc: float) -> Optional[Tuple[int, int]]:
+    cursor: Cursor = connection.cursor()
+    return cursor.execute('SELECT role_id FROM cc_roles WHERE guild=? AND cc<=? ORDER BY CC DESC', (guild.id, cc)).fetchone()
+
+
+async def get_cc_roles(guild: discord.Guild) -> AsyncGenerator[int, None]:
+    cursor: Cursor = connection.cursor()
+    for row in cursor.execute('SELECT role_id FROM cc_roles WHERE guild=?', (guild.id, )):
+        yield row[0]
+
+
+async def add_demon_role(role: discord.Role, demon: str) -> None:
+    cursor: Cursor = connection.cursor()
+    cursor.execute('INSERT INTO demon_roles VALUES (?, ?, ?)', (role.id, role.guild.id, demon))
+    connection.commit()
+
+
+async def get_demon_role(guild: discord.Guild, demon: str) -> Optional[Tuple[int]]:
+    cursor: Cursor = connection.cursor()
+    return cursor.execute('SELECT role_id FROM demon_roles WHERE guild=? AND demon_type=?', (guild.id, demon)).fetchone()
