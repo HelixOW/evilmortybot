@@ -23,6 +23,11 @@ def get_text_dimensions(text_string: str, font: FreeTypeFont = FONT_24) -> Tuple
     return text_width, text_height
 
 
+def _text_with_shadow(draw: ImageDraw, text: str, x: int, y: int, fill: Tuple[int, int, int] = (255, 255, 255),
+                      font: FreeTypeFont = FONT_24) -> None:
+    text_with_shadow(draw, text, (x, y), fill, font)
+
+
 def text_with_shadow(draw: ImageDraw, text: str, xy: Tuple[int, int], fill: Tuple[int, int, int] = (255, 255, 255),
                      font: FreeTypeFont = FONT_24) -> None:
     for x, y in [(xy[0] + 1, xy[1]),
@@ -47,6 +52,7 @@ VS_DIM: Tuple[int, int] = get_text_dimensions("vs")
 SSR_DIM: Tuple[int, int] = get_text_dimensions("All SSRs you got:")
 WHEEL_DIM: Tuple[int, int] = get_text_dimensions("11) Wheel of Fortune")
 TEAM_DIM: Tuple[int, int] = get_text_dimensions("Team 15:")
+MATERIAL_DIM: Tuple[int, int] = get_text_dimensions("Seal of the [Beard of the Mountain Cat]")
 DUMMY_UNIT_HEIGHT: int = get_text_dimensions("[Dummy] Bot")[1]
 
 
@@ -56,7 +62,8 @@ async def compose_team(rerolled_team: List[Unit],
         re_units = {0: [], 1: [], 2: [], 3: []}
 
     icons: list[Img] = [_icon.resize([IMG_SIZE, IMG_SIZE]) for _icon in [_unit.icon for _unit in rerolled_team]]
-    longest_named_unit = get_text_dimensions(longest_named(re_units[3]).name, FONT_12)[0] if len(re_units[3]) != 0 else 0
+    longest_named_unit = get_text_dimensions(longest_named(re_units[3]).name, FONT_12)[0] if len(
+        re_units[3]) != 0 else 0
 
     if re_units[0] == 0 and re_units[1] == 0 and re_units[2] == 0 and re_units[3] == 0:
         img: Img = Image.new('RGBA', (
@@ -211,11 +218,11 @@ async def compose_unit_multi_draw(units: List[Unit], ssrs: Dict[Unit, int] = Non
     i: Img = Image.new('RGBA', (
         (IMG_SIZE * 4) + (DRAW_OFFSET * 3),
         (
-            ((IMG_SIZE * 3) + (DRAW_OFFSET * 2)) +
-            (
-                    (Y_OFFSET + SSR_DIM[1] + Y_OFFSET) +
-                    (IMG_SIZE * len(ssr_rows) + (DRAW_OFFSET * (len(ssr_rows) - 1)))
-            ) if len(ssrs) != 0 else 0
+                ((IMG_SIZE * 3) + (DRAW_OFFSET * 2)) +
+                ((
+                         (Y_OFFSET + SSR_DIM[1] + Y_OFFSET) +
+                         (IMG_SIZE * len(ssr_rows) + (DRAW_OFFSET * (len(ssr_rows) - 1)))
+                 ) if len(ssrs) != 0 else 0)
         )
     ))
     draw: ImageDraw = ImageDraw.Draw(i)
@@ -440,5 +447,25 @@ async def compose_random_select_team(possible: List[Unit]) -> Img:
             x += IMG_SIZE + 5
         draw.line([(0, y + IMG_SIZE + 3), (i.size[0], y + IMG_SIZE + 3)], width=3)
         y += IMG_SIZE + 9
+
+    return i
+
+
+async def compose_awakening(materials: dict, start: int, end: int) -> Img:
+    i: Img = Image.new('RGBA', (
+        IMG_SIZE + X_OFFSET + get_text_dimensions("15")[0],
+        (IMG_SIZE * len(materials)) + (Y_OFFSET * (len(materials) - 1))
+    ))
+    draw: ImageDraw = ImageDraw.Draw(i)
+
+    y: int = 0
+    for material in materials:
+        _text_with_shadow(draw,
+                          x=X_OFFSET,
+                          y=y + (IMG_SIZE / 2),
+                          text=str(materials[material]) + "x")
+        x: int = X_OFFSET + get_text_dimensions(str(materials[material]) + "x")[0] + X_OFFSET
+        i.paste(material.icon, (x, y))
+        y += IMG_SIZE + Y_OFFSET
 
     return i

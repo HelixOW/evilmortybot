@@ -46,6 +46,7 @@ class Event(Enum):
     HAL: str = "halloween"
     FES: str = "festival"
     VAL: str = "valentine"
+    REZ: str = "rezero"
     CUS: str = "custom"
 
 
@@ -61,7 +62,7 @@ class Affection(Enum):
 RACES: List[Race] = [Race.DEMON, Race.GIANT, Race.HUMAN, Race.FAIRY, Race.GODDESS, Race.UNKNOWN]
 GRADES: List[Grade] = [Grade.R, Grade.SR, Grade.SSR]
 TYPES: List[Type] = [Type.RED, Type.GRE, Type.BLUE]
-EVENTS: List[Event] = [Event.GC, Event.SLI, Event.AOT, Event.KOF, Event.FES, Event.NEY, Event.VAL, Event.HAL]
+EVENTS: List[Event] = [Event.GC, Event.SLI, Event.AOT, Event.KOF, Event.FES, Event.NEY, Event.VAL, Event.HAL, Event.REZ]
 AFFECTIONS: List[str] = [Affection.SIN.value, Affection.COMMANDMENTS.value, Affection.CATASTROPHE.value,
                          Affection.ANGEL.value, Affection.KNIGHT.value, Affection.NONE.value]
 
@@ -144,6 +145,8 @@ def map_event(raw_event: str) -> Event:
         return Event.HAL
     if raw_event in ["festival", "fes", "fest"]:
         return Event.FES
+    if raw_event in ["rezero", "re", "zero"]:
+        return Event.REZ
     if raw_event in ["custom"]:
         return Event.CUS
     return Event.GC
@@ -263,7 +266,6 @@ class Unit:
 
 
 def units_by_id(ids: List[int]) -> List[Unit]:
-    x: Unit
     found = [x for x in UNITS if x.unit_id in ids]
     if len(found) == 0:
         raise LookupError
@@ -271,17 +273,14 @@ def units_by_id(ids: List[int]) -> List[Unit]:
 
 
 def unit_by_id(unit_id: int) -> Optional[Unit]:
-    x: Unit
     return next((x for x in UNITS if unit_id == x.unit_id), None)
 
 
 def unit_by_name(name: str) -> Optional[Unit]:
-    x: Unit
     return next((x for x in UNITS if name == x.name), None)
 
 
 def unit_by_vague_name(name: str) -> List[Unit]:
-    x: Unit
     return [x for x in UNITS if (name.lower() in x.name.lower()) or name.lower() in [y.lower() for y in x.alt_names]]
 
 

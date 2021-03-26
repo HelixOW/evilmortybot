@@ -1,13 +1,16 @@
-import utilities.reactions as emojis
+from datetime import datetime
+
+from discord.ext.commands import Context
+
 import utilities.embeds as embeds
+import utilities.reactions as emojis
 import utilities.sql_helper as sql
+from utilities.awaken import *
 from utilities.banner_data import *
+from utilities.cc_register import *
 from utilities.image_composer import *
 from utilities.sql_helper import *
 from utilities.unit_data import *
-from utilities.cc_register import *
-from discord.ext.commands import Context, HelpCommand
-from datetime import datetime
 
 TOKEN: int = 0
 IS_BETA: bool = False
@@ -346,20 +349,21 @@ async def build_menu(ctx: Context, prev_message: discord.Message, page: int = 0)
 
         reaction, _ = await BOT.wait_for("reaction_add", check=check_banner)
 
-        if "➡️" in str(reaction.emoji):
+        if emojis.RIGHT_ARROW in str(reaction.emoji):
             await build_menu(ctx, prev_message=draw, page=page + 1)
-        elif "⬅️" in str(reaction.emoji):
+        elif emojis.LEFT_ARROW in str(reaction.emoji):
             await build_menu(ctx, prev_message=draw, page=page - 1)
-        elif ("🔟" if ALL_BANNERS[page].banner_type == BannerType.ELEVEN else "5️⃣") in str(reaction.emoji):
+        elif (emojis.NO_10 if ALL_BANNERS[page].banner_type == BannerType.ELEVEN else emojis.NO_5) in str(
+                reaction.emoji):
             await draw.delete()
-            await multi(ctx, person=ctx.message.author, banner_name=ALL_BANNERS[page].name[0])
-        elif "1️⃣" in str(reaction.emoji):
+            await multi(ctx, person=ctx.author, banner_name=ALL_BANNERS[page].name[0])
+        elif emojis.NO_1 in str(reaction.emoji):
             await draw.delete()
-            await single(ctx, person=ctx.message.author, banner_name=ALL_BANNERS[page].name[0])
-        elif "🐋" in str(reaction.emoji):
+            await single(ctx, person=ctx.author, banner_name=ALL_BANNERS[page].name[0])
+        elif emojis.WHALE in str(reaction.emoji):
             await draw.delete()
-            await shaft(ctx, person=ctx.message.author, banner_name=ALL_BANNERS[page].name[0])
-        elif "ℹ️" in str(reaction.emoji):
+            await shaft(ctx, person=ctx.author, banner_name=ALL_BANNERS[page].name[0])
+        elif emojis.INFO in str(reaction.emoji):
             await draw.delete()
             await banner(ctx, banner_name=ALL_BANNERS[page].name[0])
     except asyncio.TimeoutError:
@@ -2140,7 +2144,7 @@ async def cc_cmd(ctx: Context):
         async with session.get(ctx.message.attachments[0].url) as resp:
             with BytesIO(await resp.read()) as a:
                 if await is_cc_knighthood(ctx.guild):
-                    read_cc: float = await read_kh_cc_from_image(Image.open(a))
+                    read_cc = await read_kh_cc_from_image(Image.open(a))
 
                     if read_cc == -1:
                         return await loading.edit(
@@ -2175,7 +2179,22 @@ async def cc_role_register(ctx: Context, role: discord.Role, min_cc: float, is_k
 
 @BOT.command(name="age")
 async def age_cmd(ctx: Context):
-    await ctx.send(f"Your are on {ctx.guild.name} for {td_format((datetime.now() - ctx.author.joined_at))}")
+    await ctx.send(
+        f"{ctx.author.mention} you're on {ctx.guild.name} for {td_format((datetime.now() - ctx.author.joined_at))}")
+
+
+@BOT.command(name="awake")
+async def awake_cmd(ctx: Context, _unit: Unit, start: Optional[int] = 0, to: Optional[int] = 6):
+    data = calc_cost(_unit, min(max(start, 0), 6) + 1, min(max(to, 0), 6) + 1)
+    await ctx.send(
+        file=await image_to_discord(await compose_awakening(data, start, to)),
+        content=f"To awaken *{_unit.name}* from **{start}*** to **{to}*** it takes:"
+    )
+
+
+@BOT.command(name="code")
+async def code_cmd(ctx: Context):
+    await ctx.send(f"{ctx.author.mention}: https://github.com/WhoIsAlphaHelix/evilmortybot")
 
 
 def start_up_bot(token_path: str = "data/bot_token.txt", is_beta: bool = False):
@@ -2202,6 +2221,7 @@ def start_up_bot(token_path: str = "data/bot_token.txt", is_beta: bool = False):
                 with Image.open(f"gc/food/{f_type}_{i}.png") as food_image:
                     food_list.append(food_image.resize((FOOD_SIZE, FOOD_SIZE)))
             TAROT_FOOD[1].append(Food(f_type, name, food_list))
+            LOGGER.log(logging.INFO, f"Added food {name}")
 
         for f_type in ["res", "crit_def", "crit_res", "lifesteal"]:
             if f_type == "res":
@@ -2217,6 +2237,7 @@ def start_up_bot(token_path: str = "data/bot_token.txt", is_beta: bool = False):
                 with Image.open(f"gc/food/{f_type}_{i}.png") as food_image:
                     food_list.append(food_image.resize((FOOD_SIZE, FOOD_SIZE)))
             TAROT_FOOD[2].append(Food(f_type, name, food_list))
+            LOGGER.log(logging.INFO, f"Added food {name}")
 
         for f_type in ["cc", "ult", "evade"]:
             if f_type == "cc":
@@ -2230,6 +2251,7 @@ def start_up_bot(token_path: str = "data/bot_token.txt", is_beta: bool = False):
                 with Image.open(f"gc/food/{f_type}_{i}.png") as food_image:
                     food_list.append(food_image.resize((FOOD_SIZE, FOOD_SIZE)))
             TAROT_FOOD[3].append(Food(f_type, name, food_list))
+            LOGGER.log(logging.INFO, f"Added food {name}")
 
         for f_type in ["def", "hp", "reg", "rec"]:
             if f_type == "def":
@@ -2245,6 +2267,7 @@ def start_up_bot(token_path: str = "data/bot_token.txt", is_beta: bool = False):
                 with Image.open(f"gc/food/{f_type}_{i}.png") as food_image:
                     food_list.append(food_image.resize((FOOD_SIZE, FOOD_SIZE)))
             TAROT_FOOD[4].append(Food(f_type, name, food_list))
+            LOGGER.log(logging.INFO, f"Added food {name}")
 
         IS_BETA = is_beta
 

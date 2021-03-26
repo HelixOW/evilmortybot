@@ -29,7 +29,7 @@ def read_units_from_db() -> None:
             icon_path=row[8] if row[0] < 0 else "gc/icons/{}.png",
             is_jp=row[9] == 1,
         ))
-        print(f"Registering Unit: {row[1]} ({row[0]}) is JP? {row[9] == 1}")
+        LOGGER.log(logging.INFO, f"Registering Unit: {row[1]} ({row[0]}) is JP? {row[9] == 1}")
 
     R_UNITS.extend([x for x in UNITS if x.grade == Grade.R and x.event == Event.GC])
     SR_UNITS.extend([x for x in UNITS if x.grade == Grade.SR and x.event == Event.GC])
@@ -41,7 +41,7 @@ def read_affections_from_db() -> None:
     row: Tuple[str, int]
     for row in cursor.execute('SELECT * FROM affections'):
         AFFECTIONS.append(row[0])
-        print(f"Loaded {row[0]} - affection")
+        LOGGER.log(logging.INFO, f"Loaded {row[0]} - affection")
 
 
 def read_banners_from_db() -> None:
@@ -316,7 +316,7 @@ async def add_custom_unit(name: str, creator: int, type_enum: Type, grade: Grade
 
 async def remove_custom_unit(unit_name: str) -> None:
     cursor: Cursor = connection.cursor()
-    cursor.execute('DROP FROM custom_units WHERE name=?', (unit_name,))
+    cursor.execute('DELETE FROM main.units WHERE name=? AND event=?', (unit_name, "custom"))
     connection.commit()
 
 
