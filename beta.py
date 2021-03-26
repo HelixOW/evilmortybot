@@ -398,6 +398,7 @@ async def on_ready():
     await BOT.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name="..help"))
 
     create_custom_unit_banner()
+    create_jp_banner()
 
     print('Logged in as')
     print(BOT.user.name)
@@ -1362,6 +1363,7 @@ async def update(ctx: Context):
     read_units_from_db()
     read_banners_from_db()
     create_custom_unit_banner()
+    create_jp_banner()
     await ctx.send(content=f"{ctx.author.mention} Updated Units & Banners")
 
 
@@ -2124,6 +2126,8 @@ async def tarot(ctx: Context):
 
 @BOT.command()
 async def icon(ctx: Context, of: Unit):
+    if len(ctx.message.attachments) == 0:
+        return await ctx.send(file=await image_to_discord(of.icon))
     async with aiohttp.ClientSession() as session:
         async with session.get(ctx.message.attachments[0].url) as resp:
             with BytesIO(await resp.read()) as a:

@@ -101,3 +101,20 @@ def create_custom_unit_banner() -> None:
                includes_all_sr=False,
                bg_url="https://raw.githubusercontent.com/WhoIsAlphaHelix/evilmortybot/master/gc/banners/A9619A31-B793-4E12-8DF6-D0FCC706DEF2_1_105_c.jpeg")
     )
+
+
+def create_jp_banner() -> None:
+    jp_units: List[Unit] = [x for x in UNITS if x.is_jp]
+    ssrs: List[Unit] = [x for x in jp_units if x.grade == Grade.SSR]
+    if banner_by_name("jp") is not None:
+        ALL_BANNERS.remove(banner_by_name("jp"))
+    ALL_BANNERS.append(
+        Banner(name=["kr", "jp"],
+               pretty_name="JP/KR exclusive draw",
+               units=jp_units,
+               ssr_unit_rate=(4 / len(ssrs)) if len(ssrs) > 0 else -1,
+               sr_unit_rate=((100 - 4 - (6.6667 * len(R_UNITS))) / len(SR_UNITS)) if len(SR_UNITS) > 0 else -1,
+               includes_all_r=True,
+               includes_all_sr=True,
+               bg_url="https://raw.githubusercontent.com/WhoIsAlphaHelix/evilmortybot/master/gc/banners/A9619A31-B793-4E12-8DF6-D0FCC706DEF2_1_105_c.jpeg")
+    )

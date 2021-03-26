@@ -398,6 +398,7 @@ async def on_ready():
     await BOT.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name="..help"))
 
     create_custom_unit_banner()
+    create_jp_banner()
 
     print('Logged in as')
     print(BOT.user.name)
@@ -1362,6 +1363,7 @@ async def update(ctx: Context):
     read_units_from_db()
     read_banners_from_db()
     create_custom_unit_banner()
+    create_jp_banner()
     await ctx.send(content=f"{ctx.author.mention} Updated Units & Banners")
 
 
@@ -2198,7 +2200,7 @@ async def code_cmd(ctx: Context):
 
 
 def start_up_bot(token_path: str = "data/bot_token.txt", is_beta: bool = False):
-    global TOKEN, IS_BETA, COSTS
+    global TOKEN, IS_BETA
     try:
         read_affections_from_db()
         read_units_from_db()
@@ -2221,6 +2223,7 @@ def start_up_bot(token_path: str = "data/bot_token.txt", is_beta: bool = False):
                 with Image.open(f"gc/food/{f_type}_{i}.png") as food_image:
                     food_list.append(food_image.resize((FOOD_SIZE, FOOD_SIZE)))
             TAROT_FOOD[1].append(Food(f_type, name, food_list))
+            LOGGER.log(logging.INFO, f"Added food {name}")
 
         for f_type in ["res", "crit_def", "crit_res", "lifesteal"]:
             if f_type == "res":
@@ -2236,6 +2239,7 @@ def start_up_bot(token_path: str = "data/bot_token.txt", is_beta: bool = False):
                 with Image.open(f"gc/food/{f_type}_{i}.png") as food_image:
                     food_list.append(food_image.resize((FOOD_SIZE, FOOD_SIZE)))
             TAROT_FOOD[2].append(Food(f_type, name, food_list))
+            LOGGER.log(logging.INFO, f"Added food {name}")
 
         for f_type in ["cc", "ult", "evade"]:
             if f_type == "cc":
@@ -2249,6 +2253,7 @@ def start_up_bot(token_path: str = "data/bot_token.txt", is_beta: bool = False):
                 with Image.open(f"gc/food/{f_type}_{i}.png") as food_image:
                     food_list.append(food_image.resize((FOOD_SIZE, FOOD_SIZE)))
             TAROT_FOOD[3].append(Food(f_type, name, food_list))
+            LOGGER.log(logging.INFO, f"Added food {name}")
 
         for f_type in ["def", "hp", "reg", "rec"]:
             if f_type == "def":
@@ -2264,6 +2269,7 @@ def start_up_bot(token_path: str = "data/bot_token.txt", is_beta: bool = False):
                 with Image.open(f"gc/food/{f_type}_{i}.png") as food_image:
                     food_list.append(food_image.resize((FOOD_SIZE, FOOD_SIZE)))
             TAROT_FOOD[4].append(Food(f_type, name, food_list))
+            LOGGER.log(logging.INFO, f"Added food {name}")
 
         IS_BETA = is_beta
 
