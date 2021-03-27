@@ -1,6 +1,6 @@
 from typing import Dict, List, Any
 
-TAROT_UNITS: Dict[int, List[int]] = {
+tarot_units: Dict[int, List[int]] = {
     1: [5, 158, 147, 122, 163, 135, 144, 138, 14, 2, 82, 97, 121, 127, 81, 36, 27, 41, 58, 32, 25, 88, 45, 42, 37],
     2: [8, 156, 170, 63, 62, 66],
     3: [146, 61, 4, 90, 68, 60, 64],
@@ -24,7 +24,7 @@ TAROT_UNITS: Dict[int, List[int]] = {
     21: [145, 152, 151],
     22: [116, 148, 137, 157, 169, 165]
 }
-TAROT_FOOD: Dict[int, Any] = {
+tarot_food: Dict[int, Any] = {
     1: [],
     2: [],
     3: [],

@@ -1,5 +1,5 @@
-from utilities import *
-from utilities.unit_data import Type, Unit, Affection, Grade
+from utilities.materials import *
+from utilities.units import Type, Unit, Affection, Grade
 
 COSTS = {
     "gold": {

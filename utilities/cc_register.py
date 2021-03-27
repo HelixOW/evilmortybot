@@ -1,6 +1,7 @@
-from utilities import *
 from PIL import Image
 import pytesseract
+import re
+
 
 pytesseract.pytesseract.tesseract_cmd = r'/opt/homebrew/Cellar/tesseract/4.1.1/bin/tesseract'
 
@@ -18,8 +19,6 @@ async def read_base_cc_from_image(image: Image.Image) -> float:
 
 async def read_kh_cc_from_image(image: Image.Image) -> float:
     text = pytesseract.image_to_string(image)
-
-    print(text)
 
     if "Knighthood" not in text:
         return -1

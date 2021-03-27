@@ -1,5 +1,5 @@
 from enum import Enum
-from utilities import Material, AdvancedGrade
+from utilities.materials import Material, AdvancedGrade
 import PIL.Image as ImageLib
 
 
