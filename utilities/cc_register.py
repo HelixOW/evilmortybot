@@ -1,13 +1,19 @@
-from PIL import Image
+from PIL import Image, ImageFilter
 import pytesseract
 import re
+from utilities.units import image_to_discord
+
+pytesseract.pytesseract.tesseract_cmd = r'/usr/local/Cellar/tesseract/4.1.1/bin/tesseract'
 
 
-pytesseract.pytesseract.tesseract_cmd = r'/opt/homebrew/Cellar/tesseract/4.1.1/bin/tesseract'
+async def read_base_cc_from_image(ctx, image: Image.Image) -> float:
+    await ctx.send(file=await image_to_discord(image.resize((1242, 2688), resample=Image.BOX)))
+    text = pytesseract.image_to_string(image.resize((1242, 2688), resample=Image.BOX))
 
-
-async def read_base_cc_from_image(image: Image.Image) -> float:
-    text = pytesseract.image_to_string(image)
+    await ctx.send(
+        "```py" +
+        f"{text}" +
+        "```")
 
     result = re.search(r'(.*)Team (.?)(.?): ([\d,]{1,7})', text)
 
@@ -17,15 +23,32 @@ async def read_base_cc_from_image(image: Image.Image) -> float:
     return float(result.group(4).replace(",", "."))
 
 
-async def read_kh_cc_from_image(image: Image.Image) -> float:
-    text = pytesseract.image_to_string(image)
+async def read_kh_cc_from_image(ctx, image: Image.Image) -> float:
+
+    if image.size[0] > image.size[1]:
+        im = image
+        thresh = 175
+    else:
+        im = image.filter(ImageFilter.MedianFilter())
+        thresh = 180
+    im = im.convert('L').point(
+        lambda x: 255 if x > thresh else 0, mode='1')
+    await ctx.send(file=await image_to_discord(im))
+    text = pytesseract.image_to_string(im)
+
+    await ctx.send(
+        "```" +
+        f"{text}" +
+        "```")
 
     if "Knighthood" not in text:
         return -1
 
-    result = re.search(r'(.*)Team (.?)(.?): ([\d,]{1,7})', text)
+    result = re.search(r'(.*)([ce]?)([ce]?):\s?([\d,]{1,8})', text)
+
+    await ctx.send(result.group(4))
 
     if result is None:
         return 0
 
-    return float(result.group(4).replace(",", "."))
+    return float(result.group(4).replace(",", ".").replace(" ", ""))
