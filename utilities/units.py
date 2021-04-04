@@ -320,7 +320,7 @@ def get_units_matching(grades: Optional[List[Grade]] = None,
                and x.event in events \
                and x.affection.lower().replace(" ", "") in affections \
                and x.name.lower().replace(" ", "") in names \
-               and (x.is_jp if jp else True)
+               and x.is_jp == jp
 
     possible_units: List[Unit] = [x for x in unit_list if test(x)]
 

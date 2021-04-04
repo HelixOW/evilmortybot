@@ -1,6 +1,8 @@
 import discord
 import aiohttp
 import utilities.embeds as embeds
+import structlog
+from discord.ext import tasks
 from utilities import KingBot, get_prefix, remove_trailing_whitespace, td_format, half_img_size
 from utilities.banners import create_jp_banner, create_custom_unit_banner
 from utilities.sql_helper import *
@@ -8,11 +10,11 @@ from utilities.units import image_to_discord, unit_by_vague_name, compose_icon
 from utilities.image_composer import compose_unit_list, compose_awakening
 from utilities.awaken import *
 from utilities.tarot import *
-from discord.ext.commands import Context, HelpCommand
+from utilities.kofas_scrapper import fetch_data, add_channel
+from discord.ext.commands import Context, HelpCommand, has_permissions
 from datetime import datetime
 from io import BytesIO
 from PIL.Image import Image
-
 
 token: int = 0
 is_beta: bool = False
@@ -52,6 +54,8 @@ async def on_ready():
 
     create_custom_unit_banner()
     create_jp_banner()
+
+    # kof_task.start()
 
     print('Logged in as')
     print(bot.user.name)
@@ -139,9 +143,70 @@ async def code_cmd(ctx: Context):
     await ctx.send(f"{ctx.author.mention}: https://github.com/WhoIsAlphaHelix/evilmortybot")
 
 
+@tasks.loop(seconds=30)
+async def kof_task():
+    for guild in bot.guilds:
+        await fetch_data(bot, guild)
+
+
+@bot.command(name="kof")
+@has_permissions(manage_channels=True)
+async def kof_cmd(ctx: Context):
+    await add_channel(ctx.channel)
+    await ctx.send(ctx.author.mention + " added news channel!")
+
+
+@bot.command(name="info")
+async def info_cmd(ctx: Context, of: Unit):
+    await ctx.send(
+        file=await image_to_discord(await of.set_icon()),
+        embed=discord.Embed(
+            title=f"{of.name}",
+            colour=of.discord_color()
+        ).add_field(
+            name="Alternative names",
+            value=", ".join([of.name] + of.alt_names)
+        ).add_field(
+            name="Type",
+            value=of.type.value
+        ).add_field(
+            name="Grade",
+            value=of.grade.value
+        ).add_field(
+            name="Race",
+            value=of.race.value
+        ).add_field(
+            name="Event",
+            value=of.event.value
+        ).add_field(
+            name="Affection",
+            value=of.affection
+        ).add_field(
+            name="Is a JP Unit?",
+            value="Yes" if of.is_jp else "No"
+        ).add_field(
+            name="ID",
+            value=str(of.unit_id),
+            inline=False
+        ).set_thumbnail(url="attachment://image.png")
+    )
+
+
+def set_arsenic_log_level(level=logging.WARNING):
+    lo = logging.getLogger('arsenic')
+
+    def logger_factory():
+        return lo
+
+    structlog.configure(logger_factory=logger_factory)
+    lo.setLevel(level)
+
+
 def start_up_bot(token_path: str = "data/bot_token.txt", _is_beta: bool = False):
     global token, is_beta
     try:
+        set_arsenic_log_level(logging.CRITICAL)
+
         for extension in initial_extensions:
             bot.load_extension(extension)
 

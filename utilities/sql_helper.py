@@ -15,11 +15,14 @@ def read_units_from_db() -> None:
 
     row: Tuple[int, str, str, str, str, str, str, str, str, int]
     for row in cursor.execute('SELECT * FROM units'):
+        cursor2: Cursor = connection.cursor()
+        alt_names: List[str] = [x[0] for x in cursor2.execute('SELECT name FROM additional_unit_names WHERE unit_id=?', (row[0], )).fetchall()]
+
         unit_list.append(Unit(
             unit_id=row[0],
             name=row[1],
             simple_name=row[2],
-            alt_names=None,
+            alt_names=alt_names,
             type_enum=map_attribute(row[3]),
             grade=map_grade(row[4]),
             race=map_race(row[5]),
@@ -45,7 +48,6 @@ def read_affections_from_db() -> None:
 
 def read_banners_from_db() -> None:
     all_banner_list.clear()
-    connection.commit()
     cursor: Cursor = connection.cursor()
     cursor2: Cursor = connection.cursor()
     banner_data: Tuple[str, str, float, float, str, float, int, int, int, int]

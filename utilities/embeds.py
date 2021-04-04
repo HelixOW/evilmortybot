@@ -7,68 +7,62 @@ import utilities.messages as m
 class Help:
     class General:
         HELP_1: Embed = discord.Embed(
-            title=m.HELP_1_TITLE,
-            description=m.HELP_1,
+            title=m.help_1_title,
+            description=m.help_1,
             colour=discord.Color.gold(),
         )
         HELP_2: Embed = discord.Embed(
-            title=m.HELP_2_TITLE,
-            description=m.HELP_2,
+            title=m.help_2_title,
+            description=m.help_2,
             colour=discord.Color.gold(),
-        ).set_footer(text=m.HELP_FOOTER)
+        ).set_footer(text=m.help_footer)
 
 
-UNIT_LOOKUP_ERROR_EMBED: Embed = discord.Embed(title=m.ERROR, colour=discord.Color.dark_red(),
-                                               description=m.Unit.LOOKUP)
+UNIT_LOOKUP_ERROR_EMBED: Embed = discord.Embed(title=m.error, colour=discord.Color.dark_red(),
+                                               description=m.Unit.lookup)
 
-TEAM_LOOKUP_ERROR_EMBED: Embed = discord.Embed(title=m.ERROR, colour=discord.Color.dark_red(),
-                                               description=m.Team.LOOKUP)
-TEAM_COOLDOWN_ERROR_EMBED: Embed = discord.Embed(title=m.ERROR, colour=discord.Color.dark_red(),
-                                                 description=m.Team.COOLDOWN)
+TEAM_LOOKUP_ERROR_EMBED: Embed = discord.Embed(title=m.error, colour=discord.Color.dark_red(),
+                                               description=m.Team.lookup)
+TEAM_COOLDOWN_ERROR_EMBED: Embed = discord.Embed(title=m.error, colour=discord.Color.dark_red(),
+                                                 description=m.Team.cooldown)
 
-PVP_COOLDOWN_ERROR_EMBED: Embed = discord.Embed(title=m.ERROR, colour=discord.Color.dark_red(),
-                                                description=m.PvP.COOLDOWN)
+PVP_COOLDOWN_ERROR_EMBED: Embed = discord.Embed(title=m.error, colour=discord.Color.dark_red(),
+                                                description=m.PvP.cooldown)
 
-AFFECTION_UNMUTABLE_ERROR_EMBED: Embed = discord.Embed(title=m.ERROR, colour=discord.Color.dark_red(),
-                                                       description=m.Affection.Error.UNMUTABLE)
-AFFECTION_HELP_EMBED: Embed = discord.Embed(title=m.Affection.Help.TITLE, colour=discord.Color.gold(),
-                                            description=m.Affection.Help.DESC)
+AFFECTION_UNMUTABLE_ERROR_EMBED: Embed = discord.Embed(title=m.error, colour=discord.Color.dark_red(),
+                                                       description=m.Affection.Error.unmutable)
+AFFECTION_HELP_EMBED: Embed = discord.Embed(title=m.Affection.Help.title, colour=discord.Color.gold(),
+                                            description=m.Affection.Help.desc)
 
-AFFECTION_ADDED_EMBED: Embed = discord.Embed(title=m.SUCCESS, colour=discord.Color.green(), description=m.Affection.ADD)
-AFFECTION_EDITED_EMBED: Embed = discord.Embed(title=m.SUCCESS, colour=discord.Color.green(),
-                                              description=m.Affection.EDIT)
-AFFECTION_REMOVED_EMBED: Embed = discord.Embed(title=m.SUCCESS, colour=discord.Color.red(),
-                                               description=m.Affection.REMOVE)
+AFFECTION_ADDED_EMBED: Embed = discord.Embed(title=m.success, colour=discord.Color.green(), description=m.Affection.add)
+AFFECTION_EDITED_EMBED: Embed = discord.Embed(title=m.success, colour=discord.Color.green(),
+                                              description=m.Affection.edit)
+AFFECTION_REMOVED_EMBED: Embed = discord.Embed(title=m.success, colour=discord.Color.red(),
+                                               description=m.Affection.remove)
 
-CUSTOM_HELP_EMBED: Embed = discord.Embed(title=m.Custom.Help.TITLE, colour=discord.Color.gold(),
-                                         description=m.Custom.Help.DESC)
-CUSTOM_ADD_COMMAND_USAGE_EMBED: Embed = discord.Embed(title=m.Custom.Add.Error.TITLE, colour=discord.Color.dark_red(),
-                                                      description=m.Custom.Add.Error.DESC)
-CUSTOM_EDIT_COMMAND_USAGE_EMBED: Embed = discord.Embed(title=m.Custom.Edit.Error.TITLE, colour=discord.Color.dark_red(),
-                                                       description=m.Custom.Edit.Error.DESC)
-CUSTOM_EDIT_COMMAND_SUCCESS_EMBED: Embed = discord.Embed(title=m.Custom.Edit.Success.TITLE,
+CUSTOM_HELP_EMBED: Embed = discord.Embed(title=m.Custom.Help.title, colour=discord.Color.gold(),
+                                         description=m.Custom.Help.desc)
+CUSTOM_ADD_COMMAND_USAGE_EMBED: Embed = discord.Embed(title=m.Custom.Add.Error.title, colour=discord.Color.dark_red(),
+                                                      description=m.Custom.Add.Error.desc)
+CUSTOM_EDIT_COMMAND_USAGE_EMBED: Embed = discord.Embed(title=m.Custom.Edit.Error.title, colour=discord.Color.dark_red(),
+                                                       description=m.Custom.Edit.Error.desc)
+CUSTOM_EDIT_COMMAND_SUCCESS_EMBED: Embed = discord.Embed(title=m.Custom.Edit.Success.title,
                                                          colour=discord.Color.green(),
-                                                         description=m.Custom.Edit.Success.DESC)
-CUSTOM_REMOVE_COMMAND_USAGE_EMBED: Embed = discord.Embed(title=m.Custom.Remove.Error.TITLE,
+                                                         description=m.Custom.Edit.Success.desc)
+CUSTOM_REMOVE_COMMAND_USAGE_EMBED: Embed = discord.Embed(title=m.Custom.Remove.Error.title,
                                                          colour=discord.Color.dark_red(),
-                                                         description=m.Custom.Remove.Error.DESC)
-CUSTOM_REMOVE_COMMAND_SUCCESS_EMBED: Embed = discord.Embed(title=m.SUCCESS, colour=discord.Color.green(),
-                                                           description=m.Custom.Remove.SUCCESS)
+                                                         description=m.Custom.Remove.Error.desc)
+CUSTOM_REMOVE_COMMAND_SUCCESS_EMBED: Embed = discord.Embed(title=m.success, colour=discord.Color.green(),
+                                                           description=m.Custom.Remove.success)
 
-CROP_COMMAND_USAGE_ERROR_EMBED: Embed = discord.Embed(title=m.ERROR, colour=discord.Color.dark_red(),
-                                                      description=m.Crop.USAGE)
-
-RESIZE_COMMAND_USAGE_ERROR_EMBED: Embed = discord.Embed(title=m.ERROR, colour=discord.Color.dark_red(),
-                                                        description=m.Resize.USAGE)
-
-DEMON_HELP_EMBED: Embed = discord.Embed(title=m.Demon.Help.TITLE, colour=discord.Color.gold(),
-                                        description=m.Demon.Help.DESC)
+DEMON_HELP_EMBED: Embed = discord.Embed(title=m.Demon.Help.title, colour=discord.Color.gold(),
+                                        description=m.Demon.Help.desc)
 
 
 class TourneyEmbeds:
-    HELP: Embed = discord.Embed(title=m.Tourney.Help.TITLE, colour=discord.Color.gold(),
-                                description=m.Tourney.Help.DESC)
+    HELP: Embed = discord.Embed(title=m.Tourney.Help.title, colour=discord.Color.gold(),
+                                description=m.Tourney.Help.desc)
 
 
-LOADING_EMBED: Embed = discord.Embed(title=m.LOADING)
-IMAGES_LOADED_EMBED: Embed = discord.Embed(title=m.LOADED)
+LOADING_EMBED: Embed = discord.Embed(title=m.loading)
+IMAGES_LOADED_EMBED: Embed = discord.Embed(title=m.loaded)

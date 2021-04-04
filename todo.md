@@ -5,3 +5,4 @@
 - awakening calc
 - options
 - documentation
+- discord server for open service
