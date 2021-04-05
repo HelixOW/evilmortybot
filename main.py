@@ -38,8 +38,7 @@ initial_extensions = ['cogs.blackjack',
 
 class CustomHelp(HelpCommand):
     async def send_bot_help(self, _):
-        await self.get_destination().send(embed=embeds.Help.General.HELP_1)
-        await self.get_destination().send(embed=embeds.Help.General.HELP_2)
+        await self.get_destination().send(embed=embeds.Help.HELP_1)
 
 
 bot: KingBot = KingBot(command_prefix=get_prefix,
@@ -55,7 +54,7 @@ async def on_ready():
     create_custom_unit_banner()
     create_jp_banner()
 
-    # kof_task.start()
+    kof_task.start()
 
     print('Logged in as')
     print(bot.user.name)

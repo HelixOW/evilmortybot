@@ -319,10 +319,16 @@ def get_units_matching(grades: Optional[List[Grade]] = None,
                and x.grade in grades \
                and x.event in events \
                and x.affection.lower().replace(" ", "") in affections \
-               and x.name.lower().replace(" ", "") in names \
-               and x.is_jp == jp
+               and x.name.lower().replace(" ", "") in names
 
     possible_units: List[Unit] = [x for x in unit_list if test(x)]
+
+    if jp:
+        
+        possible_units += [x for x in possible_units if x.is_jp]
+    else:
+        possible_units = [x for x in unit_list if test(x) and not x.is_jp]
+
 
     if len(possible_units) == 0:
         raise LookupError
