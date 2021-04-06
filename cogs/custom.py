@@ -72,9 +72,14 @@ async def add_affection(name: str, owner: int) -> None:
     connection.commit()
 
 
+async def affection_exist(name: str) -> bool:
+    cursor: Cursor = connection.cursor()
+    return cursor.execute('SELECT * FROM affections WHERE name=?', (name.lower(),)).fetchone() is not None
+
+
 async def get_affection_creator(name: str) -> int:
     cursor: Cursor = connection.cursor()
-    return cursor.execute('SELECT creator FROM affections where name=?', (name.lower(),)).fetchone()[0]
+    return cursor.execute('SELECT creator FROM affections WHERE name=?', (name.lower(),)).fetchone()[0]
 
 
 async def update_affection_name(old_name: str, new_name: str) -> None:
@@ -238,28 +243,31 @@ class CustomCog(commands.Cog):
     @commands.guild_only()
     async def affection(self, ctx: Context):
         if ctx.invoked_subcommand is None:
-            return await ctx.send(content=f"{ctx.author.mention}",
-                                  embed=embeds.Affection.help)
+            return await embeds.affection_help(ctx, ctx.author.mention)
 
     @affection.command(name="add", aliases=["create", "plus", "+"])
-    async def affection_add(self, ctx: Context, *, name: Optional[str]):
+    async def affection_add(self, ctx: Context, *, name: str):
         if name.lower in [Affection.SIN.value, Affection.KNIGHT.value, Affection.NONE.value, Affection.ANGEL.value,
                           Affection.CATASTROPHE.value,
                           Affection.COMMANDMENTS.value]:
             return await ctx.send(content=f"{ctx.author.mention}",
                                   embed=embeds.Affection.unmutable_error)
 
+        if await affection_exist(name.lower()):
+            return await ctx.send(content=f"{ctx.author.mention}",
+                                  embed=embeds.Affection.exists_error)
+
         await add_affection(name, ctx.author.id)
         all_affections.append(name.lower())
-        await ctx.send(content=f"{ctx.author.mention}", embed=embeds.AFFECTION_ADDED_EMBED)
+        await ctx.send(content=f"{ctx.author.mention}", embed=embeds.Affection.Add.success)
 
     @affection.command(name="edit")
     async def affection_edit(self, ctx: Context, old_name: str, *, new_name: str):
         if old_name.lower() not in all_affections:
             return await ctx.send(content=f"{ctx.author.mention}",
-                                  embed=embeds.AFFECTION_EDITED_EMBED)
+                                  embed=embeds.Affection.edited)
 
-        if get_affection_creator(old_name.lower()) != ctx.author.id:
+        if await get_affection_creator(old_name.lower()) != ctx.author.id:
             return await ctx.send(content=f"{ctx.author.mention}",
                                   embed=discord.Embed(title="Error with ..affections edit",
                                                       colour=discord.Color.dark_red(),
@@ -267,43 +275,47 @@ class CustomCog(commands.Cog):
 
         await update_affection_name(old_name, new_name)
         all_affections.append(new_name.lower())
-        await ctx.send(content=f"{ctx.author.mention}", embed=embeds.AFFECTION_EDITED_EMBED)
+        await ctx.send(content=f"{ctx.author.mention}", embed=embeds.Affection.edited)
 
     @affection.command(name="transfer", aliases=["move", ">"])
     async def affection_transfer(self, ctx: Context, name: str, owner: discord.Member):
         if name.lower() not in all_affections:
             return await ctx.send(content=f"{ctx.author.mention}",
-                                  embed=embeds.AFFECTION_EDITED_EMBED)
+                                  embed=embeds.Affection.edited)
 
-        if get_affection_creator(name.lower()) != ctx.author.id:
+        if await get_affection_creator(name.lower()) != ctx.author.id:
             return await ctx.send(content=f"{ctx.author.mention}",
                                   embed=discord.Embed(title="Error with ..affections edit",
                                                       colour=discord.Color.dark_red(),
                                                       description=f"**{name.lower()}** is not your affection!"))
 
-        await update_affection_owner(name, owner)
-        await ctx.send(content=f"{ctx.author.mention}", embed=embeds.AFFECTION_EDITED_EMBED)
+        await update_affection_owner(name, owner.id)
+        await ctx.send(content=f"{ctx.author.mention}", embed=embeds.Affection.edited)
 
     @affection.command(name="remove", aliases=["delete", "minus", "-"])
     async def affection_remove(self, ctx: Context, *, name: str):
         if name.lower() not in all_affections:
             return await ctx.send(content=f"{ctx.author.mention}",
-                                  embed=embeds.AFFECTION_REMOVED_EMBED)
+                                  embed=embeds.Affection.removed)
 
-        if get_affection_creator(name.lower()) != ctx.author.id:
+        if await get_affection_creator(name.lower()) != ctx.author.id:
             return await ctx.send(content=f"{ctx.author.mention}",
                                   embed=discord.Embed(title="Error with ..affections edit",
                                                       colour=discord.Color.dark_red(),
                                                       description=f"**{name.lower()}** is not your affection!"))
         await remove_affection(name)
         all_affections.remove(name.lower())
-        await ctx.send(content=f"{ctx.author.mention}", embed=embeds.AFFECTION_REMOVED_EMBED)
+        await ctx.send(content=f"{ctx.author.mention}", embed=embeds.Affection.removed)
 
     @affection.command(name="list")
     async def affection_list(self, ctx: Context):
         return await ctx.send(content=f"{ctx.author.mention}",
                               embed=discord.Embed(title="All Affections", description=",\n".join(all_affections)))
 
+    @affection_add.error
+    async def affection_add_error(self, ctx: Context, error):
+        if isinstance(error, commands.MissingRequiredArgument):
+            await ctx.send(ctx.author.mention, embed=embeds.Affection.Add.usage)
 
 def setup(_bot):
     _bot.add_cog(CustomCog(_bot))

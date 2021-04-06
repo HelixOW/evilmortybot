@@ -1,8 +1,10 @@
 import discord
 from discord import Embed
+from utilities.units import image_to_discord
 
 import utilities.messages as m
 import utilities.reactions as e
+import utilities.images as i
 
 
 class ErrorEmbed(Embed):
@@ -39,14 +41,15 @@ class HelpEmbed(Embed):
         return self
 
 
-class InformationEmbed(Embed):
-    def __init__(self, title,**kwargs):
+class SuccessEmbed(Embed):
+    def __init__(self, success_title, **kwargs):
         super().__init__(**kwargs)
         self.colour = discord.Colour.green()
         self.set_author(
-            name=title,
-            icon_url="https://raw.githubusercontent.com/WhoIsAlphaHelix/evilmortybot/master/data/images/help.png"
+            name=success_title,
+            icon_url="https://media.discordapp.net/attachments/818474483743588392/828791636069974066/success.png"
         )
+
 
 class Help:
     help: HelpEmbed = HelpEmbed(
@@ -238,7 +241,8 @@ class PvP:
 
 class Affection:
     unmutable_error: ErrorEmbed = ErrorEmbed(error_message="This Affection can not be added/ edited/ removed!")
-    help: HelpEmbed = HelpEmbed(
+    exists_error: ErrorEmbed = ErrorEmbed(error_message="This Affection exists already!")
+    help_embed: HelpEmbed = HelpEmbed(
         help_title="Help for Affection"
     ).add_field(
         name="add",
@@ -292,15 +296,29 @@ class Affection:
     ).add_field(
         name="help",
         value="Displays this help message"
-    ).set_image(url="https://cdn.discordapp.com/attachments/818474483743588392/828681325275119650/affection.png")
-    added:
+    ).set_image(url="attachment://image.png")
+
+    class Add:
+        success: SuccessEmbed = SuccessEmbed(success_title="Affection added!")
+        usage: ErrorEmbed = ErrorEmbed(
+            error_message="Adding affection failed",
+            description="""
+            __Usage__:
+            > `affection add <name>`
+            """
+        )
+
+    edited: SuccessEmbed = SuccessEmbed(success_title="Affection edited!")
+    removed: SuccessEmbed = SuccessEmbed(success_title="Affection removed!")
 
 
-AFFECTION_ADDED_EMBED: Embed = discord.Embed(title=m.success, colour=discord.Color.green(), description=m.Affection.add)
-AFFECTION_EDITED_EMBED: Embed = discord.Embed(title=m.success, colour=discord.Color.green(),
-                                              description=m.Affection.edit)
-AFFECTION_REMOVED_EMBED: Embed = discord.Embed(title=m.success, colour=discord.Color.red(),
-                                               description=m.Affection.remove)
+async def affection_help(ctx, content: str):
+    return await ctx.send(
+        content=content,
+        file=await image_to_discord(i.affection_banner),
+        embed=Affection.help_embed
+)
+
 
 CUSTOM_HELP_EMBED: Embed = discord.Embed(title=m.Custom.Help.title, colour=discord.Color.gold(),
                                          description=m.Custom.Help.desc)
