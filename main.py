@@ -38,7 +38,7 @@ initial_extensions = ['cogs.blackjack',
 
 class CustomHelp(HelpCommand):
     async def send_bot_help(self, _):
-        await self.get_destination().send(embed=embeds.Help.HELP_1)
+        await self.get_destination().send(embed=embeds.Help.help)
 
 
 bot: KingBot = KingBot(command_prefix=get_prefix,

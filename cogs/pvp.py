@@ -39,7 +39,7 @@ class PvPCog(commands.Cog):
                            file=await random_unit.discord_icon())
         except LookupError:
             await ctx.send(content=f"{ctx.author.mention}",
-                           embed=embeds.UNIT_LOOKUP_ERROR_EMBED)
+                           embed=embeds.Unit.lookup_error)
 
     @commands.command()
     @commands.guild_only()
@@ -59,13 +59,13 @@ class PvPCog(commands.Cog):
             replace_duplicates_in_team(attr, proposed_team_p2)
         except ValueError as e:
             return await ctx.send(content=f"{ctx.message.author.mention} -> {e}",
-                                  embed=embeds.TEAM_LOOKUP_ERROR_EMBED)
+                                  embed=embeds.Team.lookup_error)
 
         player1 = ctx.author
 
         if player1 in pvp_time_check or enemy in pvp_time_check:
             return await ctx.send(content=f"{ctx.author.mention}",
-                                  embed=embeds.PVP_COOLDOWN_ERROR_EMBED)
+                                  embed=embeds.PvP.cooldown_error)
 
         changed_units: Dict[int, List[Unit]] = {0: [], 1: [], 2: [], 3: []}
 
@@ -179,11 +179,11 @@ class PvPCog(commands.Cog):
                 replace_duplicates_in_team(criteria=attr, team_to_deduplicate=proposed_team)
             except ValueError as e:
                 return await ctx.send(content=f"{ctx.author.mention} -> {e}",
-                                      embed=embeds.TEAM_LOOKUP_ERROR_EMBED)
+                                      embed=embeds.Team.lookup_error)
 
             if ctx.message.author in team_time_check:
                 return await ctx.send(content=f"{ctx.author.mention}",
-                                      embed=embeds.TEAM_COOLDOWN_ERROR_EMBED)
+                                      embed=embeds.Team.cooldown_error)
 
             changed_units: Dict[int, List[Unit]] = {0: [], 1: [], 2: [], 3: []}
 
@@ -240,7 +240,7 @@ class PvPCog(commands.Cog):
             await send_message()
         except LookupError:
             await ctx.send(content=f"{ctx.author.mention}",
-                           embed=embeds.TEAM_LOOKUP_ERROR_EMBED)
+                           embed=embeds.Team.lookup_error)
 
     @commands.command()
     @commands.guild_only()

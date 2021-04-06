@@ -27,10 +27,29 @@ class HelpEmbed(Embed):
         )
         self.set_footer(text="© Heⅼіх Sama#0578",
                         icon_url="https://cdn.discordapp.com/avatars/456276194581676062/dda3dc4e7a35fbe4afef3488054363cc.webp?size=256")
+        self.blank_fields = 0
 
+    def add_blank_field(self, inline=False):
+        self.blank_fields += 1
+        self.add_field(
+            name="\u200b"*self.blank_fields,
+            value="\u200b",
+            inline=inline
+        )
+        return self
+
+
+class InformationEmbed(Embed):
+    def __init__(self, title,**kwargs):
+        super().__init__(**kwargs)
+        self.colour = discord.Colour.green()
+        self.set_author(
+            name=title,
+            icon_url="https://raw.githubusercontent.com/WhoIsAlphaHelix/evilmortybot/master/data/images/help.png"
+        )
 
 class Help:
-    HELP_1: HelpEmbed = HelpEmbed(
+    help: HelpEmbed = HelpEmbed(
         help_title="Help Page 1",
         description="__*Commands:*__ (Either start with `..`, `>king`, `>diane`)"
     ).add_field(
@@ -65,10 +84,7 @@ class Help:
         
         For ruleset do ..tarot rules
         """
-    ).add_field(
-        name="\u200b",
-        value="\u200b",
-        inline=False
+    ).add_blank_field(
     ).add_field(
         name="single [@For] [banner]",
         value="""
@@ -121,10 +137,7 @@ class Help:
         
         If @Of is not provided, it will displays your box
         """
-    ).add_field(
-        name="\u200b"*2,
-        value="\u200b",
-        inline=False
+    ).add_blank_field(
     ).add_field(
         name="stats [@Of] [type]",
         value="""
@@ -151,10 +164,7 @@ class Help:
         > units
         > shafts
         """
-    ).add_field(
-        name="\u200b"*3,
-        value="\u200b",
-        inline=False
+    ).add_blank_field(
     ).add_field(
         name="find <unit names>",
         value="""
@@ -175,20 +185,14 @@ class Help:
     ).add_field(
         name="list tarot",
         value="Displays a menu with all Tarot Units in the bot."
-    ).add_field(
-        name="\u200b"*4,
-        value="\u200b",
-        inline=False
+    ).add_blank_field(
     ).add_field(
         name="demon",
         value="Please issue the command for more info"
     ).add_field(
         name="custom",
         value="Please issue the command for more info"
-    ).add_field(
-        name="\u200b"*5,
-        value="\u200b",
-        inline=False
+    ).add_blank_field(
     ).add_field(
         name="Criteria",
         value="""
@@ -213,28 +217,84 @@ class Help:
 
 
 class Stats:
-    NO_SUMMON_EMBED: ErrorEmbed = ErrorEmbed(
+    no_summon_embed: ErrorEmbed = ErrorEmbed(
         error_message="No summons yet",
         description="Use `..multi`, `..single` or `..shaft`",
-        colour=discord.Colour.dark_red()
     )
 
 
-UNIT_LOOKUP_ERROR_EMBED: Embed = discord.Embed(title=m.error, colour=discord.Color.dark_red(),
-                                               description=m.Unit.lookup)
+class Unit:
+    lookup_error: ErrorEmbed = ErrorEmbed(error_message="Can't find any unit which matches given criteria")
 
-TEAM_LOOKUP_ERROR_EMBED: Embed = discord.Embed(title=m.error, colour=discord.Color.dark_red(),
-                                               description=m.Team.lookup)
-TEAM_COOLDOWN_ERROR_EMBED: Embed = discord.Embed(title=m.error, colour=discord.Color.dark_red(),
-                                                 description=m.Team.cooldown)
 
-PVP_COOLDOWN_ERROR_EMBED: Embed = discord.Embed(title=m.error, colour=discord.Color.dark_red(),
-                                                description=m.PvP.cooldown)
+class Team:
+    lookup_error: ErrorEmbed = ErrorEmbed(error_message="Can't find any team which matches given criteria")
+    cooldown_error: ErrorEmbed = ErrorEmbed(error_message="Please wait before using another `..team`")
 
-AFFECTION_UNMUTABLE_ERROR_EMBED: Embed = discord.Embed(title=m.error, colour=discord.Color.dark_red(),
-                                                       description=m.Affection.Error.unmutable)
-AFFECTION_HELP_EMBED: Embed = discord.Embed(title=m.Affection.Help.title, colour=discord.Color.gold(),
-                                            description=m.Affection.Help.desc)
+
+class PvP:
+    cooldown_error: ErrorEmbed = ErrorEmbed(error_message="Please wait before using another `..pvp`")
+
+
+class Affection:
+    unmutable_error: ErrorEmbed = ErrorEmbed(error_message="This Affection can not be added/ edited/ removed!")
+    help: HelpEmbed = HelpEmbed(
+        help_title="Help for Affection"
+    ).add_field(
+        name="add",
+        value="""
+        __Usage__:
+        > `affection add <name>`
+        
+        Creates a new Affection
+        \u200b
+        """
+    ).add_blank_field(
+        True
+    ).add_field(
+        name="remove",
+        value="""
+        __Usage__:
+        > `affection remove <name>`
+        
+        Deletes the Affection if you are the owner
+        \u200b
+        """
+    ).add_field(
+        name='edit',
+        value="""
+        __Usage__:
+        > `affection edit "<name>" <new name>`
+        
+        Changes the name of the affection
+        
+        If you are the owner of the affection
+        \u200b
+        """
+    ).add_blank_field(
+        True
+    ).add_field(
+        name='transfer',
+        value="""
+        __Usage__:
+        > `affection transfer "<name>" <@New Owner>`
+        
+        Transfers Ownership of the affection to another User
+        
+        Please mind that you do loose all permission to the affection!
+        \u200b
+        """
+    ).add_field(
+        name="list",
+        value="Displays a list of all affections"
+    ).add_blank_field(
+        True
+    ).add_field(
+        name="help",
+        value="Displays this help message"
+    ).set_image(url="https://cdn.discordapp.com/attachments/818474483743588392/828681325275119650/affection.png")
+    added:
+
 
 AFFECTION_ADDED_EMBED: Embed = discord.Embed(title=m.success, colour=discord.Color.green(), description=m.Affection.add)
 AFFECTION_EDITED_EMBED: Embed = discord.Embed(title=m.success, colour=discord.Color.green(),

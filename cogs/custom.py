@@ -239,7 +239,7 @@ class CustomCog(commands.Cog):
     async def affection(self, ctx: Context):
         if ctx.invoked_subcommand is None:
             return await ctx.send(content=f"{ctx.author.mention}",
-                                  embed=embeds.AFFECTION_HELP_EMBED)
+                                  embed=embeds.Affection.help)
 
     @affection.command(name="add", aliases=["create", "plus", "+"])
     async def affection_add(self, ctx: Context, *, name: Optional[str]):
@@ -247,7 +247,7 @@ class CustomCog(commands.Cog):
                           Affection.CATASTROPHE.value,
                           Affection.COMMANDMENTS.value]:
             return await ctx.send(content=f"{ctx.author.mention}",
-                                  embed=embeds.AFFECTION_UNMUTABLE_ERROR_EMBED)
+                                  embed=embeds.Affection.unmutable_error)
 
         await add_affection(name, ctx.author.id)
         all_affections.append(name.lower())

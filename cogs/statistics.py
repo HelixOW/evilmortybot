@@ -135,7 +135,7 @@ class TopCog(commands.Cog):
         most_shafted: List[Dict[str, Any]] = await self.get_top_users(ctx.guild, LeaderboardType.MOST_SHAFTS, 5)
 
         if len(lucky) == 0:
-            return await ctx.send(embed=embeds.NO_SUMMON_EMBED)
+            return await ctx.send(embed=embeds.no_summon_embed)
 
         await ctx.send(
             embed=discord.Embed()
@@ -170,7 +170,7 @@ class TopCog(commands.Cog):
     async def top_luck(self, ctx: Context):
         top_users: List[Dict[str, Any]] = await self.get_top_users(ctx.guild, LeaderboardType.LUCK)
         if len(top_users) == 0:
-            return await ctx.send(embed=embeds.NO_SUMMON_EMBED)
+            return await ctx.send(embed=embeds.no_summon_embed)
 
         await ctx.send(
             embed=discord.Embed(
@@ -193,7 +193,7 @@ class TopCog(commands.Cog):
     async def top_ssrs(self, ctx: Context):
         top_users: List[Dict[str, Any]] = await self.get_top_users(ctx.guild, LeaderboardType.MOST_SSR)
         if len(top_users) == 0:
-            return await ctx.send(embed=embeds.NO_SUMMON_EMBED)
+            return await ctx.send(embed=embeds.no_summon_embed)
         await ctx.send(
             embed=discord.Embed(
                 title=f"Members with most drawn SSRs in {ctx.guild.name}",
@@ -211,7 +211,7 @@ class TopCog(commands.Cog):
     async def top_units(self, ctx: Context):
         top_users: List[Dict[str, Any]] = await self.get_top_users(ctx.guild, LeaderboardType.MOST_UNITS)
         if len(top_users) == 0:
-            return await ctx.send(embed=embeds.NO_SUMMON_EMBED)
+            return await ctx.send(embed=embeds.no_summon_embed)
         await ctx.send(
             embed=discord.Embed(
                 title=f"Members with most drawn Units in {ctx.guild.name}",
@@ -228,7 +228,7 @@ class TopCog(commands.Cog):
     async def top_shafts(self, ctx: Context):
         top_users: List[Dict[str, Any]] = await self.get_top_users(ctx.message.guild, LeaderboardType.MOST_SHAFTS)
         if len(top_users) == 0:
-            return await ctx.send(embed=embeds.NO_SUMMON_EMBED)
+            return await ctx.send(embed=embeds.no_summon_embed)
         return await ctx.send(
             embed=discord.Embed(
                 title=f"Members with most Shafts in {ctx.guild.name}",
