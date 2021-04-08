@@ -243,7 +243,7 @@ class CustomCog(commands.Cog):
     @commands.guild_only()
     async def affection(self, ctx: Context):
         if ctx.invoked_subcommand is None:
-            return await embeds.affection_help(ctx, ctx.author.mention)
+            return await embeds.Affection.send_help(ctx, ctx.author.mention)
 
     @affection.command(name="add", aliases=["create", "plus", "+"])
     async def affection_add(self, ctx: Context, *, name: str):
@@ -259,13 +259,13 @@ class CustomCog(commands.Cog):
 
         await add_affection(name, ctx.author.id)
         all_affections.append(name.lower())
-        await ctx.send(content=f"{ctx.author.mention}", embed=embeds.Affection.Add.success)
+        await ctx.send(content=f"{ctx.author.mention}", embed=embeds.Affection.Add.success(name))
 
     @affection.command(name="edit")
     async def affection_edit(self, ctx: Context, old_name: str, *, new_name: str):
         if old_name.lower() not in all_affections:
             return await ctx.send(content=f"{ctx.author.mention}",
-                                  embed=embeds.Affection.edited)
+                                  embed=embeds.Affection.not_existing_error)
 
         if await get_affection_creator(old_name.lower()) != ctx.author.id:
             return await ctx.send(content=f"{ctx.author.mention}",

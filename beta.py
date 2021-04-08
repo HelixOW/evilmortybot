@@ -10,7 +10,7 @@ from utilities.units import image_to_discord, unit_by_vague_name, compose_icon
 from utilities.image_composer import compose_unit_list, compose_awakening
 from utilities.awaken import *
 from utilities.tarot import *
-from utilities.kofas_scrapper import fetch_data, add_channel
+# from utilities.kofas_scrapper import fetch_data, add_channel, fetch_data_manual
 from discord.ext.commands import Context, HelpCommand, has_permissions
 from datetime import datetime
 from io import BytesIO
@@ -145,49 +145,28 @@ async def code_cmd(ctx: Context):
 @tasks.loop(seconds=30)
 async def kof_task():
     for guild in bot.guilds:
-        await fetch_data(bot, guild)
+        pass
+        # await fetch_data(bot, guild)
 
 
 @bot.command(name="kof")
 @has_permissions(manage_channels=True)
 async def kof_cmd(ctx: Context):
-    await add_channel(ctx.channel)
+    # await add_channel(ctx.channel)
     await ctx.send(ctx.author.mention + " added news channel!")
 
 
+@bot.command(name="knews")
+async def kof_news(ctx: Context):
+    # await fetch_data_manual(ctx)
+    pass
+
+
 @bot.command(name="info")
-async def info_cmd(ctx: Context, of: Unit):
+async def info_cmd(ctx: Context, *, of: Unit):
     await ctx.send(
         file=await image_to_discord(await of.set_icon()),
-        embed=discord.Embed(
-            title=f"{of.name}",
-            colour=of.discord_color()
-        ).add_field(
-            name="Alternative names",
-            value=", ".join([of.name] + of.alt_names)
-        ).add_field(
-            name="Type",
-            value=of.type.value
-        ).add_field(
-            name="Grade",
-            value=of.grade.value
-        ).add_field(
-            name="Race",
-            value=of.race.value
-        ).add_field(
-            name="Event",
-            value=of.event.value
-        ).add_field(
-            name="Affection",
-            value=of.affection
-        ).add_field(
-            name="Is a JP Unit?",
-            value="Yes" if of.is_jp else "No"
-        ).add_field(
-            name="ID",
-            value=str(of.unit_id),
-            inline=False
-        ).set_thumbnail(url="attachment://image.png")
+        embed=(await of.info_embed()).set_thumbnail(url="attachment://image.png")
     )
 
 

@@ -230,6 +230,38 @@ class Unit:
         else:
             self.icon: Optional[Img] = None
 
+    async def info_embed(self) -> discord.Embed:
+        embed = discord.Embed(
+            title=f"{self.name}",
+            colour=self.discord_color()
+        ).add_field(
+            name="Type",
+            value=f"```{self.type.value}```"
+        ).add_field(
+            name="Grade",
+            value=f"```{self.grade.value}```"
+        ).add_field(
+            name="Race",
+            value=f"```{self.race.value}```"
+        ).add_field(
+            name="Event",
+            value=f"```{self.event.value}```"
+        ).add_field(
+            name="Affection",
+            value=f"```{self.affection}```"
+        ).add_field(
+            name="Is a JP Unit?",
+            value="```Yes```" if self.is_jp else "```No```"
+        ).add_field(
+            name="ID",
+            value=f"```{self.unit_id}```"
+        )
+        if len(self.alt_names) != 0:
+            embed._fields = [
+                {'inline': True, 'name': "Alternative names", 'value': "```" + ",\n".join(self.alt_names) + "```"}
+            ] + embed._fields
+        return embed
+
     async def discord_icon(self) -> discord.File:
         return await image_to_discord(self.icon, "unit.png")
 
@@ -328,7 +360,6 @@ def get_units_matching(grades: Optional[List[Grade]] = None,
         possible_units += [x for x in possible_units if x.is_jp]
     else:
         possible_units = [x for x in unit_list if test(x) and not x.is_jp]
-
 
     if len(possible_units) == 0:
         raise LookupError

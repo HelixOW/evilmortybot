@@ -1,29 +1,35 @@
-from arsenic import get_session
-from arsenic.browsers import Chrome
-from arsenic.services import Chromedriver
-from discord.ext.commands import Bot
+from selenium import webdriver
+from selenium.webdriver.opera.options import Options
+from discord.ext.commands import Bot, Context
 from discord import Guild, TextChannel
 from utilities import flatten
 from sqlite3 import Cursor
 from utilities import connection
 import discord
-import os
 
-service: Chromedriver = Chromedriver(binary="./chromedriver", log_file=os.devnull)
-browser: Chrome = Chrome()
+from pyvirtualdisplay import Display
+display = Display(visible=0, size=(800, 800))
+display.start()
 
-browser.capabilities = {"goog:chromeOptions": {"args": ["--headless", "--disable-gpu"]}}
+options = Options()
+options.add_argument('--no-sandbox')
+options.add_argument('--headless')
+options.add_argument('--disable-dev-shm-usage')
+driver: webdriver.Chrome = webdriver.Opera(options=options, executable_path="./operadriver")
 
 
 async def find_update_ids():
-    async with get_session(service, browser) as session:
-        await session.get("https://forum.netmarble.com/kofg_en/list/5/1")
+    driver.get("https://forum.netmarble.com/kofg_en/list/4/1")
 
-        update_list = await session.wait_for_element(10, '#articleListSubView')
-        update_notices = await update_list.get_elements(selector="a")
+    driver.implicitly_wait(10)
 
-        for update_notice in [x for x in update_notices if await x.get_attribute("href") is not None]:
-            yield await update_notice.get_attribute("href")
+    announcement_list_div = driver.find_element_by_css_selector("#articleListSubView")
+    announcements = announcement_list_div.find_elements_by_css_selector("a")
+
+    print(announcements)
+
+    for update_notice in [x for x in announcements if x.get_attribute("href") is not None]:
+        yield update_notice.get_attribute("href")
 
 
 async def is_already_noticed(href: str):
@@ -53,29 +59,53 @@ async def find_channel(bot: Bot, guild: Guild):
 
 
 async def fetch_data(bot: Bot, guild: Guild):
-    async with get_session(service, browser) as session:
-        link = await get_latest_update()
-        await session.get(link)
+    link = await get_latest_update()
+    driver.get(link)
 
-        if await is_already_noticed(link):
-            return
+    if await is_already_noticed(link):
+        return
 
-        await notice(link)
+    await notice(link)
 
-        message_div = await session.wait_for_element(10, '.section.bbs_contents .contents_detail')
-        div_elements = [await e.get_text() for e in await message_div.get_elements(selector="div") if await e.get_text() != ""]
-        elements = [await e.get_text() for e in await message_div.get_elements(selector="p")]
-        real = []
+    driver.implicitly_wait(10)
 
-        for s in elements:
-            if s not in flatten([x.split("\n") for x in div_elements]):
-                real.append(s)
+    message_div = driver.find_elements_by_css_selector('.section.bbs_contents .contents_detail')
+    div_elements = [e.get_text() for e in message_div.get_elements(selector="div") if e.get_text() != ""]
+    elements = [e.get_text() for e in message_div.get_elements(selector="p")]
+    real = []
 
-        text = " \n".join(real)
+    for s in elements:
+        if s not in flatten([x.split("\n") for x in div_elements]):
+            real.append(s)
 
-        for p in [text[i: i + 1999] for i in range(0, len(text), 1999)]:
-            try:
-                await (await find_channel(bot, guild)).send(p)
-            except discord.errors.HTTPException:
-                pass
+    text = " \n".join(real)
 
+    for p in [text[i: i + 1999] for i in range(0, len(text), 1999)]:
+        try:
+            await (await find_channel(bot, guild)).send(p)
+        except discord.errors.HTTPException:
+            pass
+
+
+async def fetch_data_manual(ctx: Context):
+    link = await get_latest_update()
+    driver.get(link)
+
+    driver.implicitly_wait(10)
+
+    message_div = driver.find_element_by_css_selector('.section.bbs_contents .contents_detail')
+    div_elements = [e.text for e in message_div.find_elements_by_css_selector("div") if e.text != ""]
+    elements = [e.text for e in message_div.find_elements_by_css_selector("p")]
+    real = []
+
+    for s in elements:
+        if s not in flatten([x.split("\n") for x in div_elements]):
+            real.append(s)
+
+    text = " \n".join(real)
+
+    for p in [text[i: i + 1999] for i in range(0, len(text), 1999)]:
+        try:
+            await ctx.send(p)
+        except discord.errors.HTTPException:
+            pass

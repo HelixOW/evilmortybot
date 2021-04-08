@@ -6,3 +6,6 @@
 - options
 - documentation
 - discord server for open service
+---
+- redo embeds
+- help embed

@@ -47,7 +47,7 @@ class MemberMentionConverter(commands.Converter):
 
 
 def get_prefix(_bot, message):
-    return commands.when_mentioned_or(*['..', '>diane ', '>king '])(_bot, message)
+    return commands.when_mentioned_or(*['..', 'k> ', 'd> '])(_bot, message)
 
 
 class StatsContext(commands.Context):
