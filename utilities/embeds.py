@@ -62,29 +62,43 @@ class SuccessEmbed(Embed):
         return self
 
 
-# k> help
-#   PvP
-#   Draw
-#   Stats
-#   other things
-
-
 class Help:
-    help: HelpEmbed = HelpEmbed(
-        help_title="Help Page 1",
-        description="__*Commands:*__ (Either start with `..`, `k> `, `d> `)"
+
+    general_help: HelpEmbed = HelpEmbed(
+        help_title="General Help",
+        description="*Commands* (Either starts with `..`, `k> ` or `d> `)"
     ).add_field(
+        name="PvP",
+        value="```help pvp```"
+    ).add_field(
+        name="Draw",
+        value="```help draw```"
+    ).add_field(
+        name="Stats",
+        value="```help stats```"
+    ).add_field(
+        name="Demon",
+        value="```help demon```"
+    ).add_field(
+        name="Custom",
+        value="```help custom```"
+    ).add_field(
+        name="List",
+        value="```help list```"
+    ).set_thumbnail(url="https://cdn.discordapp.com/avatars/456276194581676062/dda3dc4e7a35fbe4afef3488054363cc.webp?size=256")
+
+    pvp_help: HelpEmbed = HelpEmbed(help_title="PvP Help").add_field(
         name="unit [criteria]",
         value="""```Displays a random unit matching the provided criteria
         
-        Please check criteria down below```"""
+Please check criteria down below```"""
     ).add_field(
         name="team [criteria]",
         value="""```Displays a random team matching the provided criteria
         
 If you don't own a unit, click on the number below the message
         
-        Please check criteria down below```
+Please check criteria down below```
         \u200b"""
     ).add_field(
         name="pvp <@Enemy> [criteria]",
@@ -92,14 +106,41 @@ If you don't own a unit, click on the number below the message
         
 Each player gets to reroll units he doesn't obtain.
         
-        Please check criteria down below```"""
+Please check criteria down below```"""
     ).add_field(
         name="tarot",
         value="""```Custom Rule Set PvP Mode created by 
     Jeremy Hex#0364
         
 For ruleset do:``` ```yaml\n..tarot rules```"""
-    ).add_blank_field(True).add_blank_field().add_field(
+    ).add_blank_field().add_field(
+        name="Criteria",
+        value="""
+        > race: `demons, giants, humans, fairies, goddess, unknown`
+        > 
+        > type: `blue, red, green`
+        > 
+        > grade: `r, sr, ssr`
+        > 
+        > event: `gc, slime, aot, kof, new year, halloween, festival, valentine, rezero`
+        > 
+        > affection: `sins, commandments, holy knights, catastrophes, archangels, none, custom added ones...`
+        > 
+        > name: `name1, name2, name3, ..., nameN`
+        
+        
+        If you want to define __multiple values append__ them with a `,` after each value
+        > `race: demon, giant`
+        
+        For races: In case you want a team with e.g. 2 demons and 2 giants
+        > `race: demon*2, giants*2`
+        
+        If you want to use __multiple criterias append__ a `&` after each criteria
+        > `race: demon & grade: ssr`
+        """
+    ).set_thumbnail(url="https://cdn.discordapp.com/avatars/456276194581676062/dda3dc4e7a35fbe4afef3488054363cc.webp?size=256")
+
+    draw_help: HelpEmbed = HelpEmbed(help_title="Draw Help").add_field(
         name="single [@For] [banner]",
         value="""```Emulates a single draw on the given banner and adds the unit to @For's the box.
         
@@ -127,7 +168,6 @@ Some units have small abbreviations as well, to check if the unit has a abbrevia
     ).add_blank_field().add_field(
         name="summon",
         value=f"""```Create a menu emulating the GC Gacha Menu.``` ```yaml
-        
 {e.LEFT_ARROW} - Go to the previous banner
         
 {e.NO_1} - Do a single on the selected banner
@@ -139,15 +179,17 @@ Some units have small abbreviations as well, to check if the unit has a abbrevia
 {e.INFO} - Shows a list of all SSRs in selected Banner
         
 {e.RIGHT_ARROW} - Go to the next banner```"""
-    ).add_field(
+    ).add_blank_field().add_field(
         name="banner [banner name]",
         value="""```Shows a list of all SSRs in the provided banner```"""
-    ).add_field(
+    ).add_blank_field().add_field(
         name="box [@Of]",
         value="""```Show all units @Of has pulled so far.
         
 If @Of is not provided, it will display your box```"""
-    ).add_blank_field().add_field(
+    ).set_thumbnail(url="https://cdn.discordapp.com/avatars/456276194581676062/dda3dc4e7a35fbe4afef3488054363cc.webp?size=256")
+
+    stats_help: HelpEmbed = HelpEmbed(help_title="Stats Help").add_field(
         name="stats [@Of] [type]",
         value="""```Displays @Of's draw statistics.
         
@@ -169,8 +211,10 @@ Allowed types are:``` ```yaml
  ssrs
  units
  shafts```"""
-    ).add_blank_field(
-    ).add_field(
+    ).set_thumbnail(url="https://cdn.discordapp.com/avatars/456276194581676062/dda3dc4e7a35fbe4afef3488054363cc.webp?size=256")
+
+
+    list_help: HelpEmbed = HelpEmbed(help_title="List Help").add_field(
         name="find <unit names>",
         value="""```Displays all unit with the provided name in their own name
         
@@ -186,34 +230,38 @@ If no criteria is given, it will by default display all custom created units.```
     ).add_field(
         name="list tarot",
         value="```Displays a menu with all Tarot Units in the bot.```"
-    ).add_blank_field(
+    ).set_thumbnail(url="https://cdn.discordapp.com/avatars/456276194581676062/dda3dc4e7a35fbe4afef3488054363cc.webp?size=256")
+
+    demon_help: HelpEmbed = HelpEmbed(
+        help_title="Demon Help",
+        description="In case you claim demons from someone you don't share a server with you can reply to the offer message to message the person."
     ).add_field(
-        name="demon",
-        value="```Please issue the command for more info```"
+        name="demon offer <reds> <greys> <crimsons> [additional messages]",
+        value="""```Offers demons to all registered demon channels.
+        
+If you click "Ok" the offer gets deleted.```
+\u200b"""
+    ).add_blank_field(True).add_field(
+        name="demon code [@Of]",
+        value="""```Displays the first registered Friendcode of "@Of"
+        
+If "@Of" is not provided, your own code will be shown```
+\u200b"""
+    ).add_field(
+        name="demon tag <grand cross friendcode> [name]",
+        value="""```Registers a new profile in the bot, linked to you.
+        
+If you have multiple account please provide the account name after the friendcode```"""
+    ).add_blank_field(True).add_field(
+        name="demon info [@Of]",
+        value="""```Shows all Profiles of "@Of"```"""
+    ).set_thumbnail(url="https://cdn.discordapp.com/avatars/456276194581676062/dda3dc4e7a35fbe4afef3488054363cc.webp?size=256")
+
+    custom_help: HelpEmbed = HelpEmbed(
+        help_title="Custom Help"
     ).add_field(
         name="custom",
         value="```Please issue the command for more info```"
-    ).add_blank_field(
-    ).add_field(
-        name="Criteria",
-        value="""
-        > race: `demons, giants, humans, fairies, goddess, unknown`
-        > 
-        > type: `blue, red, green`
-        > 
-        > grade: `r, sr, ssr`
-        > 
-        > event: `gc, slime, aot, kof, new year, halloween, festival, valentine, rezero`
-        > 
-        > affection: `sins, commandments, holy knights, catastrophes, archangels, none, custom added ones...`
-        > 
-        > name: name1, name2, name3, ..., nameN`
-        
-        If you want to define __multiple values append__ them with a `,` after each value
-        > race: demon *,*giant
-        If you want to use __multiple criterias append__ a `&` after each criteria
-        > race: demon & grade: ssr
-        """
     ).set_thumbnail(url="https://cdn.discordapp.com/avatars/456276194581676062/dda3dc4e7a35fbe4afef3488054363cc.webp?size=256")
 
 

@@ -36,14 +36,9 @@ initial_extensions = ['cogs.blackjack',
                       'cogs.tournament']
 
 
-class CustomHelp(HelpCommand):
-    async def send_bot_help(self, _):
-        await self.get_destination().send(embed=embeds.Help.help)
-
-
 bot: KingBot = KingBot(command_prefix=get_prefix,
                        description='..help for Help',
-                       help_command=CustomHelp(),
+                       help_command=None,
                        intents=intents)
 
 
@@ -60,6 +55,37 @@ async def on_ready():
     print(bot.user.name)
     print(bot.user.id)
     print('--------')
+
+
+@bot.group(name="help")
+async def bot_help(ctx: Context):
+    if ctx.invoked_subcommand is None:
+        return await ctx.send(embed=embeds.Help.general_help)
+
+
+@bot_help.command(name="pvp")
+async def pvp_help(ctx: Context):
+    await ctx.send(embed=embeds.Help.pvp_help)
+
+
+@bot_help.command(name="draw")
+async def draw_help(ctx: Context):
+    await ctx.send(embed=embeds.Help.draw_help)
+
+
+@bot_help.command(name="stats")
+async def stats_help(ctx: Context):
+    await ctx.send(embed=embeds.Help.stats_help)
+
+
+@bot_help.command(name="list")
+async def list_help(ctx: Context):
+    await ctx.send(embed=embeds.Help.list_help)
+
+
+@bot_help.command(name="demon")
+async def demon_help(ctx: Context):
+    await ctx.send(embed=embeds.Help.demon_help)
 
 
 @bot.command()
