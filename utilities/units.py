@@ -292,10 +292,14 @@ class Unit:
 
     @classmethod
     async def convert(cls, _, argument: str):
-        try:
-            return unit_by_id(int(argument))
-        except ValueError:
-            return unit_by_vague_name(argument)[0]
+        return find_unit(argument)[0]
+
+
+def find_unit(name_or_id: str):
+    try:
+        return [unit_by_id(int(name_or_id))]
+    except ValueError:
+        return unit_by_vague_name(name_or_id)
 
 
 def units_by_id(ids: List[int]) -> List[Unit]:

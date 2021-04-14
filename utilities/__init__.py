@@ -1,7 +1,8 @@
-from typing import List, Pattern, Generator, Any, Dict
+from typing import List, Pattern, Generator, Any, Dict, Tuple
 from discord.ext import commands
 from discord.ext.commands import Context
 from itertools import islice
+from io import BytesIO, StringIO
 
 import discord
 import sqlite3 as sqlite
@@ -29,7 +30,7 @@ number_pattern: Pattern[str] = re.compile(r'^([1-4][0-9]\s+)?$|50\s+')
 
 demon_offer_messages = {}
 
-periods: Dict[str, int] = [
+periods: List[Tuple[str, int]] = [
     ('year', 60 * 60 * 24 * 365),
     ('month', 60 * 60 * 24 * 30),
     ('day', 60 * 60 * 24),
@@ -48,6 +49,12 @@ class MemberMentionConverter(commands.Converter):
 
 def get_prefix(_bot, message):
     return commands.when_mentioned_or(*['..', 'k> ', 'd> '])(_bot, message)
+
+
+async def text_to_discord(text: str) -> discord.File:
+    with StringIO(text) as file:
+        image_file = discord.File(fp=file, filename="lol.md")
+    return image_file
 
 
 class StatsContext(commands.Context):

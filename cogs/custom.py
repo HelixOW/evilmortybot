@@ -317,5 +317,6 @@ class CustomCog(commands.Cog):
         if isinstance(error, commands.MissingRequiredArgument):
             await ctx.send(ctx.author.mention, embed=embeds.Affection.Add.usage)
 
+
 def setup(_bot):
     _bot.add_cog(CustomCog(_bot))
