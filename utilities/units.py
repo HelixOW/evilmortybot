@@ -6,7 +6,7 @@ import random as ra
 from PIL.Image import Image as Img
 from typing import List, Dict, Optional, Any
 from enum import Enum
-from utilities import img_size, unit_list, remove_trailing_whitespace, remove_beginning_ignore_case
+from utilities import img_size, unit_list, remove_trailing_whitespace, remove_beginning_ignore_case, image_to_discord
 from io import BytesIO
 
 
@@ -170,15 +170,6 @@ def map_affection(raw_affection: str) -> str:
     if raw_affection in all_affections:
         return raw_affection
     return Affection.NONE.value
-
-
-async def image_to_discord(img: Img, image_name: str = "image.png") -> \
-        discord.File:
-    with BytesIO() as image_bin:
-        img.save(image_bin, 'PNG')
-        image_bin.seek(0)
-        image_file = discord.File(fp=image_bin, filename=image_name)
-    return image_file
 
 
 async def compose_icon(attribute: Type, grade: Grade, background: Optional[Img] = None) -> \

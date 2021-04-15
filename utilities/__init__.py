@@ -1,14 +1,17 @@
-from typing import List, Pattern, Generator, Any, Dict, Tuple
+import asyncio
+from typing import List, Pattern, Generator, Any, Dict, Tuple, Callable
 from discord.ext import commands
 from discord.ext.commands import Context
 from itertools import islice
-from io import BytesIO, StringIO
+from io import StringIO, BytesIO
+from PIL.Image import Image
 
 import discord
 import sqlite3 as sqlite
 import re
 import logging
 
+import utilities.reactions
 
 logger = logging.getLogger('discord')
 logger.setLevel(logging.DEBUG)
@@ -69,6 +72,15 @@ class KingBot(commands.Bot):
         return await super().get_context(message, cls=cls)
 
 
+async def image_to_discord(img: Image, image_name: str = "image.png") -> \
+        discord.File:
+    with BytesIO() as image_bin:
+        img.save(image_bin, 'PNG')
+        image_bin.seek(0)
+        image_file = discord.File(fp=image_bin, filename=image_name)
+    return image_file
+
+
 def chunks(lst: List[Any], n: int) -> Generator[None, List[Any], None]:
     for i in range(0, len(lst), n):
         yield lst[i:i + n]
@@ -110,3 +122,44 @@ def td_format(td_object):
             strings.append("%s %s%s" % (period_value, period_name, has_s))
 
     return ", ".join(strings)
+
+
+async def send_paged_message(_bot: discord.ext.commands.Bot, ctx: Context, check_func: Callable, timeout: int, pages: List[Dict[str, Any]], buttons: Dict[str, Callable] = None):
+    if buttons is None:
+        buttons = {}
+
+    async def display_page(page: int, previous_message: discord.Message = None):
+        page_content: discord.Message = await ctx.send(
+            file=await image_to_discord(pages[page]["file"]),
+            content=pages[page]["content"],
+            embed=pages[page]["embed"]
+        )
+        if previous_message is not None:
+            await previous_message.delete()
+
+        if page != 0:
+            await page_content.add_reaction(utilities.reactions.LEFT_ARROW)
+
+        for emoji in buttons.keys():
+            await page_content.add_reaction(emoji)
+
+        if page != len(pages) - 1:
+            await page_content.add_reaction(utilities.reactions.RIGHT_ARROW)
+
+        try:
+            reaction, _ = await _bot.wait_for('reaction_add', check=check_func, timeout=timeout)
+            clicked: str = str(reaction.emoji)
+
+            if clicked == utilities.reactions.LEFT_ARROW and page != 0:
+                return await display_page(page - 1, page_content)
+
+            if clicked == utilities.reactions.RIGHT_ARROW and page != len(pages) - 1:
+                return await display_page(page + 1, page_content)
+
+            try:
+                buttons[clicked]()
+            except KeyError:
+                pass
+        except asyncio.TimeoutError:
+            await page_content.clear_reactions()
+    await display_page(0, None)

@@ -1,17 +1,20 @@
-import discord
 import asyncio
-import utilities.embeds as embeds
-import utilities.reactions as emojis
+from sqlite3 import Cursor
+from typing import Optional, Dict, List, Tuple
+
+import discord
+from PIL.Image import Image
 from discord.ext import commands
 from discord.ext.commands import Context
-from typing import Optional, Dict, List, Tuple
-from utilities import remove_trailing_whitespace, connection, all_banner_list, MemberMentionConverter, ssr_pattern
+
+import utilities.embeds as embeds
+import utilities.reactions as emojis
+from utilities import remove_trailing_whitespace, connection, all_banner_list, MemberMentionConverter, ssr_pattern, \
+    send_paged_message
 from utilities.banners import Banner, banner_by_name, unit_with_chance, BannerType, add_shaft
-from utilities.units import Unit, image_to_discord, unit_by_vague_name, Grade
-from utilities.image_composer import compose_banner_rotation, compose_multi_draw, compose_five_multi_draw,\
+from utilities.image_composer import compose_banner_rotation, compose_multi_draw, compose_five_multi_draw, \
     compose_draw, compose_unit_multi_draw, compose_unit_five_multi_draw, compose_banner_list, compose_box
-from PIL.Image import Image
-from sqlite3 import Cursor
+from utilities.units import Unit, image_to_discord, unit_by_vague_name, Grade
 
 loading_image_url: str = \
     "https://raw.githubusercontent.com/dokkanart/SDSGC/master/Loading%20Screens/Gacha/loading_gacha_start_01.png"
@@ -30,42 +33,27 @@ class DrawCog(commands.Cog):
     def __init__(self, _bot):
         self.bot = _bot
 
-    async def display_draw_menu(self, ctx: Context, last_message: discord.Message, person: discord.Member,
-                                from_banner: Banner,
-                                page: int, images: List[Image]):
-        img: discord.File = await image_to_discord(images[page], "units.png")
-        msg: discord.Message = await ctx.send(file=img,
-                                              content=f"{person.display_name} this is your {page + 1}. multi"
-                                              if person is ctx.author else
-                                              f"{person.display_name} this is your {page + 1}. multi coming from {ctx.author.display_name}",
-                                              embed=discord.Embed(
-                                                  title=f"{from_banner.pretty_name}"
-                                                        f"({11 if from_banner.banner_type == BannerType.ELEVEN else 5}x summon)")
-                                              .set_image(url="attachment://units.png"))
-        if last_message is not None:
-            await last_message.delete()
-        if page != 0:
-            await msg.add_reaction(emojis.LEFT_ARROW)
+    async def display_draw_menu(self, ctx: Context, person: discord.Member,
+                                from_banner: Banner, images: List[Image]):
 
-        if page != len(images) - 1:
-            await msg.add_reaction(emojis.RIGHT_ARROW)
-
-        if page == 0 and len(images) == 1:
-            return
-
-        def check(added_reaction, user):
-            return user == ctx.message.author or user == person and str(added_reaction.emoji) in [emojis.LEFT_ARROW,
-                                                                                                  emojis.RIGHT_ARROW]
-
-        try:
-            add_react, _ = await self.bot.wait_for('reaction_add', check=check, timeout=30)
-
-            if str(add_react.emoji) == emojis.LEFT_ARROW:
-                return await self.display_draw_menu(ctx, msg, person, from_banner, page - 1, images)
-            if str(add_react.emoji) == emojis.RIGHT_ARROW:
-                return await self.display_draw_menu(ctx, msg, person, from_banner, page + 1, images)
-        except asyncio.TimeoutError:
-            await msg.clear_reactions()
+        await send_paged_message(
+            self.bot, ctx,
+            check_func=lambda x, y: y == ctx.message.author or y == person and str(x.emoji) in [emojis.LEFT_ARROW,
+                                                                                                emojis.RIGHT_ARROW],
+            timeout=30,
+            pages=[
+                {
+                    "file": y,
+                    "embed": embeds.DrawEmbed(
+                        title=f"{from_banner.pretty_name}"
+                              f"({11 if from_banner.banner_type == BannerType.ELEVEN else 5}x summon)"),
+                    "content": f"{person.display_name} this is your {x + 1}. multi"
+                    if person is ctx.author else
+                    f"{person.display_name} this is your {x + 1}. multi coming from {ctx.author.display_name}",
+                }
+                for x, y in enumerate(images)
+            ]
+        )
 
     async def build_menu(self, ctx: Context, prev_message: discord.Message, page: int = 0) -> None:
         of_banner: Banner = all_banner_list[page]
@@ -186,12 +174,12 @@ class DrawCog(commands.Cog):
                 ).set_image(url="attachment://rotation.png"))
             return await draw.delete()
 
-        images: List[Image] = [await compose_multi_draw(from_banner=from_banner, user=person)
-                               if from_banner.banner_type == BannerType.ELEVEN else
-                               await compose_five_multi_draw(from_banner=from_banner, user=person)
-                               for _ in range(amount)]
-
-        await self.display_draw_menu(ctx, draw, person, from_banner, 0, images)
+        await self.display_draw_menu(ctx, person, from_banner,
+                                     [await compose_multi_draw(from_banner=from_banner, user=person)
+                                      if from_banner.banner_type == BannerType.ELEVEN else
+                                      await compose_five_multi_draw(from_banner=from_banner, user=person)
+                                      for _ in range(amount)])
+        await draw.delete()
 
     @commands.command()
     @commands.guild_only()
