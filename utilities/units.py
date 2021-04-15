@@ -254,7 +254,7 @@ class Unit:
         return embed
 
     async def discord_icon(self) -> discord.File:
-        return await image_to_discord(self.icon, "unit.png")
+        return await image_to_discord(self.icon)
 
     async def set_icon(self) -> Optional[Img]:
         if self.icon is None:
@@ -280,6 +280,9 @@ class Unit:
 
     def __str__(self) -> str:
         return f"Unit: {self.name} ({self.unit_id})"
+
+    def __eq__(self, other) -> bool:
+        return self.unit_id == other.unit_id
 
     @classmethod
     async def convert(cls, _, argument: str):

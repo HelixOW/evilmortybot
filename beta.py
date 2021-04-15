@@ -1,9 +1,7 @@
-import discord
 import aiohttp
 import utilities.embeds as embeds
 import utilities.reactions as emojis
 import structlog
-from asyncio import TimeoutError as TimedOutError
 from discord.ext import tasks
 from utilities import *
 from utilities.banners import create_jp_banner, create_custom_unit_banner
@@ -12,8 +10,7 @@ from utilities.units import image_to_discord, unit_by_vague_name, compose_icon
 from utilities.image_composer import compose_unit_list, compose_awakening
 from utilities.awaken import *
 from utilities.tarot import *
-# from utilities.kofas_scrapper import fetch_data, add_channel, fetch_data_manual
-from discord.ext.commands import Context, HelpCommand, has_permissions
+from discord.ext.commands import Context, has_permissions
 from datetime import datetime
 from io import BytesIO
 from PIL.Image import Image
@@ -205,9 +202,9 @@ async def info_cmd(ctx: Context, *, of_name: str):
         pages=[{
             "file": await x.set_icon(),
             "embed": (await x.info_embed()).set_thumbnail(url="attachment://image.png"),
-            "content": "\u200b"
+            "content": None
         } for x in ofs],
-        buttons={}
+        buttons=[]
     )
 
 

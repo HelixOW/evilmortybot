@@ -7,7 +7,15 @@ import utilities.reactions as e
 import utilities.images as i
 
 
-class ErrorEmbed(Embed):
+class DefaultEmbed(Embed):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.colour = discord.Colour.dark_teal()
+        self.set_footer(text="© Heⅼіх Sama#0578",
+                        icon_url="https://cdn.discordapp.com/avatars/456276194581676062/dda3dc4e7a35fbe4afef3488054363cc.webp?size=256")
+
+
+class ErrorEmbed(DefaultEmbed):
     def __init__(self, error_message: str = "\u200b", **kwargs):
         super().__init__(**kwargs)
         self.colour = discord.Colour.dark_red()
@@ -15,8 +23,6 @@ class ErrorEmbed(Embed):
             name="Error: " + error_message,
             icon_url="https://raw.githubusercontent.com/WhoIsAlphaHelix/evilmortybot/master/data/images/error.png"
         )
-        self.set_footer(text="© Heⅼіх Sama#0578",
-                        icon_url="https://cdn.discordapp.com/avatars/456276194581676062/dda3dc4e7a35fbe4afef3488054363cc.webp?size=256")
 
     def set_title(self, error_title: str):
         self.set_author(
@@ -26,7 +32,7 @@ class ErrorEmbed(Embed):
         return self
 
 
-class HelpEmbed(Embed):
+class HelpEmbed(DefaultEmbed):
     def __init__(self, help_title: str, **kwargs):
         super().__init__(**kwargs)
         self.colour = discord.Colour.gold()
@@ -34,8 +40,6 @@ class HelpEmbed(Embed):
             name=help_title,
             icon_url="https://raw.githubusercontent.com/WhoIsAlphaHelix/evilmortybot/master/data/images/help.png"
         )
-        self.set_footer(text="© Heⅼіх Sama#0578",
-                        icon_url="https://cdn.discordapp.com/avatars/456276194581676062/dda3dc4e7a35fbe4afef3488054363cc.webp?size=256")
         self.blank_fields = 0
 
     def add_blank_field(self, inline=False):
@@ -62,7 +66,7 @@ class SuccessEmbed(Embed):
         return self
 
 
-class DrawEmbed(Embed):
+class DrawEmbed(DefaultEmbed):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.colour = discord.Colour.dark_teal()
@@ -72,7 +76,6 @@ class DrawEmbed(Embed):
 
 
 class Help:
-
     general_help: HelpEmbed = HelpEmbed(
         help_title="General Help",
         description="*Commands* (Either starts with `..`, `k> ` or `d> `)"
@@ -440,5 +443,5 @@ class TourneyEmbeds:
                                 description=m.Tourney.Help.desc)
 
 
-LOADING_EMBED: Embed = discord.Embed(title=m.loading)
-IMAGES_LOADED_EMBED: Embed = discord.Embed(title=m.loaded)
+LOADING_EMBED: DefaultEmbed = discord.Embed(title=m.loading).set_thumbnail(url="https://raw.githubusercontent.com/WhoIsAlphaHelix/evilmortybot/master/data/images/loading.gif")
+IMAGES_LOADED_EMBED: DefaultEmbed = discord.Embed(title=m.loaded)

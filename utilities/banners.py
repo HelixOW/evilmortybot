@@ -70,13 +70,28 @@ class Banner:
 
         self.background: str = bg_url
 
-        self.shaftable: bool = len([x for x in name if "gssr" in name]) == 0
+        self.shaftable: bool = len([x for x in name if "gssr" in x]) == 0
 
     def __repr__(self) -> str:
         return "Banner: " + ", ".join([f"{x}: {self.__getattribute__(x)} " for x in dir(self)])
 
     def __str__(self) -> str:
         return f"Banner: {self.name}"
+
+    def contains_any_unit(self, possible_units: List[Unit]):
+        return len([a for a in possible_units if a.unit_id in [b.unit_id for b in self.all_units]]) != 0
+
+
+def find_banner_containing_unit(u: Unit) -> Banner:
+    return next((banner for banner in all_banner_list if u in banner.all_units), None)
+
+
+def find_banner_containing_any_unit(us: List[Unit]):
+    for u in us:
+        banner_containing = find_banner_containing_unit(u)
+        if banner_containing is not None:
+            return banner_containing
+    raise ValueError
 
 
 def banner_by_name(name: str) -> Optional[Banner]:

@@ -1,17 +1,17 @@
-import asyncio
 from sqlite3 import Cursor
 from typing import Optional, Dict, List, Tuple
 
 import discord
-from PIL.Image import Image
 from discord.ext import commands
 from discord.ext.commands import Context
 
 import utilities.embeds as embeds
 import utilities.reactions as emojis
+from utilities.embeds import DefaultEmbed
 from utilities import remove_trailing_whitespace, connection, all_banner_list, MemberMentionConverter, ssr_pattern, \
     send_paged_message
-from utilities.banners import Banner, banner_by_name, unit_with_chance, BannerType, add_shaft
+from utilities.banners import Banner, banner_by_name, unit_with_chance, BannerType, add_shaft, \
+    find_banner_containing_any_unit
 from utilities.image_composer import compose_banner_rotation, compose_multi_draw, compose_five_multi_draw, \
     compose_draw, compose_unit_multi_draw, compose_unit_five_multi_draw, compose_banner_list, compose_box
 from utilities.units import Unit, image_to_discord, unit_by_vague_name, Grade
@@ -29,96 +29,15 @@ async def read_box(user: discord.Member) -> Dict[int, int]:
                                  ORDER BY u.grade DESC, box_units.amount DESC;""", (user.id, user.guild.id))}
 
 
+def join_banner(other_str: str, banner_name: str):
+    if other_str in ["banner", "part", "gssr", "race", "humans", "soluna", "commandments", "jp", "custom"]:
+        return None, other_str + " " + banner_name
+    return other_str, banner_name
+
+
 class DrawCog(commands.Cog):
     def __init__(self, _bot):
         self.bot = _bot
-
-    async def display_draw_menu(self, ctx: Context, person: discord.Member,
-                                from_banner: Banner, images: List[Image]):
-
-        await send_paged_message(
-            self.bot, ctx,
-            check_func=lambda x, y: y == ctx.message.author or y == person and str(x.emoji) in [emojis.LEFT_ARROW,
-                                                                                                emojis.RIGHT_ARROW],
-            timeout=30,
-            pages=[
-                {
-                    "file": y,
-                    "embed": embeds.DrawEmbed(
-                        title=f"{from_banner.pretty_name}"
-                              f"({11 if from_banner.banner_type == BannerType.ELEVEN else 5}x summon)"),
-                    "content": f"{person.display_name} this is your {x + 1}. multi"
-                    if person is ctx.author else
-                    f"{person.display_name} this is your {x + 1}. multi coming from {ctx.author.display_name}",
-                }
-                for x, y in enumerate(images)
-            ]
-        )
-
-    async def build_menu(self, ctx: Context, prev_message: discord.Message, page: int = 0) -> None:
-        of_banner: Banner = all_banner_list[page]
-        summon_menu_emojis: List[str] = [emojis.LEFT_ARROW, emojis.NO_1,
-                                         emojis.NO_10 if of_banner.banner_type == BannerType.ELEVEN else emojis.NO_5,
-                                         emojis.WHALE, emojis.INFO, emojis.RIGHT_ARROW]
-        await prev_message.clear_reactions()
-        draw: discord.Message = prev_message
-
-        await draw.edit(content=f"{ctx.message.author.mention}",
-                        embed=discord.Embed(
-                            title=all_banner_list[page].pretty_name
-                        ).set_image(url=all_banner_list[page].background))
-
-        if page == 0:
-            await asyncio.gather(
-                draw.add_reaction(summon_menu_emojis[1]),
-                draw.add_reaction(summon_menu_emojis[2]),
-                draw.add_reaction(summon_menu_emojis[3]),
-                draw.add_reaction(summon_menu_emojis[4]),
-                draw.add_reaction(summon_menu_emojis[5]),
-            )
-        elif page == len(all_banner_list) - 1:
-            await asyncio.gather(
-                draw.add_reaction(summon_menu_emojis[0]),
-                draw.add_reaction(summon_menu_emojis[1]),
-                draw.add_reaction(summon_menu_emojis[2]),
-                draw.add_reaction(summon_menu_emojis[3]),
-                draw.add_reaction(summon_menu_emojis[4]),
-            )
-        else:
-            await asyncio.gather(
-                draw.add_reaction(summon_menu_emojis[0]),
-                draw.add_reaction(summon_menu_emojis[1]),
-                draw.add_reaction(summon_menu_emojis[2]),
-                draw.add_reaction(summon_menu_emojis[3]),
-                draw.add_reaction(summon_menu_emojis[4]),
-                draw.add_reaction(summon_menu_emojis[5]),
-            )
-
-        try:
-            def check_banner(added_reaction, user):
-                return user == ctx.message.author and str(added_reaction.emoji) in summon_menu_emojis
-
-            reaction, _ = await self.bot.wait_for("reaction_add", check=check_banner)
-
-            if emojis.RIGHT_ARROW in str(reaction.emoji):
-                return await self.build_menu(ctx, prev_message=draw, page=page + 1)
-            if emojis.LEFT_ARROW in str(reaction.emoji):
-                return await self.build_menu(ctx, prev_message=draw, page=page - 1)
-            if (emojis.NO_10 if all_banner_list[page].banner_type == BannerType.ELEVEN else emojis.NO_5) in str(
-                    reaction.emoji):
-                await draw.delete()
-                return await self.multi(ctx, person=ctx.author, banner_name=all_banner_list[page].name[0])
-            if emojis.NO_1 in str(reaction.emoji):
-                await draw.delete()
-                return await self.single(ctx, person=ctx.author, banner_name=all_banner_list[page].name[0])
-            if emojis.WHALE in str(reaction.emoji):
-                await draw.delete()
-                return await self.shaft(ctx, person=ctx.author, banner_name=all_banner_list[page].name[0])
-            if emojis.INFO in str(reaction.emoji):
-                await draw.delete()
-                return await self.banner(ctx, banner_name=all_banner_list[page].name[0])
-        except asyncio.TimeoutError:
-            pass
 
     @commands.command()
     @commands.guild_only()
@@ -174,24 +93,95 @@ class DrawCog(commands.Cog):
                 ).set_image(url="attachment://rotation.png"))
             return await draw.delete()
 
-        await self.display_draw_menu(ctx, person, from_banner,
-                                     [await compose_multi_draw(from_banner=from_banner, user=person)
-                                      if from_banner.banner_type == BannerType.ELEVEN else
-                                      await compose_five_multi_draw(from_banner=from_banner, user=person)
-                                      for _ in range(amount)])
-        await draw.delete()
+        await send_paged_message(
+            self.bot, ctx,
+            check_func=lambda x, y: y == ctx.message.author or y == person and str(x.emoji) in [emojis.LEFT_ARROW,
+                                                                                                emojis.RIGHT_ARROW],
+            timeout=30,
+            pages=[
+                {
+                    "file": y,
+                    "embed": embeds.DrawEmbed(
+                        title=f"{from_banner.pretty_name}"
+                              f"({11 if from_banner.banner_type == BannerType.ELEVEN else 5}x summon)"),
+                    "content": f"{person.display_name} this is your {x + 1}. multi"
+                    if person is ctx.author else
+                    f"{person.display_name} this is your {x + 1}. multi coming from {ctx.author.display_name}",
+                }
+                for x, y in enumerate([await compose_multi_draw(from_banner=from_banner, user=person)
+                                       if from_banner.banner_type == BannerType.ELEVEN else
+                                       await compose_five_multi_draw(from_banner=from_banner, user=person)
+                                       for _ in range(amount)])
+            ],
+            after_message=draw.delete
+        )
 
     @commands.command()
     @commands.guild_only()
     async def summon(self, ctx: Context):
-        draw: discord.Message = await ctx.send(embed=embeds.LOADING_EMBED)
-        await self.build_menu(ctx, prev_message=draw)
+        loading_message: discord.Message = await ctx.send(embed=embeds.LOADING_EMBED)
+        summon_menu_emojis: List[str] = [emojis.LEFT_ARROW,
+                                         emojis.NO_1,
+                                         emojis.NO_10, emojis.NO_5,
+                                         emojis.WHALE,
+                                         emojis.INFO,
+                                         emojis.RIGHT_ARROW]
+
+        async def no_1(msg: discord.Message, _page: int):
+            await msg.delete()
+            return await ctx.send(file=await compose_draw(all_banner_list[_page], ctx.author),
+                                  content=f"{ctx.author.mention} this is your single",
+                                  embed=embeds.DrawEmbed(title=f"{all_banner_list[_page].pretty_name} (1x summon)"))
+
+        async def no_10(msg: discord.Message, _page: int):
+            await msg.delete()
+            await ctx.send(
+                content=f"{ctx.author.display_name} this is your multi",
+                file=await image_to_discord(
+                    await compose_multi_draw(from_banner=all_banner_list[_page], user=ctx.author)
+                    if all_banner_list[_page].banner_type == BannerType.ELEVEN else
+                    await compose_five_multi_draw(from_banner=all_banner_list[_page], user=ctx.author)),
+                embed=embeds.DrawEmbed(
+                    title=f"{all_banner_list[_page].pretty_name}"
+                          f"({11 if all_banner_list[_page].banner_type == BannerType.ELEVEN else 5}x summon)")
+            )
+
+        async def whale(msg: discord.Message, _page: int):
+            await msg.delete()
+            return await self.shaft(ctx, person=ctx.author, banner_name=all_banner_list[_page].name[0])
+
+        async def banner_info(msg: discord.Message, _page: int):
+            await msg.delete()
+            return await self.banner(ctx, banner_name=all_banner_list[_page].name[0])
+
+        await loading_message.delete()
+
+        await send_paged_message(
+            self.bot, ctx,
+            check_func=lambda r, u: u == ctx.author and str(r.emoji) in summon_menu_emojis,
+            timeout=60,
+            pages=[{
+                "content": f"{ctx.author.mention}",
+                "embed": DefaultEmbed(
+                    title=x.pretty_name
+                ).set_image(url=x.background),
+                "file": None
+            } for x in all_banner_list],
+            buttons=[{
+                emojis.NO_1: no_1,
+                emojis.NO_10 if x.banner_type == BannerType.ELEVEN else emojis.NO_5: no_10,
+                emojis.WHALE if x.shaftable else None: whale,
+                emojis.INFO: banner_info
+            } for x in all_banner_list]
+        )
 
     @commands.command()
     @commands.guild_only()
-    async def single(self, ctx: Context, person: Optional[discord.Member], *, banner_name: str = "banner 1"):
+    async def single(self, ctx: Context, person: Optional[discord.Member], amount: str = None, *,
+                     banner_name: str = "banner 1"):
         if person is None:
             person: discord.Member = ctx.author
+
         from_banner: Optional[Banner] = banner_by_name(banner_name)
         if from_banner is None:
             return await ctx.send(content=f"{ctx.author.mention}",
@@ -212,9 +202,9 @@ class DrawCog(commands.Cog):
         if person is None:
             person: discord.Member = ctx.author
 
-        if unit_name in ["banner", "part", "gssr", "race", "humans", "soluna", "commandments", "jp", "custom"]:
-            banner_name: str = unit_name + " " + banner_name
-            unit_name: str = "none"
+        joined = join_banner(unit_name, banner_name)
+        unit_name = joined[0]
+        banner_name = joined[1]
 
         from_banner: Banner = banner_by_name(banner_name)
         if from_banner is None:
@@ -230,24 +220,21 @@ class DrawCog(commands.Cog):
             unit_ssr: bool = True
             unit_name: str = ssr_pattern.sub("", unit_name)
 
-        possible_units: List[int] = [a.unit_id for a in unit_by_vague_name(unit_name)]
+        possible_units: List[int] = unit_by_vague_name(unit_name)
 
-        if len(possible_units) != 0 and len(
-                [a for a in possible_units if a in [b.unit_id for b in from_banner.all_units]]) == 0:
-            possible_other_banner: Optional[Banner] = None
-            for b1 in all_banner_list:
-                matching_units: List[Unit] = [x for x in b1.all_units if x.unit_id in possible_units]
-                if len(matching_units) > 0:
-                    possible_other_banner: Banner = b1
-                    break
-            from_banner: Banner = possible_other_banner
+        if not from_banner.contains_any_unit(possible_units):
+            try:
+                from_banner = find_banner_containing_any_unit(possible_units)
+            except ValueError:
+                return await ctx.send(content=f"{ctx.author.mention}",
+                                      embed=embeds.ErrorEmbed(
+                                          error_message=f"Can't find any banner with {unit_name} in it"
+                                      ))
 
         if from_banner is None:
             return await ctx.send(content=f"{ctx.author.mention}",
-                                  embed=discord.Embed(
-                                      title="Error",
-                                      colour=discord.Color.dark_red(),
-                                      description=f"Can't find any banner with {unit_name} in it"
+                                  embed=embeds.ErrorEmbed(
+                                      error_message=f"Can't find any banner with {unit_name} in it"
                                   ))
 
         if not from_banner.shaftable:
@@ -285,23 +272,23 @@ class DrawCog(commands.Cog):
 
         i: int = 0
         drawn_units: List[Unit] = [(await unit_with_chance(from_banner, person)) for _ in range(rang)]
-        drawn_ssrs: Dict[Unit, int] = {}
+        drawn_ssrs: Dict[int, int] = {}
         for x in drawn_units:
             if x.grade == Grade.SSR:
-                if x not in drawn_ssrs:
-                    drawn_ssrs[x] = 1
+                if x.unit_id not in drawn_ssrs:
+                    drawn_ssrs[x.unit_id] = 1
                 else:
-                    drawn_ssrs[x] += 1
+                    drawn_ssrs[x.unit_id] += 1
 
         while not await has_ssr(drawn_units) and i < 1000:
             i += 1
             drawn_units: List[Unit] = [(await unit_with_chance(from_banner, person)) for _ in range(rang)]
             for x in drawn_units:
                 if x.grade == Grade.SSR:
-                    if x not in drawn_ssrs:
-                        drawn_ssrs[x] = 1
+                    if x.unit_id not in drawn_ssrs:
+                        drawn_ssrs[x.unit_id] = 1
                     else:
-                        drawn_ssrs[x] += 1
+                        drawn_ssrs[x.unit_id] += 1
 
         connection.commit()
         multi_msg: str = "Multi" if i == 0 else "Multis"
@@ -310,14 +297,12 @@ class DrawCog(commands.Cog):
             file=await image_to_discord(
                 await compose_unit_multi_draw(units=drawn_units,
                                               ssrs=drawn_ssrs) if from_banner.banner_type == BannerType.ELEVEN
-                else await compose_unit_five_multi_draw(units=drawn_units),
-                "units.png"),
+                else await compose_unit_five_multi_draw(units=drawn_units)),
             content=f"{person.mention}: Your shaft" if person is ctx.author
             else f"{person.mention}: Your shaft coming from {ctx.author.mention}",
-            embed=discord.Embed(
+            embed=embeds.DrawEmbed(
                 title=f"{from_banner.pretty_name} ({rang}x summon)",
-                description=f"You did {i + 1}x {multi_msg}. \n With this being your final pull:").set_image(
-                url="attachment://units.png"))
+                description=f"You did {i + 1}x {multi_msg}. \n With this being your final pull:"))
         await draw.delete()
         await add_shaft(person, i)
 

@@ -75,7 +75,7 @@ class KingBot(commands.Bot):
 async def image_to_discord(img: Image, image_name: str = "image.png") -> \
         discord.File:
     with BytesIO() as image_bin:
-        img.save(image_bin, 'PNG')
+        img.save(image_bin, 'webp', quality=10, optimize=True)
         image_bin.seek(0)
         image_file = discord.File(fp=image_bin, filename=image_name)
     return image_file
@@ -124,24 +124,53 @@ def td_format(td_object):
     return ", ".join(strings)
 
 
-async def send_paged_message(_bot: discord.ext.commands.Bot, ctx: Context, check_func: Callable, timeout: int, pages: List[Dict[str, Any]], buttons: Dict[str, Callable] = None):
+async def send_paged_message(_bot: discord.ext.commands.Bot, ctx: Context,
+                             check_func: Callable,
+                             timeout: int,
+                             pages: List[Dict[str, Any]],
+                             buttons: List[Dict[Callable[[], str], Callable[[discord.Message, int], Any]]] = None,
+                             after_message: Callable = None):
     if buttons is None:
-        buttons = {}
+        buttons = [{} for _, _ in enumerate(pages)]
 
     async def display_page(page: int, previous_message: discord.Message = None):
-        page_content: discord.Message = await ctx.send(
-            file=await image_to_discord(pages[page]["file"]),
-            content=pages[page]["content"],
-            embed=pages[page]["embed"]
-        )
-        if previous_message is not None:
-            await previous_message.delete()
+        if previous_message is None:
+            page_content: discord.Message = await ctx.send(
+                file=await image_to_discord(pages[page]["file"]) if pages[page]["file"] is not None else None,
+                content=pages[page]["content"],
+                embed=pages[page]["embed"]
+            )
+        else:
+            if pages[page]["file"] is None:
+                await previous_message.edit(
+                    content=pages[page]["content"],
+                    embed=pages[page]["embed"]
+                )
+                page_content: discord.Message = previous_message
+                await page_content.clear_reactions()
+            else:
+                page_content: discord.Message = await ctx.send(
+                    file=await image_to_discord(pages[page]["file"]) if pages[page]["file"] is not None else None,
+                    content=pages[page]["content"],
+                    embed=pages[page]["embed"]
+                )
+                await previous_message.delete()
+
+        if after_message is not None:
+            try:
+                await after_message()
+            except:
+                pass
+
+        if len(pages) == 1:
+            return
 
         if page != 0:
             await page_content.add_reaction(utilities.reactions.LEFT_ARROW)
 
-        for emoji in buttons.keys():
-            await page_content.add_reaction(emoji)
+        for emoji in buttons[page].keys():
+            if emoji is not None:
+                await page_content.add_reaction(emoji)
 
         if page != len(pages) - 1:
             await page_content.add_reaction(utilities.reactions.RIGHT_ARROW)
@@ -157,7 +186,8 @@ async def send_paged_message(_bot: discord.ext.commands.Bot, ctx: Context, check
                 return await display_page(page + 1, page_content)
 
             try:
-                buttons[clicked]()
+                if buttons[page][clicked] is not None:
+                    await buttons[page][clicked](page_content, page)
             except KeyError:
                 pass
         except asyncio.TimeoutError:
