@@ -15,7 +15,7 @@ class DefaultEmbed(Embed):
                         icon_url="https://cdn.discordapp.com/avatars/456276194581676062/dda3dc4e7a35fbe4afef3488054363cc.webp?size=256")
 
 
-class ErrorEmbed(DefaultEmbed):
+class ErrorEmbed(Embed):
     def __init__(self, error_message: str = "\u200b", **kwargs):
         super().__init__(**kwargs)
         self.colour = discord.Colour.dark_red()
