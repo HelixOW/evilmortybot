@@ -203,8 +203,7 @@ async def info_cmd(ctx: Context, *, of_name: str):
             "file": await x.set_icon(),
             "embed": (await x.info_embed()).set_thumbnail(url="attachment://image.png"),
             "content": None
-        } for x in ofs],
-        buttons=[]
+        } for x in ofs]
     )
 
 
