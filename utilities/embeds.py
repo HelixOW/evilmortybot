@@ -40,6 +40,7 @@ class HelpEmbed(DefaultEmbed):
             name=help_title,
             icon_url="https://raw.githubusercontent.com/WhoIsAlphaHelix/evilmortybot/master/data/images/help.png"
         )
+        self.set_thumbnail(url="https://cdn.discordapp.com/avatars/456276194581676062/dda3dc4e7a35fbe4afef3488054363cc.webp?size=256")
         self.blank_fields = 0
 
     def add_blank_field(self, inline=False):
@@ -97,48 +98,44 @@ class Help:
     ).add_field(
         name="List",
         value="```help list```"
-    ).set_thumbnail(url="https://cdn.discordapp.com/avatars/456276194581676062/dda3dc4e7a35fbe4afef3488054363cc.webp?size=256")
+    )
 
-    pvp_help: HelpEmbed = HelpEmbed(help_title="PvP Help").add_field(
-        name="unit [criteria]",
-        value="""```Displays a random unit matching the provided criteria
+    pvp_help: HelpEmbed = HelpEmbed(help_title="PvP Help", description="For *criteria* please check bottom").add_field(
+        name="Unit",
+        value="""__Usage__:
+> `unit [criteria]`
+```Displays a random unit matching the provided criteria```"""
+    ).add_blank_field().add_field(
+        name="Team",
+        value="""__Usage__:
+> `team [criteria]`
+```Displays a random team matching the provided criteria
         
-Please check criteria down below```"""
-    ).add_field(
-        name="team [criteria]",
-        value="""```Displays a random team matching the provided criteria
+If you don't own a unit, click on the number below the message```"""
+    ).add_blank_field().add_field(
+        name="PvP",
+        value="""__Usage__:
+> `pvp <@Enemy> [criteria]`
+```Create 2 random teams.
         
-If you don't own a unit, click on the number below the message
-        
-Please check criteria down below```
-        \u200b"""
-    ).add_field(
-        name="pvp <@Enemy> [criteria]",
-        value="""```Create 2 random teams.
-        
-Each player gets to reroll units he doesn't obtain.
-        
-Please check criteria down below```"""
-    ).add_field(
-        name="tarot",
-        value="""```Custom Rule Set PvP Mode created by 
+Each player gets to reroll units he doesn't obtain.```"""
+    ).add_blank_field().add_field(
+        name="Tarot",
+        value="""__Usage__:
+> `tarot`
+```Custom Rule Set PvP Mode created by 
     Jeremy Hex#0364
         
 For ruleset do:``` ```yaml\n..tarot rules```"""
     ).add_blank_field().add_field(
         name="Criteria",
         value="""
-        > race: `demons, giants, humans, fairies, goddess, unknown`
-        > 
-        > type: `blue, red, green`
-        > 
-        > grade: `r, sr, ssr`
-        > 
-        > event: `gc, slime, aot, kof, new year, halloween, festival, valentine, rezero`
-        > 
-        > affection: `sins, commandments, holy knights, catastrophes, archangels, none, custom added ones...`
-        > 
-        > name: `name1, name2, name3, ..., nameN`
+        > **race**: `demons, giants, humans, fairies, goddess, unknown`
+        > **type**: `blue, red, green`
+        > **grade**.: `r, sr, ssr`
+        > **event**: `gc, slime, aot, kof, new year, halloween, festival, valentine, rezero`
+        > **affection**: `sins, commandments, holy knights, catastrophes, archangels, none, custom added ones...`
+        > **name**: `name1, name2, name3, ..., nameN`
         
         
         If you want to define __multiple values append__ them with a `,` after each value
@@ -148,27 +145,33 @@ For ruleset do:``` ```yaml\n..tarot rules```"""
         > `race: demon*2, giants*2`
         
         If you want to use __multiple criterias append__ a `&` after each criteria
-        > `race: demon & grade: ssr`
+        > `race: demon & grade: ssr`.
         """
-    ).set_thumbnail(url="https://cdn.discordapp.com/avatars/456276194581676062/dda3dc4e7a35fbe4afef3488054363cc.webp?size=256")
+    )
 
     draw_help: HelpEmbed = HelpEmbed(help_title="Draw Help").add_field(
-        name="single [@For] [banner]",
-        value="""```Emulates a single draw on the given banner and adds the unit to @For's the box.
+        name="Single",
+        value="""__Usage__:
+> `single [@For] [banner]`
+```Emulates a single draw on the given banner and adds the unit to @For's the box.
         
 If @For is not provided, you will do a single for yourself.
         
 For a list of all available banners do:``` ```yaml\n..list banner``` 
-        """
+"""
     ).add_blank_field().add_field(
-        name="multi [@For] [amount] [banner]",
-        value="""```Same as single, but with a 5x or 11x Draw.
+        name="Multi",
+        value="""__Usage__:
+> `multi [@For] [amount] [banner]`
+```Same as single, but with a 5x or 11x Draw.
         
 If amount is more then 1, a menu button appears and you can navigate through the multis.
 Instead of a number you can also provide "rotation" or "rot" to do multis worth of 900 gems.```"""
     ).add_blank_field().add_field(
-        name="shaft [@For] [unit] [banner]",
-        value="""```Same as single / multi. Except it will do multis until you pull a SSR Unit.
+        name="Shaft",
+        value="""__Usage__:
+> `shaft [@For] [unit] [banner]`        
+```Same as single / multi. Except it will do multis until you pull a SSR Unit.
         
 If a unit is provided it will do multis until you pull the desired unit.
         
@@ -178,8 +181,10 @@ If the provided unit has different forms, and you want a specific one, make sure
 Some units have small abbreviations as well, to check if the unit has a abbreviation do:``` ```yaml
 ..info <as detailed name as possible>```"""
     ).add_blank_field().add_field(
-        name="summon",
-        value=f"""```Create a menu emulating the GC Gacha Menu.``` ```yaml
+        name="Summon",
+        value=f"""__Usage__:
+> `summon`
+```Create a menu emulating the GC Gacha Menu.``` ```yaml
 {e.LEFT_ARROW} - Go to the previous banner
         
 {e.NO_1} - Do a single on the selected banner
@@ -192,105 +197,135 @@ Some units have small abbreviations as well, to check if the unit has a abbrevia
         
 {e.RIGHT_ARROW} - Go to the next banner```"""
     ).add_blank_field().add_field(
-        name="banner [banner name]",
-        value="""```Shows a list of all SSRs in the provided banner```"""
+        name="Banner",
+        value="""__Usage__:
+> `banner [banner name] `
+```Shows a list of all SSRs in the provided banner```"""
     ).add_blank_field().add_field(
-        name="box [@Of]",
-        value="""```Show all units @Of has pulled so far.
+        name="Box",
+        value="""__Usage__:
+> `box [@Of]`
+```Show all units @Of has pulled so far.
         
 If @Of is not provided, it will display your box```"""
-    ).set_thumbnail(url="https://cdn.discordapp.com/avatars/456276194581676062/dda3dc4e7a35fbe4afef3488054363cc.webp?size=256")
+    )
 
     stats_help: HelpEmbed = HelpEmbed(help_title="Stats Help").add_field(
-        name="stats [@Of] [type]",
-        value="""```Displays @Of's draw statistics.
+        name="Stats",
+        value="""__Usage__:
+> `stats [@Of] [type]`
+```Displays @Of's draw statistics.
         
-If @Of is not provided, you will be used.
+If @Of is not provided, you will be used.```"""
+    ).add_blank_field().add_field(
+        name="Top",
+        value="""__Usage__:
+> `top [type]`
+```Displays the top 10 members in the provided type.
         
-Allowed types are:``` ```yaml
+If no type is provided the top 5 members in every type is being displayed```"""
+    ).add_blank_field().add_field(
+        name="Types",
+        value="""```yaml
  luck
  ssrs
  units
  shafts```"""
-    ).add_field(
-        name="top [type]",
-        value="""```Displays the top 10 members in the provided type.
-        
-If no type is provided the top 5 members in every type is being displayed
-        
-Allowed types are:``` ```yaml
- luck
- ssrs
- units
- shafts```"""
-    ).set_thumbnail(url="https://cdn.discordapp.com/avatars/456276194581676062/dda3dc4e7a35fbe4afef3488054363cc.webp?size=256")
-
+    )
 
     list_help: HelpEmbed = HelpEmbed(help_title="List Help").add_field(
-        name="find <unit names>",
-        value="""```Displays all unit with the provided name in their own name
+        name="Find",
+        value="""__Usage__:
+> `find <unit name 1>, <unit name 2>`
+```Displays all unit with the provided name in their own name
         
 e.g. "Escanor" would display the full name of all 3 Escanors```"""
-    ).add_field(
-        name="list unit [criteria]",
-        value="""```Displays all units matching the given criteria.
+    ).add_blank_field().add_field(
+        name="List of units",
+        value="""__Usage__:
+> `list unit [critera]`
+```Displays all units matching the given criteria.
         
 If no criteria is given, it will by default display all custom created units.```"""
-    ).add_field(
-        name="list banner",
-        value="```Displays a list of all available Banners in the bot at this moment.```"
-    ).add_field(
+    ).add_blank_field().add_field(
+        name="List of banners",
+        value=""""__Usage__:
+> `list banner`
+```Displays a list of all available Banners in the bot at this moment.```"""
+    ).add_blank_field().add_field(
         name="list tarot",
-        value="```Displays a menu with all Tarot Units in the bot.```"
-    ).set_thumbnail(url="https://cdn.discordapp.com/avatars/456276194581676062/dda3dc4e7a35fbe4afef3488054363cc.webp?size=256")
+        value="""__Usage__:
+> `list tarot`
+```Displays a menu with all Tarot Units in the bot.```"""
+    )
 
     demon_help: HelpEmbed = HelpEmbed(
         help_title="Demon Help",
         description="In case you claim demons from someone you don't share a server with you can reply to the offer message to message the person."
     ).add_field(
-        name="demon offer <reds> <greys> <crimsons> [additional messages]",
-        value="""```Offers demons to all registered demon channels.
+        name="Offer",
+        value="""__Usage__:
+> `demon offer <reds> <greys> <crimsons> [additional messages]`
+```Offers demons to all registered demon channels.
         
-If you click "Ok" the offer gets deleted.```
-\u200b"""
-    ).add_blank_field(True).add_field(
-        name="demon code [@Of]",
-        value="""```Displays the first registered Friendcode of "@Of"
+If you click "Ok" the offer gets deleted.```"""
+    ).add_blank_field().add_field(
+        name="Friendcode",
+        value="""__Usage__:
+> `demon code [@Of]`
+```Displays the first registered Friendcode of "@Of"
         
-If "@Of" is not provided, your own code will be shown```
-\u200b"""
+If "@Of" is not provided, your own code will be shown```"""
     ).add_field(
-        name="demon tag <grand cross friendcode> [name]",
-        value="""```Registers a new profile in the bot, linked to you.
+        name="Creating Profile",
+        value="""__Usage__:
+> `demon tag <grand cross friendcode> [name]`
+```Registers a new profile in the bot, linked to you.
         
 If you have multiple account please provide the account name after the friendcode```"""
-    ).add_blank_field(True).add_field(
-        name="demon info [@Of]",
-        value="""```Shows all Profiles of "@Of"```"""
-    ).set_thumbnail(url="https://cdn.discordapp.com/avatars/456276194581676062/dda3dc4e7a35fbe4afef3488054363cc.webp?size=256")
+    ).add_blank_field().add_field(
+        name="Accounts",
+        value="""__Usage__:
+> `demon info [@Of]`
+```Shows all Profiles of "@Of"```"""
+    ).set_image(url="attachment://image.png")
 
-    custom_help: HelpEmbed = HelpEmbed(
-        help_title="Custom Help"
-    ).add_field(
-        name="custom",
-        value="```Please issue the command for more info```"
-    ).set_thumbnail(url="https://cdn.discordapp.com/avatars/456276194581676062/dda3dc4e7a35fbe4afef3488054363cc.webp?size=256")
+    @staticmethod
+    async def send_demon_help(ctx, content: str):
+        return await ctx.send(
+            content=content,
+            file=await image_to_discord(i.demon_banner),
+            embed=Help.demon_help
+        )
+
+    custom_help: HelpEmbed = HelpEmbed(help_title="Custom Help").add_field(
+        name="Affections",
+        value="""```affection```"""
+    ).add_blank_field().add_field(
+        name="Units",
+        value="""```custom```"""
+    )
 
 
 class Stats:
     no_summon_embed: ErrorEmbed = ErrorEmbed(
         error_message="No summons yet",
-        description="Use `..multi`, `..single` or `..shaft`",
+        description="Use `multi`, `single` or `shaft` command",
     )
 
 
 class Unit:
-    lookup_error: ErrorEmbed = ErrorEmbed(error_message="Can't find any unit which matches given criteria")
+    @staticmethod
+    def lookup_error(criteria: str):
+        return ErrorEmbed(f"Can't find any unit which matches `{criteria}`")
 
 
 class Team:
-    lookup_error: ErrorEmbed = ErrorEmbed(error_message="Can't find any team which matches given criteria")
     cooldown_error: ErrorEmbed = ErrorEmbed(error_message="Please wait before using another `..team`")
+
+    @staticmethod
+    def lookup_error(criteria: str):
+        return ErrorEmbed(f"Can't find any team which matches `{criteria}`")
 
 
 class PvP:
@@ -298,75 +333,67 @@ class PvP:
 
 
 class Affection:
-    unmutable_error: ErrorEmbed = ErrorEmbed(error_message="This Affection can not be added/ edited/ removed!")
-    exists_error: ErrorEmbed = ErrorEmbed(error_message="This Affection exists already!")
-    not_existing_error: ErrorEmbed = ErrorEmbed(error_message="This Affection doesn't exist!")
-    help_embed: HelpEmbed = HelpEmbed(
-        help_title="Help for Affection"
-    ).add_field(
+    _help: HelpEmbed = HelpEmbed("Help for Affection").add_field(
         name="add",
         value="""
         __Usage__:
         > `affection add <name>`
-        
-        Creates a new Affection
-        \u200b
-        """
-    ).add_blank_field(
-        True
-    ).add_field(
+```Creates a new Affection```"""
+    ).add_blank_field().add_field(
         name="remove",
         value="""
         __Usage__:
         > `affection remove <name>`
-        
-        Deletes the Affection if you are the owner
-        \u200b
-        """
-    ).add_field(
+```Deletes the Affection if you are the owner```"""
+    ).add_blank_field().add_field(
         name='edit',
         value="""
         __Usage__:
         > `affection edit "<name>" <new name>`
+```Changes the name of the affection
         
-        Changes the name of the affection
-        
-        If you are the owner of the affection
-        \u200b
-        """
-    ).add_blank_field(
-        True
-    ).add_field(
+If you are the owner of the affection```"""
+    ).add_blank_field().add_field(
         name='transfer',
         value="""
         __Usage__:
         > `affection transfer "<name>" <@New Owner>`
+```Transfers Ownership of the affection to another User
         
-        Transfers Ownership of the affection to another User
-        
-        Please mind that you do loose all permission to the affection!
-        \u200b
-        """
-    ).add_field(
+Please mind that you do loose all permission to the affection!```"""
+    ).add_blank_field().add_field(
         name="list",
-        value="Displays a list of all affections"
-    ).add_blank_field(
-        True
-    ).add_field(
+        value="```Displays a list of all affections```"
+    ).add_blank_field(True).add_field(
         name="help",
-        value="Displays this help message"
+        value="```Displays this help message```"
     ).set_image(url="attachment://image.png")
+
+    @staticmethod
+    def unmutable(affection_name: str):
+        return ErrorEmbed(f"Affection `{affection_name}` can not be added/ edited/ removed!")
+
+    @staticmethod
+    def exists(affection_name: str):
+        return ErrorEmbed(f"Affection `{affection_name}` exists already!")
+
+    @staticmethod
+    def not_existing(affection_name: str):
+        return ErrorEmbed(f"Affection `{affection_name}` doesn't exist!")
+
+    @staticmethod
+    def wrong_owner(affection_name: str):
+        return ErrorEmbed(f"Affection `{affection_name}` wasn't created by you!")
 
     @staticmethod
     async def send_help(ctx, content: str):
         return await ctx.send(
             content=content,
             file=await image_to_discord(i.affection_banner),
-            embed=Affection.help_embed
+            embed=Affection._help
         )
 
     class Add:
-        _success: SuccessEmbed = SuccessEmbed()
         usage: ErrorEmbed = ErrorEmbed(
             error_message="Adding affection failed",
             description="""
@@ -377,11 +404,9 @@ class Affection:
 
         @staticmethod
         def success(affection_name: str):
-            Affection.Add._success.set_title(f"Affection `{affection_name}` added!")
+            return SuccessEmbed(f"Affection `{affection_name}` added!")
 
     class Edit:
-        _success: SuccessEmbed = SuccessEmbed(success_title="Affection edited!")
-        _wrong_owner: ErrorEmbed = ErrorEmbed()
         usage: ErrorEmbed = ErrorEmbed(
             error_message="""
             __Usage__:
@@ -390,21 +415,20 @@ class Affection:
         )
 
         @staticmethod
-        def success(affection_name: str):
-            Affection.Edit._success.set_title(f"Affection `{affection_name}` edited!")
-
-        @staticmethod
-        def wrong_owner(affection_name: str):
-            Affection.Edit._wrong_owner.set_title(affection_name)
+        def success(old_affection_name: str, new_affection_name: str):
+            return SuccessEmbed(f"Changed Affection `{old_affection_name}` to `{new_affection_name}`!")
 
     class Remove:
-        success: SuccessEmbed = SuccessEmbed(success_title="Affection removed!")
         usage: ErrorEmbed = ErrorEmbed(
             error_message="""
             __Usage__:
             > `affection remove <name>`
             """
         )
+
+        @staticmethod
+        def success(affection_name: str):
+            return SuccessEmbed(f"Affection `{affection_name}` removed!")
 
     class Transfer:
         usage: ErrorEmbed = ErrorEmbed(
@@ -415,33 +439,89 @@ class Affection:
         )
 
         @staticmethod
-        def success():
-            pass
+        def success(affection_name: str, owner: str):
+            return SuccessEmbed(f"Affection `{affection_name}` transfered to *{owner}*")
 
 
-CUSTOM_HELP_EMBED: Embed = discord.Embed(title=m.Custom.Help.title, colour=discord.Color.gold(),
-                                         description=m.Custom.Help.desc)
-CUSTOM_ADD_COMMAND_USAGE_EMBED: Embed = discord.Embed(title=m.Custom.Add.Error.title, colour=discord.Color.dark_red(),
-                                                      description=m.Custom.Add.Error.desc)
-CUSTOM_EDIT_COMMAND_USAGE_EMBED: Embed = discord.Embed(title=m.Custom.Edit.Error.title, colour=discord.Color.dark_red(),
-                                                       description=m.Custom.Edit.Error.desc)
-CUSTOM_EDIT_COMMAND_SUCCESS_EMBED: Embed = discord.Embed(title=m.Custom.Edit.Success.title,
-                                                         colour=discord.Color.green(),
-                                                         description=m.Custom.Edit.Success.desc)
-CUSTOM_REMOVE_COMMAND_USAGE_EMBED: Embed = discord.Embed(title=m.Custom.Remove.Error.title,
-                                                         colour=discord.Color.dark_red(),
-                                                         description=m.Custom.Remove.Error.desc)
-CUSTOM_REMOVE_COMMAND_SUCCESS_EMBED: Embed = discord.Embed(title=m.success, colour=discord.Color.green(),
-                                                           description=m.Custom.Remove.success)
+class Custom:
+    _help: HelpEmbed = HelpEmbed("Help for Custom").add_field(
+        name="Create",
+        value="""__Usage__:
+> `custom create name: <name> & type:<type> & grade:<grade> & url:<file_url> & race:[race] & affection:[affection]`
+```Creates a new (custom) Unit
 
-DEMON_HELP_EMBED: Embed = discord.Embed(title=m.Demon.Help.title, colour=discord.Color.gold(),
-                                        description=m.Demon.Help.desc)
+Defaultly race is "unknown" & affection is "none"```"""
+    ).add_blank_field().add_field(
+        name="Remove",
+        value="""__Usage__:
+> `custom remove name: <name>`
+```Removes the unit (if you are it's owner)```"""
+    ).add_blank_field().add_field(
+        name="Edit",
+        value="""__Usage__:
+> `..custom edit name:<name> & type:[type] & grade:[grade] & owner:[@Owner] & updated_name:[updated name] & url:[url] & race:[race] & affection:[affection]`
+```Changes attributes of the Unit (if you are it's owner)
+
+You **__don't__** need to provide criteria if you don't want to edit it!```
+            
+**__Criteria__**:
+    *type: <type>*
+        The (new) type of the Unit: `red`, `green` or `blue`
+                
+    *grade: <grade>*
+        The (new) grade of the Unit: `r`, `sr`, `ssr`    
+                
+    *url: <image url>*
+        The (new) url to the image of the Unit: `any valid url with .png or .jpg`
+                
+    *race: <race>*
+        The (new) race of the Unit: `demon, giant, human, god, fairy, unknown`
+                
+    *affection: <affection>*
+        The (new) affection of the Unit: `do ..affection list`
+                
+    *updated_name: <new name>*
+        The new name of the Unit: `Any Text`"""
+    ).set_image(url="attachment://image.png")
+    _missing: ErrorEmbed = ErrorEmbed("Missing argument!")
+    _wrong_owner: ErrorEmbed = ErrorEmbed(error_message="Affection is not yours!")
+
+    @staticmethod
+    def missing(arguments: str):
+        return ErrorEmbed(f"Missing `{arguments}`")
+
+    @staticmethod
+    def wrong_owner(unit_name: str):
+        return ErrorEmbed(f"Unit `{unit_name}` wasn't created by you!")
+
+    @staticmethod
+    async def send_help(ctx, content: str):
+        return await ctx.send(
+            content=content,
+            file=await image_to_discord(i.custom_banner),
+            embed=Custom._help
+        )
+
+    class Edit:
+        @staticmethod
+        def success(unit_name: str, edited_fields: str):
+            return SuccessEmbed(f"Changed `{edited_fields}` for *{unit_name}*")
+
+        @staticmethod
+        def nothing_changed(unit_name: str):
+            return SuccessEmbed(f"Nothing changed for `{unit_name}`")
+
+    class Remove:
+        @staticmethod
+        def success(unit_name: str):
+            return SuccessEmbed(f"Removed Unit `{unit_name}` successfully")
 
 
-class TourneyEmbeds:
-    HELP: Embed = discord.Embed(title=m.Tourney.Help.title, colour=discord.Color.gold(),
+class Tourney:
+    help: Embed = discord.Embed(title=m.Tourney.Help.title, colour=discord.Color.gold(),
                                 description=m.Tourney.Help.desc)
 
 
-LOADING_EMBED: DefaultEmbed = discord.Embed(title=m.loading).set_thumbnail(url="https://raw.githubusercontent.com/WhoIsAlphaHelix/evilmortybot/master/data/images/loading.gif")
-IMAGES_LOADED_EMBED: DefaultEmbed = discord.Embed(title=m.loaded)
+def loading(title: str = "Loading..."):
+    return DefaultEmbed(title=title).set_thumbnail(
+        url="https://raw.githubusercontent.com/WhoIsAlphaHelix/evilmortybot/master/data/images/loading.gif")

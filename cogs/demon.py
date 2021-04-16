@@ -85,7 +85,7 @@ class DemonCog(commands.Cog):
     @commands.guild_only()
     async def demon(self, ctx: Context):
         if ctx.invoked_subcommand is None:
-            await ctx.send(f"{ctx.author.mention}:", embed=embeds.DEMON_HELP_EMBED)
+            await embeds.Help.send_demon_help(ctx, ctx.author.mention)
 
     @demon.command(name="friend", aliases=["friendcode", "code"])
     async def demon_friend(self, ctx: Context, of: Optional[discord.Member]):

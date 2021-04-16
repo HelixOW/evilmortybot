@@ -212,12 +212,12 @@ async def compose_banner_rotation(units: Dict[Unit, int]) -> Image:
     return i
 
 
-async def compose_unit_multi_draw(units: List[Unit], ssrs: Dict[int, int] = None) -> Image:
+async def compose_unit_multi_draw(units: List[Unit], ssrs: Dict[Unit, int] = None) -> Image:
     if ssrs is None:
         ssrs = {}
 
     pull_rows: List[List[Unit]] = list(chunks(units, 4))
-    ssr_rows: List[Dict[int, int]] = list(chunks_dict(ssrs, 4))
+    ssr_rows: List[Dict[Unit, int]] = list(chunks_dict(ssrs, 4))
 
     i: Image = ImageLib.new('RGBA', (
         (img_size * 4) + (DRAW_OFFSET * 3),
@@ -257,9 +257,8 @@ async def compose_unit_multi_draw(units: List[Unit], ssrs: Dict[int, int] = None
     for ssr_dict in ssr_rows:
         x: int = 0
         for key in ssr_dict:
-            key = unit_by_id(key)
             i.paste(await key.set_icon(), (x, y))
-            text_with_shadow(draw, str(ssr_dict[key.unit_id]), (x + 10, y + 10))
+            text_with_shadow(draw, str(ssr_dict[key]), (x + 10, y + 10))
             x += img_size + DRAW_OFFSET
         y += img_size + DRAW_OFFSET
 

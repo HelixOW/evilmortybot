@@ -25,7 +25,7 @@ class ListCog(commands.Cog):
     @cmd_list.command(name="unit", aliases=["units"])
     async def list_units(self, ctx: Context, units_per_page: Optional[int] = 5, *, criteria: str = "event: custom"):
         loading: discord.Message = await ctx.send(content=f"{ctx.author.mention} -> Loading Units",
-                                                  embed=embeds.LOADING_EMBED)
+                                                  embed=embeds.loading())
         attr: Dict[str, Any] = parse_arguments(criteria)
         matching_units: List[Unit] = get_units_matching(races=attr["race"],
                                                         grades=attr["grade"],
@@ -40,12 +40,12 @@ class ListCog(commands.Cog):
 
         async def display(page: int):
             _loading: discord.Message = await ctx.send(content=f"{ctx.author.mention} -> Loading Units",
-                                                       embed=embeds.LOADING_EMBED)
-            message: discord.Message = await ctx.send(file=await image_to_discord(paged_unit_list[page], "units.png"),
-                                                      embed=discord.Embed(
+                                                       embed=embeds.loading())
+            message: discord.Message = await ctx.send(file=await image_to_discord(paged_unit_list[page]),
+                                                      embed=embeds.DrawEmbed(
                                                           title=f"Units matching {criteria} ({page + 1}/{max_pages + 1})"
-                                                      ).set_image(url="attachment://units.png"),
-                                                      content=f"{ctx.author.mention}")
+                                                      ),
+                                                      content=ctx.author.mention)
             await _loading.delete()
 
             if page != 0:
@@ -74,30 +74,28 @@ class ListCog(commands.Cog):
     @cmd_list.command(name="banner", aliases=["banners"])
     async def list_banners(self, ctx: Context):
         loading: discord.Message = await ctx.send(content=f"{ctx.author.mention} -> Loading Banners",
-                                                  embed=embeds.LOADING_EMBED)
-        await ctx.send(content=f"{ctx.author.mention}",
-                       embed=discord.Embed(title="All Banners",
-                                           description="\n\n".join(
-                                               [f"**{x.name[0]}**: `{x.pretty_name}`" for x in all_banner_list])))
+                                                  embed=embeds.loading())
+        await ctx.send(content=ctx.author.mention,
+                       embed=embeds.DefaultEmbed(title="All Banners",
+                                                 description="\n\n".join(
+                                                     [f"**{x.name[0]}**: `{x.pretty_name}`" for x in all_banner_list])))
         await loading.delete()
 
     @cmd_list.command(name="tarot")
     async def list_tarot(self, ctx: Context, paged: str = "paged"):
         loading: discord.Message = await ctx.send(content=f"{ctx.author.mention} -> Loading Tarot Cards",
-                                                  embed=embeds.LOADING_EMBED)
+                                                  embed=embeds.loading())
         if paged != "paged":
             await ctx.send(content=ctx.author.mention,
-                           file=await image_to_discord(await compose_tarot_list(), "tarot_list.png"),
-                           embed=discord.Embed().set_image(url="attachment://tarot_list.png")
+                           file=await image_to_discord(await compose_tarot_list()),
+                           embed=embeds.DrawEmbed()
                            )
             return await loading.delete()
 
         async def display(page: int, last_message):
             msg = await ctx.send(content=ctx.author.mention,
-                                 file=await image_to_discord(await compose_paged_tarot_list(page), "tarot_list.png"),
-                                 embed=discord.Embed(title=tarot_name(page)).set_image(
-                                     url="attachment://tarot_list.png")
-                                 )
+                                 file=await image_to_discord(await compose_paged_tarot_list(page)),
+                                 embed=embeds.DrawEmbed(title=tarot_name(page)))
             await last_message.delete()
 
             if page != 1:

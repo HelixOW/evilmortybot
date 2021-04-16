@@ -9,11 +9,11 @@ from utilities.image_composer import compose_team, compose_pvp
 from sqlite3 import Cursor, IntegrityError
 
 
-async def create_tourney_profile(of: discord.Member, gc_id: int, cc: float, team: List[int]) -> bool:
+async def create_tourney_profile(of: discord.Member, gc_id: int, cc: float, team: List[Unit]) -> bool:
     cursor: Cursor = connection.cursor()
     try:
         cursor.execute('INSERT INTO "tourney_profiles" VALUES (?, ?, ?, ?, ?, ?)',
-                       (of.id, gc_id, cc, 0, 0, ",".join([str(x) for x in team])))
+                       (of.id, gc_id, cc, 0, 0, ",".join([str(x.unit_id) for x in team])))
         connection.commit()
         return True
     except IntegrityError:
@@ -42,14 +42,14 @@ async def edit_tourney_cc(of: discord.Member, cc: float) -> bool:
     return True
 
 
-async def edit_tourney_team(of: discord.Member, team: List[int]) -> bool:
+async def edit_tourney_team(of: discord.Member, team: List[Unit]) -> bool:
     cursor: Cursor = connection.cursor()
 
     if cursor.execute('SELECT * FROM "tourney_profiles" WHERE discord_id=?', (of.id,)).fetchone() is None:
         return False
 
     cursor.execute('UPDATE "tourney_profiles" SET team_unit_ids=? WHERE discord_id=?',
-                   (",".join([str(x) for x in team]), of.id))
+                   (",".join([str(x.unit_id) for x in team]), of.id))
     connection.commit()
     return True
 
@@ -163,47 +163,44 @@ class TournamentCog(commands.Cog):
     @commands.guild_only()
     async def tournament(self, ctx: Context):
         if ctx.invoked_subcommand is None:
-            await ctx.send(content=ctx.author.mention, embed=embeds.TourneyEmbeds.HELP)
+            await ctx.send(content=ctx.author.mention, embed=embeds.Tourney.help)
 
     @tournament.command(name="signup")
     async def tournament_signup(self, ctx: Context, gc_code: int = 0, team_cc: float = 0,
-                                unit1: int = 0, unit2: int = 0, unit3: int = 0, unit4: int = 0):
-        if 0 in [gc_code, team_cc, unit1, unit2, unit3, unit4]:
-            return await ctx.send(content=ctx.author.mention, embed=embeds.TourneyEmbeds.HELP)
+                                unit1: Unit = None, unit2: Unit = None, unit3: Unit = None, unit4: Unit = None):
+        if 0 in [gc_code, team_cc]:
+            return await ctx.send(content=ctx.author.mention, embed=embeds.Tourney.help)
 
         _team: List[Unit] = []
 
-        for unit_id in [unit1, unit2, unit3, unit4]:
-            u: Unit = unit_by_id(unit_id)
+        for p, u in enumerate([unit1, unit2, unit3, unit4]):
             if u is None:
-                return await ctx.send(f"{ctx.author.mention}: No Unit with ID: {unit_id} found!")
+                return await ctx.send(ctx.author.mention, embed=embeds.ErrorEmbed(f"Can't find {p}. Unit found!"))
 
             _team.append(u)
 
         if await create_tourney_profile(ctx.author, gc_code, team_cc, [unit1, unit2, unit3, unit4]):
-            await ctx.send(f"{ctx.author.mention}:",
-                           file=await image_to_discord(await compose_team(_team), "team.png"),
-                           embed=discord.Embed(
-                               title="Registered Profile!",
-                               colour=discord.Color.green(),
+            await ctx.send(ctx.author.mention,
+                           file=await image_to_discord(await compose_team(_team)),
+                           embed=embeds.SuccessEmbed(
+                               "Registered Profile!",
                                description=f"""
-                CC: `{team_cc}`
+                                CC: `{team_cc}`
 
-                To edit your Team CC: 
-                    `..tourney cc <new cc>`
+                                To edit your Team CC: 
+                                    `..tourney cc <new cc>`
 
-                Friend code: `{gc_code}`
+                                Friend code: `{gc_code}`
 
-                To edit your Friend code:
-                    `..tourney code <new friend code>`
+                                To edit your Friend code:
+                                    `..tourney code <new friend code>`
 
-                Registered Team:
-                """
-                           ).set_image(url="attachment://team.png"))
+                                Registered Team:
+                                """
+                           ).set_image(url="attachment://image.png"))
         else:
-            await ctx.send(f"{ctx.author.mention}:", embed=discord.Embed(
-                title="Error: Profile already exist",
-                colour=discord.Color.red(),
+            await ctx.send(ctx.author.mention, embed=embeds.ErrorEmbed(
+                "Profile already exist",
                 description="""
                 To edit your team cc: `..tourney cc <new cc>`
 
@@ -214,66 +211,57 @@ class TournamentCog(commands.Cog):
     @tournament.command(name="code")
     async def tournament_code(self, ctx: Context, gc_code: int = 0):
         if gc_code == 0:
-            return await ctx.send(content=ctx.author.mention, embed=embeds.TourneyEmbeds.HELP)
+            return await ctx.send(content=ctx.author.mention, embed=embeds.Tourney.help)
 
         if await edit_tourney_friendcode(ctx.author, gc_code):
-            await ctx.send(f"{ctx.author.mention}:", embed=discord.Embed(
-                title="Updated Profile!",
-                colour=discord.Color.green(),
+            await ctx.send(ctx.author.mention, embed=embeds.SuccessEmbed(
+                "Updated Profile!",
                 description=f"Your new friend code is: {gc_code}"
             ))
         else:
-            await ctx.send(f"{ctx.author.mention}:", embed=discord.Embed(
-                title="Error: Profile doesn't exist",
-                colour=discord.Color.red(),
-                description="To create one: `..tourney signup <friend code> <team cc>`"
+            await ctx.send(ctx.author.mention, embed=embeds.ErrorEmbed(
+                "Profile doesn't exist",
+                description="To create one: `..tourney signup`"
             ))
 
     @tournament.command(name="cc")
     async def tournament_cc(self, ctx: Context, cc: float = 0):
         if cc == 0:
-            return await ctx.send(content=ctx.author.mention, embed=embeds.TourneyEmbeds.HELP)
+            return await ctx.send(content=ctx.author.mention, embed=embeds.Tourney.help)
 
         if await edit_tourney_cc(ctx.author, cc):
-            await ctx.send(f"{ctx.author.mention}:", embed=discord.Embed(
-                title="Updated Profile!",
-                colour=discord.Color.green(),
+            await ctx.send(ctx.author.mention, embed=embeds.SuccessEmbed(
+                "Updated Profile!",
                 description=f"Your new cc is: {cc}"
             ))
         else:
-            await ctx.send(f"{ctx.author.mention}:", embed=discord.Embed(
-                title="Error: Profile doesn't exist",
-                colour=discord.Color.red(),
-                description="To create one: `..tourney signup <friend code> <team cc>`"
+            await ctx.send(ctx.author.mention, embed=embeds.ErrorEmbed(
+                "Profile doesn't exist",
+                description="To create one: `..tourney signup`"
             ))
 
     @tournament.command(name="team")
-    async def tournament_team(self, ctx: Context, unit1: int = 0, unit2: int = 0, unit3: int = 0, unit4: int = 0):
-        if 0 in [unit1, unit2, unit3, unit4]:
-            return await ctx.send(content=ctx.author.mention, embed=embeds.TourneyEmbeds.HELP)
-
+    async def tournament_team(self, ctx: Context, unit1: Unit = None, unit2: Unit = None,
+                              unit3: Unit = None, unit4: Unit = None):
         _team: List[Unit] = []
 
-        for unit_id in [unit1, unit2, unit3, unit4]:
-            u: Unit = unit_by_id(unit_id)
+        for p, u in enumerate([unit1, unit2, unit3, unit4]):
             if u is None:
-                return await ctx.send(f"{ctx.author.mention}: No Unit with ID: {unit_id} found!")
+                return await ctx.send(ctx.author.mention, embed=embeds.ErrorEmbed(f"Can't find {p}. Unit found!"))
 
             _team.append(u)
 
         if await edit_tourney_team(ctx.author, [unit1, unit2, unit3, unit4]):
-            await ctx.send(f"{ctx.author.mention}:",
+            await ctx.send(ctx.author.mention,
                            file=await image_to_discord(await compose_team(_team), "team.png"),
-                           embed=discord.Embed(
-                               title="Updated Profile!",
-                               colour=discord.Color.green(),
+                           embed=embeds.SuccessEmbed(
+                               "Updated Profile!",
                                description="Your new team is:"
                            ).set_image(url="attachment://team.png"))
         else:
-            await ctx.send(f"{ctx.author.mention}:", embed=discord.Embed(
-                title="Error: Profile doesn't exist",
-                colour=discord.Color.red(),
-                description="To create one: `..tourney signup <friend code> <team cc>`"
+            await ctx.send(ctx.author.mention, embed=embeds.ErrorEmbed(
+                "Profile doesn't exist",
+                description="To create one: `..tourney signup`"
             ))
 
     @tournament.command(name="stats", aliases=["profile"])
@@ -283,17 +271,14 @@ class TournamentCog(commands.Cog):
 
         data: Optional[Dict[str, Union[int, float, List[int]]]] = await get_tourney_profile(of)
         if data is None:
-            return await ctx.send(content=ctx.author.mention, embed=discord.Embed(
-                title="Error",
-                colour=discord.Color.red(),
-                description=f"{of.display_name} has no registered profile"
-            ))
+            return await ctx.send(content=ctx.author.mention,
+                                  embed=embeds.ErrorEmbed(f"{of.display_name} has no registered profile"))
 
         _team: List[Unit] = [unit_by_id(x) for x in data["team"]]
 
         return await ctx.send(content=ctx.author.mention,
                               file=await image_to_discord(await compose_team(_team), "team.png"),
-                              embed=discord.Embed(
+                              embed=embeds.DefaultEmbed(
                                   title=f"Profile of: {of.display_name}",
                                   description=f"""
             Friend code: `{data["gc_code"]}` 
@@ -317,16 +302,14 @@ class TournamentCog(commands.Cog):
         enemy_data: Optional[Dict[str, Union[int, float, List[int]]]] = await get_tourney_profile(enemy)
 
         if author_data is None or enemy_data is None:
-            return await ctx.send(f"{ctx.author.mention}:", embed=discord.Embed(
-                title="Error: Profile doesn't exist",
-                colour=discord.Color.red(),
-                description="To create one: `..tourney signup <friend code> <team cc>`"
+            return await ctx.send(ctx.author.mention, embed=embeds.ErrorEmbed(
+                "Profile doesn't exist",
+                description="To create one: `..tourney signup`"
             ))
 
         if author_data["team_cc"] > enemy_data["team_cc"]:
-            return await ctx.send(f"{ctx.author.mention}:", embed=discord.Embed(
-                title="Error: Too high CC",
-                colour=discord.Color.red(),
+            return await ctx.send(ctx.author.mention, embed=embeds.ErrorEmbed(
+                "Too high CC",
                 description="You can't challenge someone who has __less__ CC then you."
             ))
 
@@ -339,15 +322,13 @@ class TournamentCog(commands.Cog):
             return await ctx.send(f"{ctx.author.mention}: Please provide a challenger you want to accept")
 
         if await tourney_in_game(enemy):
-            return await ctx.send(f"{ctx.author.mention}:", embed=discord.Embed(
-                title="Error: Enemy still in a game",
-                colour=discord.Color.red(),
+            return await ctx.send(ctx.author.mention, embed=embeds.ErrorEmbed(
+                "Enemy still in a game",
                 description=f"{enemy.display_name} is still in a game!"
             ))
         if await tourney_in_game(ctx.author):
-            return await ctx.send(f"{ctx.author.mention}:", embed=discord.Embed(
-                title="Error: Enemy still in a game",
-                colour=discord.Color.red(),
+            return await ctx.send(ctx.author.mention, embed=embeds.ErrorEmbed(
+                "Enemy still in a game",
                 description="You are still in a game! \n\n `..tourney report <@Winner> <@Looser>` to finish the game"
             ))
         if enemy.id not in [x async for x in get_tourney_challengers(ctx.author)]:
@@ -362,7 +343,7 @@ class TournamentCog(commands.Cog):
         await accept_challenge(ctx.author, enemy)
         await ctx.send(f"{ctx.author.mention} ({p1_profile['gc_code']}) vs {enemy.mention} ({p2_profile['gc_code']})",
                        file=await image_to_discord(await compose_pvp(ctx.author, p1_team, enemy, p2_team), "match.png"),
-                       embed=discord.Embed(
+                       embed=embeds.DefaultEmbed(
                            title=f"{ctx.author.display_name} vs {enemy.display_name}",
                            description=f"{p1_profile['team_cc']}CC vs {p2_profile['team_cc']}CC \n\n Please do `..tourney report <@Winner> <@Looser>` to end the game!"
                        ).set_image(url="attachment://match.png"))
@@ -382,7 +363,7 @@ class TournamentCog(commands.Cog):
     async def tournament_challengers(self, ctx: Context):
         if len([x async for x in get_tourney_challengers(ctx.author)]) == 0:
             return await ctx.send(f"{ctx.author.mention}: No challengers.")
-        await ctx.send(ctx.author.mention, embed=discord.Embed(
+        await ctx.send(ctx.author.mention, embed=embeds.DefaultEmbed(
             title=f"{ctx.author.display_name}'s challengers",
             description="\n".join(
                 [(await self.bot.fetch_user(x)).display_name async for x in get_tourney_challengers(ctx.author)])
@@ -405,14 +386,14 @@ class TournamentCog(commands.Cog):
 
         await ctx.send(f"{winner.mention} won against {looser.mention}",
                        file=await image_to_discord(unit_to_build.icon, "unit.png"),
-                       embed=discord.Embed(
+                       embed=embeds.DefaultEmbed(
                            title=f"{looser.display_name} you now have to build out:",
                            description=unit_to_build.name
                        ).set_image(url="attachment://unit.png"))
 
     @tournament.command(name="top")
     async def tournament_top(self, ctx: Context):
-        await ctx.send(ctx.author.mention, embed=discord.Embed(
+        await ctx.send(ctx.author.mention, embed=embeds.DefaultEmbed(
             title="Tournament Participants with most wins",
             description="\n".join(
                 [f"**{x['place']}.** {(await self.bot.fetch_user(x['member_id'])).mention} with {x['won']} wins"

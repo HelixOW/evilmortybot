@@ -1,9 +1,6 @@
 success: str = "Success"
 error: str = "Error"
 
-loading: str = "Loading..."
-loaded: str = "Images loaded!"
-
 
 class Unit:
     lookup: str = "Can't find any unit which meets those requirements"

@@ -1,6 +1,7 @@
 import discord
 import random as ra
 import utilities.reactions as emojis
+from utilities.embeds import DefaultEmbed
 from discord.ext import commands
 from discord.ext.commands import Context
 from typing import List, Optional, Tuple, AsyncGenerator, Dict
@@ -112,7 +113,7 @@ class BlackJackCog(commands.Cog):
             return await ctx.send(content="Nobody played Blackjack yet!")
 
         return await ctx.send(content=f"{ctx.author.mention}",
-                              embed=discord.Embed(
+                              embed=DefaultEmbed(
                                   title=f"Blackjack Leaderboard in {ctx.guild.name} (Highest Winning Streaks)",
                                   description=",\n".join(["**{}.** *{}* ~ Streak of {} wins".format(
                                       data["place"],
@@ -134,7 +135,7 @@ class BlackJackCog(commands.Cog):
 
         return await ctx.send(
             content=f"{ctx.author.mention} Blackjack History:" if person == ctx.author else f"{ctx.author.mention}: {person.display_name}'s Blackjack History:",
-            embed=discord.Embed(
+            embed=DefaultEmbed(
                 title=f"History of {person.display_name}",
                 description=f"""
                                   **Wins**: `{data[0]}`

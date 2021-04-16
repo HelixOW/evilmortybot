@@ -1,19 +1,16 @@
-import discord
 import aiohttp
 import utilities.embeds as embeds
 import utilities.reactions as emojis
 import structlog
-from asyncio import TimeoutError as TimedOutError
 from discord.ext import tasks
-from utilities import KingBot, get_prefix, remove_trailing_whitespace, td_format, half_img_size, text_to_discord
+from utilities import *
 from utilities.banners import create_jp_banner, create_custom_unit_banner
 from utilities.sql_helper import *
 from utilities.units import image_to_discord, unit_by_vague_name, compose_icon
 from utilities.image_composer import compose_unit_list, compose_awakening
 from utilities.awaken import *
 from utilities.tarot import *
-# from utilities.kofas_scrapper import fetch_data, add_channel, fetch_data_manual
-from discord.ext.commands import Context, HelpCommand, has_permissions
+from discord.ext.commands import Context, has_permissions
 from datetime import datetime
 from io import BytesIO
 from PIL.Image import Image
@@ -38,14 +35,9 @@ initial_extensions = ['cogs.blackjack',
                       'cogs.tournament']
 
 
-class CustomHelp(HelpCommand):
-    async def send_bot_help(self, _):
-        await self.get_destination().send(embed=embeds.Help.help)
-
-
 bot: KingBot = KingBot(command_prefix=get_prefix,
                        description='..help for Help',
-                       help_command=CustomHelp(),
+                       help_command=None,
                        intents=intents)
 
 
@@ -62,6 +54,42 @@ async def on_ready():
     print(bot.user.name)
     print(bot.user.id)
     print('--------')
+
+
+@bot.group(name="help")
+async def bot_help(ctx: Context):
+    if ctx.invoked_subcommand is None:
+        return await ctx.send(embed=embeds.Help.general_help)
+
+
+@bot_help.command(name="pvp")
+async def pvp_help(ctx: Context):
+    await ctx.send(embed=embeds.Help.pvp_help)
+
+
+@bot_help.command(name="draw")
+async def draw_help(ctx: Context):
+    await ctx.send(embed=embeds.Help.draw_help)
+
+
+@bot_help.command(name="stats")
+async def stats_help(ctx: Context):
+    await ctx.send(embed=embeds.Help.stats_help)
+
+
+@bot_help.command(name="list")
+async def list_help(ctx: Context):
+    await ctx.send(embed=embeds.Help.list_help)
+
+
+@bot_help.command(name="demon")
+async def demon_help(ctx: Context):
+    await embeds.Help.send_demon_help(ctx, "")
+
+
+@bot_help.command(name="custom")
+async def custom_help(ctx: Context):
+    await ctx.send(embed=embeds.Help.custom_help)
 
 
 @bot.command()
@@ -107,9 +135,9 @@ async def find(ctx: Context, *, units: str = ""):
         return await ctx.send(content=f"{ctx.author.mention} -> No units found!")
 
     loading: discord.Message = await ctx.send(content=f"{ctx.author.mention} -> Loading Units",
-                                              embed=embeds.LOADING_EMBED)
+                                              embed=embeds.loading())
     await ctx.send(file=await image_to_discord(await compose_unit_list(found), "units.png"),
-                   embed=discord.Embed().set_image(url="attachment://units.png"))
+                   embed=embeds.DefaultEmbed().set_image(url="attachment://units.png"))
     await loading.delete()
 
 
@@ -169,37 +197,21 @@ async def info_cmd(ctx: Context, *, of_name: str):
     ofs: List[Unit] = unit_by_vague_name(of_name)
 
     if len(ofs) == 0:
-        return  # TODO: Embed
+        return await ctx.send(ctx.author.mention, embed=embeds.ErrorEmbed(
+            f"No Units found who have `{of_name}` in their name!"
+        ))
 
-    async def display(page: int, last_message):
-        of = ofs[page]
-        msg = await ctx.send(
-            file=await image_to_discord(await of.set_icon()),
-            embed=(await of.info_embed()).set_thumbnail(url="attachment://image.png")
-        )
-        if last_message is not None:
-            await last_message.delete()
-
-        if page != 0:
-            await msg.add_reaction(emojis.LEFT_ARROW)
-
-        if page != len(ofs) - 1:
-            await msg.add_reaction(emojis.RIGHT_ARROW)
-
-        def check(added_reaction, user):
-            return user == ctx.author and str(added_reaction.emoji) in [emojis.LEFT_ARROW, emojis.RIGHT_ARROW]
-
-        try:
-            reaction, _ = await bot.wait_for('reaction_add', check=check, timeout=15)
-
-            if str(reaction.emoji) == emojis.LEFT_ARROW and page != 0:
-                return await display(page - 1, msg)
-
-            if str(reaction.emoji) == emojis.RIGHT_ARROW and page != len(ofs) - 1:
-                return await display(page + 1, msg)
-        except TimedOutError:
-            await msg.clear_reactions()
-    await display(0, None)
+    await send_paged_message(
+        bot,
+        ctx,
+        check_func=lambda x, y: y == ctx.author and str(x.emoji) in [emojis.LEFT_ARROW, emojis.RIGHT_ARROW],
+        timeout=15,
+        pages=[{
+            "file": await x.set_icon(),
+            "embed": (await x.info_embed()).set_thumbnail(url="attachment://image.png"),
+            "content": None
+        } for x in ofs]
+    )
 
 
 def set_arsenic_log_level(level=logging.WARNING):

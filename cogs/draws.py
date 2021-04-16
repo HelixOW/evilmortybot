@@ -65,13 +65,13 @@ class DrawCog(commands.Cog):
 
         from_banner: Optional[Banner] = banner_by_name(banner_name)
         if from_banner is None:
-            return await ctx.send(content=f"{ctx.author.mention}",
+            return await ctx.send(content=ctx.author.mention,
                                   embed=discord.Embed(title="Error", colour=discord.Color.dark_red(),
                                                       description=f"Can't find the \"{banner_name}\" banner"
                                                       )
                                   )
 
-        draw: discord.Message = await ctx.send(embed=embeds.LOADING_EMBED.set_image(url=loading_image_url))
+        draw: discord.Message = await ctx.send(embed=embeds.loading().set_image(url=loading_image_url))
 
         if rot:
             units: Dict[Unit, int] = {}
@@ -84,13 +84,10 @@ class DrawCog(commands.Cog):
             connection.commit()
             await ctx.send(
                 file=await image_to_discord(await compose_banner_rotation(
-                    dict(sorted(units.items(), key=lambda x: x[0].grade.to_int()))
-                ), "rotation.png"),
+                    dict(sorted(units.items(), key=lambda x: x[0].grade.to_int())))),
                 content=f"{person.display_name} those are the units you pulled in 1 rotation" if person is ctx.author
                 else f"{person.display_name} those are the units you pulled in 1 rotation coming from {ctx.author.display_name}",
-                embed=discord.Embed(
-                    title=f"{from_banner.pretty_name} ~ 1 Rotation (900 Gems)",
-                ).set_image(url="attachment://rotation.png"))
+                embed=embeds.DrawEmbed(title=f"{from_banner.pretty_name} ~ 1 Rotation (900 Gems)"))
             return await draw.delete()
 
         await send_paged_message(
@@ -119,7 +116,7 @@ class DrawCog(commands.Cog):
     @commands.command()
     @commands.guild_only()
     async def summon(self, ctx: Context):
-        loading_message: discord.Message = await ctx.send(embed=embeds.LOADING_EMBED)
+        loading_message: discord.Message = await ctx.send(embed=embeds.loading())
         summon_menu_emojis: List[str] = [emojis.LEFT_ARROW,
                                          emojis.NO_1,
                                          emojis.NO_10, emojis.NO_5,
@@ -161,7 +158,7 @@ class DrawCog(commands.Cog):
             check_func=lambda r, u: u == ctx.author and str(r.emoji) in summon_menu_emojis,
             timeout=60,
             pages=[{
-                "content": f"{ctx.author.mention}",
+                "content": ctx.author.mention,
                 "embed": DefaultEmbed(
                     title=x.pretty_name
                 ).set_image(url=x.background),
@@ -184,21 +181,19 @@ class DrawCog(commands.Cog):
 
         from_banner: Optional[Banner] = banner_by_name(banner_name)
         if from_banner is None:
-            return await ctx.send(content=f"{ctx.author.mention}",
-                                  embed=discord.Embed(title="Error", colour=discord.Color.dark_red(),
-                                                      description=f"Can't find the \"{banner_name}\" banner"))
+            return await ctx.send(content=ctx.author.mention,
+                                  embed=embeds.ErrorEmbed(f"Can't find the `{banner_name}` banner"))
 
         return await ctx.send(file=await compose_draw(from_banner, person),
                               content=f"{person.mention} this is your single"
                               if person is ctx.message.author else
                               f"{person.mention} this is your single coming from {ctx.author.mention}",
-                              embed=discord.Embed(title=f"{from_banner.pretty_name} (1x summon)").set_image(
-                                  url="attachment://unit.png"))
+                              embed=embeds.DrawEmbed(title=f"{from_banner.pretty_name} (1x summon)"))
 
     @commands.command()
     @commands.guild_only()
     async def shaft(self, ctx: Context, person: Optional[MemberMentionConverter],
-                    unit_name: Optional[str] = "Helix is awesome", *, banner_name: str = "banner 1"):
+                    unit_name: Optional[str] = None, *, banner_name: str = "banner 1"):
         if person is None:
             person: discord.Member = ctx.author
 
@@ -208,61 +203,54 @@ class DrawCog(commands.Cog):
 
         from_banner: Banner = banner_by_name(banner_name)
         if from_banner is None:
-            return await ctx.send(content=f"{ctx.author.mention}",
-                                  embed=discord.Embed(
-                                      title="Error",
-                                      colour=discord.Color.dark_red(),
-                                      description=f"Can't find the \"{banner_name}\" banner"
-                                  ))
+            return await ctx.send(content=ctx.author.mention,
+                                  embed=embeds.ErrorEmbed(f"Can't find the `{banner_name}` banner"))
 
-        unit_ssr: bool = False
-        if ssr_pattern.match(unit_name, 0):
-            unit_ssr: bool = True
-            unit_name: str = ssr_pattern.sub("", unit_name)
+        unit_ssr: bool = True
 
-        possible_units: List[int] = unit_by_vague_name(unit_name)
+        if unit_name is not None:
+            if ssr_pattern.match(unit_name, 0):
+                unit_name: str = ssr_pattern.sub("", unit_name)
+            else:
+                unit_ssr: bool = False
 
-        if not from_banner.contains_any_unit(possible_units):
-            try:
-                from_banner = find_banner_containing_any_unit(possible_units)
-            except ValueError:
-                return await ctx.send(content=f"{ctx.author.mention}",
-                                      embed=embeds.ErrorEmbed(
-                                          error_message=f"Can't find any banner with {unit_name} in it"
-                                      ))
+            possible_units: List[Unit] = unit_by_vague_name(unit_name)
+
+            if not from_banner.contains_any_unit(possible_units):
+                try:
+                    from_banner = find_banner_containing_any_unit(possible_units)
+                except ValueError:
+                    return await ctx.send(content=ctx.author.mention,
+                                          embed=embeds.ErrorEmbed(
+                                              error_message=f"Can't find any banner with {unit_name} in it"
+                                          ))
 
         if from_banner is None:
-            return await ctx.send(content=f"{ctx.author.mention}",
+            return await ctx.send(content=ctx.author.mention,
                                   embed=embeds.ErrorEmbed(
                                       error_message=f"Can't find any banner with {unit_name} in it"
                                   ))
 
         if not from_banner.shaftable:
-            return await ctx.send(content=f"{ctx.author.mention}",
-                                  embed=discord.Embed(
-                                      title="Error",
-                                      colour=discord.Color.dark_red(),
-                                      description=f"Can't get shafted on the \"{from_banner.pretty_name}\" banner"
+            return await ctx.send(content=ctx.author.mention,
+                                  embed=embeds.ErrorEmbed(
+                                      f"Can't get shafted on the `{from_banner.pretty_name}` banner"
                                   ))
 
-        unit_to_draw: List[int] = [a.unit_id for a in unit_by_vague_name(unit_name)
-                                   if a.unit_id in [b.unit_id for b in from_banner.all_units]]
+        unit_to_draw: List[Unit] = [a for a in unit_by_vague_name(unit_name)
+                                    if a.unit_id in [b.unit_id for b in from_banner.all_units]] \
+            if unit_name is not None else [a for a in from_banner.all_units if a.grade == Grade.SSR]
 
         draw = await ctx.send(
             content=f"{person.mention} you are getting shafted" if person is ctx.author
             else f"{person.mention} you are getting shafted from {ctx.author.mention}",
-            embed=discord.Embed(
-                title="Shafting..."
-            ).set_image(url=loading_image_url))
+            embed=embeds.loading("Shafting..."))
 
         rang: int = 11 if from_banner.banner_type == BannerType.ELEVEN else 5
 
-        async def has_ssr(du: List[Unit]) -> bool:
-            for u in du:
-                if u.grade == Grade.SSR and len(unit_to_draw) == 0:
-                    return True
-
-                if u.unit_id in unit_to_draw:
+        def contains_any_unit(drawn: List[Unit]) -> bool:
+            for u in drawn:
+                if u in unit_to_draw:
                     if unit_ssr:
                         if u.grade == Grade.SSR:
                             return True
@@ -271,24 +259,24 @@ class DrawCog(commands.Cog):
             return False
 
         i: int = 0
-        drawn_units: List[Unit] = [(await unit_with_chance(from_banner, person)) for _ in range(rang)]
-        drawn_ssrs: Dict[int, int] = {}
+        drawn_units: List[Unit] = [await unit_with_chance(from_banner, person) for _ in range(rang)]
+        drawn_ssrs: Dict[Unit, int] = {}
         for x in drawn_units:
             if x.grade == Grade.SSR:
-                if x.unit_id not in drawn_ssrs:
-                    drawn_ssrs[x.unit_id] = 1
+                if x not in drawn_ssrs:
+                    drawn_ssrs[x] = 1
                 else:
-                    drawn_ssrs[x.unit_id] += 1
+                    drawn_ssrs[x] += 1
 
-        while not await has_ssr(drawn_units) and i < 1000:
+        while not contains_any_unit(drawn_units) and i < 1000:
             i += 1
-            drawn_units: List[Unit] = [(await unit_with_chance(from_banner, person)) for _ in range(rang)]
+            drawn_units: List[Unit] = [await unit_with_chance(from_banner, person) for _ in range(rang)]
             for x in drawn_units:
                 if x.grade == Grade.SSR:
-                    if x.unit_id not in drawn_ssrs:
-                        drawn_ssrs[x.unit_id] = 1
+                    if x not in drawn_ssrs:
+                        drawn_ssrs[x] = 1
                     else:
-                        drawn_ssrs[x.unit_id] += 1
+                        drawn_ssrs[x] += 1
 
         connection.commit()
         multi_msg: str = "Multi" if i == 0 else "Multis"
@@ -312,18 +300,14 @@ class DrawCog(commands.Cog):
         from_banner: Banner = banner_by_name(banner_name)
         if from_banner is None:
             return await ctx.send(content=f"{ctx.author.mention}",
-                                  embed=discord.Embed(title="Error", colour=discord.Color.dark_red(),
-                                                      description=f"Can't find the \"{banner_name}\" banner"
-                                                      )
-                                  )
+                                  embed=embeds.ErrorEmbed(f"Can't find the `{banner_name}` banner"))
+
         loading: discord.Message = await ctx.send(content=f"{ctx.author.mention} -> Loading Banner",
-                                                  embed=embeds.LOADING_EMBED)
+                                                  embed=embeds.loading())
         await ctx.send(
-            file=await image_to_discord(await compose_banner_list(from_banner, "custom" in from_banner.name),
-                                        "banner.png"),
-            embed=discord.Embed(title=f"SSRs in {from_banner.pretty_name} ({from_banner.ssr_chance}%)").set_image(
-                url="attachment://banner.png"),
-            content=f"{ctx.author.mention}")
+            file=await image_to_discord(await compose_banner_list(from_banner, "custom" in from_banner.name)),
+            embed=embeds.DrawEmbed(title=f"SSRs in {from_banner.pretty_name} ({from_banner.ssr_chance}%)"),
+            content=ctx.author.mention)
         await loading.delete()
 
     @commands.command()
@@ -333,13 +317,13 @@ class DrawCog(commands.Cog):
             user: discord.Member = ctx.author
         box_d: Dict[int, int] = await read_box(user)
         if len(box_d) == 0:
-            return await ctx.send(content=f"{ctx.author.mention}",
-                                  embed=discord.Embed(title="Error", colour=discord.Color.dark_red(),
-                                                      description=f"{user.display_name} has no units!"))
-        loading: discord.Member = await ctx.send(content=f"{ctx.author.mention} -> Loading {user.display_name}'s box",
-                                                 embed=embeds.LOADING_EMBED)
+            return await ctx.send(content=ctx.author.mention,
+                                  embed=embeds.ErrorEmbed(f"{user.display_name} has no units!"))
+
+        loading: discord.Message = await ctx.send(content=f"{ctx.author.mention} -> Loading {user.display_name}'s box",
+                                                  embed=embeds.loading())
         await ctx.send(file=await image_to_discord(await compose_box(box_d), "box.png"),
-                       content=f"{ctx.author.mention}",
+                       content=ctx.author.mention,
                        embed=discord.Embed(title=f"{user.display_name}'s box", colour=discord.Color.gold()).set_image(
                            url="attachment://box.png"))
         await loading.delete()

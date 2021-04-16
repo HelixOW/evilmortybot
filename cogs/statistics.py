@@ -1,4 +1,5 @@
 import discord
+import utilities.embeds as embeds
 from discord.ext import commands
 from discord.ext.commands import Context
 from typing import List, Dict, Any, AsyncGenerator, Union, Tuple, Optional
@@ -6,7 +7,6 @@ from enum import Enum
 from sqlite3 import Cursor
 from utilities import StatsContext, connection
 from utilities.banners import get_user_pull
-from utilities.embeds import Stats as embeds
 
 
 class LeaderboardType(Enum):
@@ -135,7 +135,7 @@ class TopCog(commands.Cog):
         most_shafted: List[Dict[str, Any]] = await self.get_top_users(ctx.guild, LeaderboardType.MOST_SHAFTS, 5)
 
         if len(lucky) == 0:
-            return await ctx.send(embed=embeds.no_summon_embed)
+            return await ctx.send(embed=embeds.Stats.no_summon_embed)
 
         await ctx.send(
             embed=discord.Embed()
@@ -266,7 +266,7 @@ class TopCog(commands.Cog):
         await ctx.send(
             content=f"{person.mention}'s luck:" if person == ctx.author
             else f"{ctx.author.mention}: {person.display_name}'s luck:",
-            embed=discord.Embed(
+            embed=embeds.DefaultEmbed(
                 description=f"**{person.display_name}** currently got a *{ctx.data['percent']}%* SSR droprate in their pulls, with *{ctx.data['ssrs']} SSRs* in *{ctx.data['pulls']} Units*"
             )
         )
@@ -277,7 +277,7 @@ class TopCog(commands.Cog):
         await ctx.send(
             content=f"{person.mention}'s SSRs:" if person == ctx.author
             else f"{ctx.author.mention}: {person.display_name}'s SSRs:",
-            embed=discord.Embed(
+            embed=embeds.DefaultEmbed(
                 description=f"**{person.display_name}** currently has *{ctx.data['ssrs']} SSRs*"
             )
         )
@@ -288,7 +288,7 @@ class TopCog(commands.Cog):
         await ctx.send(
             content=f"{person.mention}'s Units:" if person == ctx.author
             else f"{ctx.author.mention}: {person.display_name}'s Units:",
-            embed=discord.Embed(
+            embed=embeds.DefaultEmbed(
                 description=f"**{person.display_name}** currently has *{ctx.data['pulls']} Units*"
             )
         )
@@ -299,7 +299,7 @@ class TopCog(commands.Cog):
         await ctx.send(
             content=f"{person.mention}'s Shafts:" if person == ctx.author
             else f"{ctx.author.mention}: {person.display_name}'s Shafts:",
-            embed=discord.Embed(
+            embed=embeds.DefaultEmbed(
                 description=f"**{person.display_name}** currently got shafted {ctx.data['shafts']}x"
             )
         )

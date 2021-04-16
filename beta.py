@@ -84,7 +84,12 @@ async def list_help(ctx: Context):
 
 @bot_help.command(name="demon")
 async def demon_help(ctx: Context):
-    await ctx.send(embed=embeds.Help.demon_help)
+    await embeds.Help.send_demon_help(ctx, "")
+
+
+@bot_help.command(name="custom")
+async def custom_help(ctx: Context):
+    await ctx.send(embed=embeds.Help.custom_help)
 
 
 @bot.command()
@@ -130,9 +135,9 @@ async def find(ctx: Context, *, units: str = ""):
         return await ctx.send(content=f"{ctx.author.mention} -> No units found!")
 
     loading: discord.Message = await ctx.send(content=f"{ctx.author.mention} -> Loading Units",
-                                              embed=embeds.LOADING_EMBED)
+                                              embed=embeds.loading())
     await ctx.send(file=await image_to_discord(await compose_unit_list(found), "units.png"),
-                   embed=discord.Embed().set_image(url="attachment://units.png"))
+                   embed=embeds.DefaultEmbed().set_image(url="attachment://units.png"))
     await loading.delete()
 
 
@@ -192,7 +197,9 @@ async def info_cmd(ctx: Context, *, of_name: str):
     ofs: List[Unit] = unit_by_vague_name(of_name)
 
     if len(ofs) == 0:
-        return  # TODO: Embed
+        return await ctx.send(ctx.author.mention, embed=embeds.ErrorEmbed(
+            f"No Units found who have `{of_name}` in their name!"
+        ))
 
     await send_paged_message(
         bot,

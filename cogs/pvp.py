@@ -34,16 +34,17 @@ class PvPCog(commands.Cog):
             await random_unit.set_icon()
 
             await ctx.send(content=f"{ctx.author.mention} this is your unit",
-                           embed=discord.Embed(title=random_unit.name, colour=random_unit.discord_color())
-                           .set_image(url="attachment://unit.png"),
+                           embed=embeds.DefaultEmbed(title=random_unit.name, colour=random_unit.discord_color())
+                           .set_image(url="attachment://image.png"),
                            file=await random_unit.discord_icon())
         except LookupError:
-            await ctx.send(content=f"{ctx.author.mention}",
+            await ctx.send(content=ctx.author.mention,
                            embed=embeds.Unit.lookup_error)
 
     @commands.command()
     @commands.guild_only()
     async def pvp(self, ctx: Context, enemy: discord.Member, *, attr: str = ""):
+        criteria: str = attr
         attr: Dict[str, Any] = parse_arguments(attr)
         proposed_team_p1: List[Unit] = [
             get_random_unit(races=attr["race"], grades=attr["grade"], types=attr["type"], events=attr["event"],
@@ -59,12 +60,12 @@ class PvPCog(commands.Cog):
             replace_duplicates_in_team(attr, proposed_team_p2)
         except ValueError as e:
             return await ctx.send(content=f"{ctx.message.author.mention} -> {e}",
-                                  embed=embeds.Team.lookup_error)
+                                  embed=embeds.Team.lookup_error(criteria))
 
         player1 = ctx.author
 
         if player1 in pvp_time_check or enemy in pvp_time_check:
-            return await ctx.send(content=f"{ctx.author.mention}",
+            return await ctx.send(content=ctx.author.mention,
                                   embed=embeds.PvP.cooldown_error)
 
         changed_units: Dict[int, List[Unit]] = {0: [], 1: [], 2: [], 3: []}
@@ -76,13 +77,13 @@ class PvPCog(commands.Cog):
             if player not in pvp_time_check:
                 pvp_time_check.append(player)
 
-            loading_message: discord.Message = await ctx.send(embed=embeds.LOADING_EMBED)
+            loading_message: discord.Message = await ctx.send(embed=embeds.loading())
             team_message: discord.Message = await ctx.send(
                 file=await image_to_discord(await compose_team(
                     rerolled_team=proposed_team_p1 if player == player1 else proposed_team_p2,
-                    re_units=changed_units), "team.png"),
+                    re_units=changed_units)),
                 content=f"{player.mention} please check if you have those units",
-                embed=discord.Embed().set_image(url="attachment://team.png"))
+                embed=embeds.DrawEmbed())
             await loading_message.delete()
 
             for emoji in team_reroll_emojis:
@@ -139,8 +140,7 @@ class PvPCog(commands.Cog):
         await ctx.send(file=await image_to_discord(await compose_pvp(player1=player1,
                                                                      player2=enemy,
                                                                      team1=proposed_team_p1,
-                                                                     team2=proposed_team_p2),
-                                                   "pvp.png"))
+                                                                     team2=proposed_team_p2)))
 
     @commands.command()
     @commands.guild_only()
@@ -157,7 +157,7 @@ class PvPCog(commands.Cog):
         if amount > 1:
             amount: int = min(amount, 15)
 
-            loading: discord.Message = await ctx.send(content=ctx.author.mention, embed=embeds.LOADING_EMBED)
+            loading: discord.Message = await ctx.send(content=ctx.author.mention, embed=embeds.loading())
             possible: List[Unit] = [get_random_unit_from_dict(attr) for _ in range(amount * 4)]
             teams: List[Unit] = [[possible[i + 0], possible[i + 1], possible[i + 2], possible[i + 3]] for i in
                                  range(0, amount * 4, 4)]
@@ -165,8 +165,7 @@ class PvPCog(commands.Cog):
                 replace_duplicates_in_team(attr, ele)
             possible: List[Unit] = [item for sublist in teams for item in sublist]
             await ctx.send(ctx.author.mention,
-                           file=await image_to_discord(await compose_random_select_team(possible),
-                                                       "random_select_team.png"))
+                           file=await image_to_discord(await compose_random_select_team(possible)))
             return await loading.delete()
 
         try:
@@ -179,10 +178,10 @@ class PvPCog(commands.Cog):
                 replace_duplicates_in_team(criteria=attr, team_to_deduplicate=proposed_team)
             except ValueError as e:
                 return await ctx.send(content=f"{ctx.author.mention} -> {e}",
-                                      embed=embeds.Team.lookup_error)
+                                      embed=embeds.Team.lookup_error(args))
 
             if ctx.message.author in team_time_check:
-                return await ctx.send(content=f"{ctx.author.mention}",
+                return await ctx.send(content=ctx.author.mention,
                                       embed=embeds.Team.cooldown_error)
 
             changed_units: Dict[int, List[Unit]] = {0: [], 1: [], 2: [], 3: []}
@@ -194,12 +193,12 @@ class PvPCog(commands.Cog):
                 if ctx.message.author not in team_time_check:
                     team_time_check.append(ctx.message.author)
 
-                loading_message: discord.Message = await ctx.send(embed=embeds.LOADING_EMBED)
+                loading_message: discord.Message = await ctx.send(embed=embeds.loading())
                 team_message: discord.Message = await ctx.send(
                     file=await image_to_discord(await compose_team(
-                        rerolled_team=proposed_team, re_units=changed_units), "units.png"),
+                        rerolled_team=proposed_team, re_units=changed_units)),
                     content=f"{ctx.author.mention} this is your team",
-                    embed=discord.Embed().set_image(url="attachment://units.png"))
+                    embed=embeds.DrawEmbed())
                 await loading_message.delete()
 
                 for emoji in team_reroll_emojis:
@@ -210,7 +209,7 @@ class PvPCog(commands.Cog):
                            and added_reaction.message == team_message
 
                 try:
-                    reaction, _ = await self.bot.wait_for("reaction_add", check=check_reroll, timeout=5)
+                    reaction, _ = await self.bot.wait_for("reaction_add", check=check_reroll, timeout=60)
                     reaction = str(reaction.emoji)
 
                     c_index = -1
@@ -239,8 +238,8 @@ class PvPCog(commands.Cog):
 
             await send_message()
         except LookupError:
-            await ctx.send(content=f"{ctx.author.mention}",
-                           embed=embeds.Team.lookup_error)
+            await ctx.send(content=ctx.author.mention,
+                           embed=embeds.Team.lookup_error(args))
 
     @commands.command()
     @commands.guild_only()
@@ -252,10 +251,9 @@ class PvPCog(commands.Cog):
             while any(_units.count(element) > 1 for element in _units):
                 _units: List[int] = [ra.randint(1, 22) for _ in range(4)]
 
-            loading: discord.Message = await ctx.send(content=ctx.author.mention, embed=embeds.LOADING_EMBED)
+            loading: discord.Message = await ctx.send(content=ctx.author.mention, embed=embeds.loading())
             msg: discord.Message = await ctx.send(
-                file=await image_to_discord(await compose_tarot(_units[0], _units[1], _units[2], _units[3], _food),
-                                            "tarot.png"),
+                file=await image_to_discord(await compose_tarot(_units[0], _units[1], _units[2], _units[3], _food)),
                 content=ctx.author.mention)
             await loading.delete()
 

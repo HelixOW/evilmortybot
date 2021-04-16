@@ -2,6 +2,7 @@ import discord
 import PIL.Image as ImageLib
 import aiohttp
 import random as ra
+import utilities.embeds as embeds
 
 from PIL.Image import Image as Img
 from typing import List, Dict, Optional, Any
@@ -222,7 +223,7 @@ class Unit:
             self.icon: Optional[Img] = None
 
     async def info_embed(self) -> discord.Embed:
-        embed = discord.Embed(
+        embed = embeds.DefaultEmbed(
             title=f"{self.name}",
             colour=self.discord_color()
         ).add_field(
@@ -282,7 +283,12 @@ class Unit:
         return f"Unit: {self.name} ({self.unit_id})"
 
     def __eq__(self, other) -> bool:
-        return self.unit_id == other.unit_id
+        if other is not None:
+            return self.unit_id == other.unit_id
+        return False
+
+    def __hash__(self):
+        return self.unit_id
 
     @classmethod
     async def convert(cls, _, argument: str):
@@ -525,8 +531,8 @@ def parse_custom_unit_args(arg: str) -> Dict[str, Any]:
         "owner": all_parsed["owner"],
         "url": all_parsed["url"],
         "race": all_parsed["race"][0] if len(all_parsed["race"]) > 0 else Race.UNKNOWN,
-        "grade": all_parsed["grade"][0] if len(all_parsed["grade"]) > 0 else Grade.SSR,
-        "type": all_parsed["type"][0] if len(all_parsed["type"]) > 0 else Type.RED,
+        "grade": all_parsed["grade"][0] if len(all_parsed["grade"]) > 0 else None,
+        "type": all_parsed["type"][0] if len(all_parsed["type"]) > 0 else None,
         "affection": all_parsed["affection"][0] if len(all_parsed["affection"]) > 0 else "none"
     }
 
