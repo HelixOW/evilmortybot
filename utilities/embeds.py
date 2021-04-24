@@ -483,16 +483,26 @@ You **__don't__** need to provide criteria if you don't want to edit it!```
     *updated_name: <new name>*
         The new name of the Unit: `Any Text`"""
     ).set_image(url="attachment://image.png")
-    _missing: ErrorEmbed = ErrorEmbed("Missing argument!")
-    _wrong_owner: ErrorEmbed = ErrorEmbed(error_message="Affection is not yours!")
 
     @staticmethod
     def missing(arguments: str):
-        return ErrorEmbed(f"Missing `{arguments}`")
+        return ErrorEmbed(f"Missing '{arguments}'")
 
     @staticmethod
     def wrong_owner(unit_name: str):
-        return ErrorEmbed(f"Unit `{unit_name}` wasn't created by you!")
+        return ErrorEmbed(f"Unit '{unit_name}' wasn't created by you!")
+
+    @staticmethod
+    def already_exist(unit_name: str):
+        return ErrorEmbed(f"Unit '{unit_name}' exists already!")
+
+    @staticmethod
+    def not_existing(unit_name: str):
+        return ErrorEmbed(f"Unit '{unit_name}' doesn't exist!")
+
+    @staticmethod
+    def no_units(owner: str):
+        return ErrorEmbed(f"{owner} didn't create any custom units yet!")
 
     @staticmethod
     async def send_help(ctx, content: str):
@@ -523,5 +533,5 @@ class Tourney:
 
 
 def loading(title: str = "Loading..."):
-    return DefaultEmbed(title=title).set_thumbnail(
+    return DefaultEmbed(title="\u200b", description=f"**{title}**").set_thumbnail(
         url="https://raw.githubusercontent.com/WhoIsAlphaHelix/evilmortybot/master/data/images/loading.gif")

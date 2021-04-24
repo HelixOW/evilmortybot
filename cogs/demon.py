@@ -71,6 +71,10 @@ async def update_demon_profile(of: discord.Member, gc_id: int, name: str) -> Non
     connection.commit()
 
 
+async def try_getting_channel(x, bot):
+    return (await bot.fetch_channel(x["channel_id"])).name + " in " + (await bot.fetch_guild(x["guild"])).name
+
+
 class DemonCog(commands.Cog):
     def __init__(self, _bot):
         self.bot = _bot
@@ -121,9 +125,9 @@ class DemonCog(commands.Cog):
         async for channel_list_item in get_raid_channels():
             try:
                 channel: discord.TextChannel = await self.bot.fetch_channel(channel_list_item["channel_id"])
-            except discord.Forbidden:
+                guild: discord.Guild = await self.bot.fetch_guild(channel_list_item["guild"])
+            except (discord.Forbidden, discord.errors.NotFound, discord.errors.Forbidden) as _:
                 continue
-            guild: discord.Guild = await self.bot.fetch_guild(channel_list_item["guild"])
 
             mentions: List[str] = []
 
@@ -139,7 +143,7 @@ class DemonCog(commands.Cog):
             if crimsons != 0 and crimson_role is not None:
                 mentions.append(guild.get_role(crimson_role[0]).mention)
 
-            if all_role is not None and red_role is None and grey_role is None and crimson_role is None:
+            if all_role is not None and None in [red_role, grey_role, crimson_role]:
                 mentions.append(guild.get_role(all_role[0]).mention)
 
             to_claim: discord.Message = await channel.send(
@@ -290,9 +294,7 @@ class DemonCog(commands.Cog):
             await add_raid_channel(ctx.message)
             return await ctx.send(f"{ctx.author.mention} added demon channel!")
 
-        channels: List[discord.TextChannel] = [
-            (await self.bot.fetch_channel(x["channel_id"])).name + " in " + (await self.bot.fetch_guild(x["guild"])).name
-            async for x in get_raid_channels()]
+        channels: List[discord.TextChannel] = [await try_getting_channel(x, self.bot) async for x in get_raid_channels()]
         await ctx.author.send("\n".join(channels))
 
     @demon.command(name="role")

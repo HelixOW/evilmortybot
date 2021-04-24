@@ -174,7 +174,7 @@ class DrawCog(commands.Cog):
 
     @commands.command()
     @commands.guild_only()
-    async def single(self, ctx: Context, person: Optional[discord.Member], amount: str = None, *,
+    async def single(self, ctx: Context, person: Optional[discord.Member], *,
                      banner_name: str = "banner 1"):
         if person is None:
             person: discord.Member = ctx.author

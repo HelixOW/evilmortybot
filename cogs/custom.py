@@ -121,6 +121,7 @@ class CustomCog(commands.Cog):
                                   embed=embeds.Custom.missing(", ".join([x for x in data.keys() if (data[x] == "" or data[x] is None)])))
 
         if await unit_exists(data["name"]):
+            await ctx.reply(embed=embeds.Custom.already_exist(data["name"]))
             return await ctx.send(content=f"{ctx.author.mention}: {data['name']} exists already!")
 
         async with aiohttp.ClientSession() as session:
@@ -161,21 +162,22 @@ class CustomCog(commands.Cog):
 
         edit_unit: Unit = unit_by_name(data["name"])
 
+        if edit_unit is None:
+            return await ctx.reply(embed=embeds.Custom.not_existing(data["name"]))
+
         if int(edit_unit.simple_name) != ctx.author.id:
-            return await ctx.send(content=ctx.author.mention, embed=discord.Embed(
-                title="Error with ..custom remove", colour=discord.Color.dark_red(),
-                description=f"**{edit_unit.name}** wasn't created by you!"))
+            return await ctx.send(content=ctx.author.mention, embed=embeds.Custom.wrong_owner(edit_unit.name))
 
         await remove_custom_unit(data["name"])
         unit_list.remove(edit_unit)
         create_custom_unit_banner()
-        return await ctx.send(content=ctx.author.mention, embed=embeds.CUSTOM_REMOVE_COMMAND_SUCCESS_EMBED)
+        return await ctx.send(content=ctx.author.mention, embed=embeds.Custom.Remove.success(edit_unit.name))
 
     @custom.command(name="list")
     async def custom_list(self, ctx: Context, *, args: Optional[str] = ""):
         data: Dict[str, Any] = parse_custom_unit_args(args)
         if data["owner"] == 0:
-            return await ctx.send(content=f"{ctx.author.mention}: Specified Owner didn't create any custom units yet")
+            return await ctx.send(ctx.author.mention, embed=embeds.Custom.no_units(data["owner"]))
 
         owners_units: List[Unit] = [
             unit_by_id(unit_id)
@@ -195,6 +197,9 @@ class CustomCog(commands.Cog):
             return await ctx.send(content=ctx.author.mention, embed=embeds.Custom.missing("name"))
 
         edit_unit: Unit = unit_by_name(data["name"])
+
+        if edit_unit is None:
+            return await ctx.reply(embed=embeds.Custom.not_existing(data["name"]))
 
         if int(edit_unit.simple_name) != ctx.author.id:
             return await ctx.send(content=ctx.author.mention, embed=embeds.Custom.wrong_owner(edit_unit.name))
