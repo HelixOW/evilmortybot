@@ -113,11 +113,7 @@ class DemonCog(commands.Cog):
         if reds == 0 and greys == 0 and crimsons == 0:
             return await ctx.send(
                 content=f"{ctx.author.mention}",
-                embed=discord.Embed(
-                    title="Error",
-                    description="Please provide at least one demon",
-                    color=discord.Color.dark_red()
-                )
+                embed=embeds.ErrorEmbed(error_message="Please provide at least one demon")
             )
         author: discord.Member = ctx.author
         guild_created_in: discord.Guild = ctx.guild
