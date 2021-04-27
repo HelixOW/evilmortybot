@@ -100,7 +100,8 @@ class ListCog(commands.Cog):
                                      "file": await compose_paged_tarot_list(x+1),
                                      "content": ctx.author.mention,
                                      "embed": embeds.DrawEmbed(title=tarot_name(x+1))
-                                 } for x in range(22)])
+                                 } for x in range(22)],
+                                 after_message=await loading.delete())
 
 
 def setup(_bot):

@@ -49,6 +49,7 @@ class Event(Enum):
     FES: str = "festival"
     VAL: str = "valentine"
     REZ: str = "rezero"
+    stranger: str = "stranger"
     CUS: str = "custom"
 
 
@@ -64,7 +65,7 @@ class Affection(Enum):
 all_races: List[Race] = [Race.DEMON, Race.GIANT, Race.HUMAN, Race.FAIRY, Race.GODDESS, Race.UNKNOWN]
 all_grades: List[Grade] = [Grade.R, Grade.SR, Grade.SSR]
 all_types: List[Type] = [Type.RED, Type.GRE, Type.BLUE]
-all_events: List[Event] = [Event.GC, Event.SLI, Event.AOT, Event.KOF, Event.FES, Event.NEY, Event.VAL, Event.HAL, Event.REZ]
+all_events: List[Event] = [Event.GC, Event.SLI, Event.AOT, Event.KOF, Event.FES, Event.NEY, Event.VAL, Event.HAL, Event.REZ, Event.stranger]
 all_affections: List[str] = [Affection.SIN.value, Affection.COMMANDMENTS.value, Affection.CATASTROPHE.value,
                              Affection.ANGEL.value, Affection.KNIGHT.value, Affection.NONE.value]
 
@@ -151,6 +152,8 @@ def map_event(raw_event: str) -> Event:
         return Event.REZ
     if raw_event in ["custom"]:
         return Event.CUS
+    if raw_event in ["stranger", "stranger things", "things", "st"]:
+        return Event.stranger
     return Event.GC
 
 

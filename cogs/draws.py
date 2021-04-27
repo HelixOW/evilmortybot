@@ -66,9 +66,7 @@ class DrawCog(commands.Cog):
         from_banner: Optional[Banner] = banner_by_name(banner_name)
         if from_banner is None:
             return await ctx.send(content=ctx.author.mention,
-                                  embed=discord.Embed(title="Error", colour=discord.Color.dark_red(),
-                                                      description=f"Can't find the \"{banner_name}\" banner"
-                                                      )
+                                  embed=embeds.ErrorEmbed(f"Can't find the \"{banner_name}\" banner")
                                   )
 
         draw: discord.Message = await ctx.send(embed=embeds.loading().set_image(url=loading_image_url))

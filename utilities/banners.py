@@ -182,10 +182,10 @@ async def add_user_pull(user: discord.Member, got_ssr: bool) -> None:
 async def unit_with_chance(from_banner: Banner, user: discord.Member) -> Unit:
     draw_chance: float = round(ra.uniform(0, 100), 4)
 
-    if from_banner.ssr_chance >= draw_chance or len(from_banner.sr_units) == 0:
-        u: Unit = from_banner.ssr_units[ra.randint(0, len(from_banner.ssr_units) - 1)]
-    elif from_banner.ssr_rate_up_chance >= draw_chance and len(from_banner.rate_up_units) != 0:
+    if from_banner.ssr_rate_up_chance >= draw_chance and len(from_banner.rate_up_units) != 0:
         u: Unit = from_banner.rate_up_units[ra.randint(0, len(from_banner.rate_up_units) - 1)]
+    elif from_banner.ssr_chance >= draw_chance or len(from_banner.sr_units) == 0:
+        u: Unit = from_banner.ssr_units[ra.randint(0, len(from_banner.ssr_units) - 1)]
     elif from_banner.sr_chance >= draw_chance or len(from_banner.r_units) == 0:
         u: Unit = from_banner.sr_units[ra.randint(0, len(from_banner.sr_units) - 1)]
     else:
