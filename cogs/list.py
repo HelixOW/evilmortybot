@@ -6,7 +6,7 @@ import utilities.reactions as emojis
 from discord.ext import commands
 from discord.ext.commands import Context
 from typing import Optional, Dict, Any, List
-from utilities import all_banner_list
+from utilities import all_banner_list, send_paged_message
 from utilities.units import parse_arguments, Unit, get_units_matching, image_to_discord
 from utilities.image_composer import compose_paged_unit_list, compose_tarot_list, compose_paged_tarot_list
 from utilities.tarot import tarot_name
@@ -92,33 +92,15 @@ class ListCog(commands.Cog):
                            )
             return await loading.delete()
 
-        async def display(page: int, last_message):
-            msg = await ctx.send(content=ctx.author.mention,
-                                 file=await image_to_discord(await compose_paged_tarot_list(page)),
-                                 embed=embeds.DrawEmbed(title=tarot_name(page)))
-            await last_message.delete()
-
-            if page != 1:
-                await msg.add_reaction(emojis.LEFT_ARROW)
-
-            if page != 22:
-                await msg.add_reaction(emojis.RIGHT_ARROW)
-
-            def check(added_reaction, user):
-                return user == ctx.author and str(added_reaction.emoji) in [emojis.LEFT_ARROW, emojis.RIGHT_ARROW]
-
-            try:
-                reaction, _ = await self.bot.wait_for('reaction_add', check=check, timeout=15)
-
-                if str(reaction.emoji) == emojis.LEFT_ARROW and page != 1:
-                    return await display(page - 1, msg)
-
-                if str(reaction.emoji) == emojis.RIGHT_ARROW and page != 22:
-                    return await display(page + 1, msg)
-            except asyncio.TimeoutError:
-                await msg.clear_reactions()
-
-        await display(1, loading)
+        await send_paged_message(self.bot, ctx,
+                                 check_func=lambda x, y: y == ctx.author and str(x.emoji) in [emojis.LEFT_ARROW,
+                                                                                              emojis.RIGHT_ARROW],
+                                 timeout=15,
+                                 pages=[{
+                                     "file": await compose_paged_tarot_list(x+1),
+                                     "content": ctx.author.mention,
+                                     "embed": embeds.DrawEmbed(title=tarot_name(x+1))
+                                 } for x in range(22)])
 
 
 def setup(_bot):

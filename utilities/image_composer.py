@@ -370,10 +370,12 @@ async def compose_banner_list(b: Banner, include_all: bool = False) -> Image:
     unit_list: List[Unit]
     unit_rate: float
     _unit: Unit
-    for unit_list, unit_rate in [(b.rate_up_units, b.ssr_unit_rate_up),
-                                 (b.ssr_units, b.ssr_unit_rate),
-                                 (b.sr_units, b.sr_unit_rate),
-                                 (b.r_units, b.r_unit_rate)]:
+    for unit_list, unit_rate, ssr_only in [(b.rate_up_units, b.ssr_unit_rate_up, True),
+                                 (b.ssr_units, b.ssr_unit_rate, True),
+                                 (b.sr_units, b.sr_unit_rate, False),
+                                 (b.r_units, b.r_unit_rate, False)]:
+        if not include_all and not ssr_only:
+            break
         for _unit in unit_list:
             i.paste(await _unit.set_icon(), (0, y))
             text_with_shadow(draw, xy=(5 + img_size, y + (img_size / 2) - (unit_text[1] / 2)),
