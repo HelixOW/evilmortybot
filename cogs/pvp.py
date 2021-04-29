@@ -1,15 +1,16 @@
 import asyncio
-import utilities.embeds as embeds
+import traceback
+
 import utilities.reactions as emojis
 
+from typing import Union, Coroutine
 from discord.ext import commands
 from discord.ext.commands import Context
 from utilities.units import *
 from utilities.image_composer import compose_team, compose_pvp, compose_random_select_team, compose_tarot
 
-
-team_time_check: List[discord.Member] = []
-pvp_time_check: List[discord.Member] = []
+team_time_check: Dict[int, Dict[str, Union[int, Coroutine]]] = {}
+in_pvp: List[discord.Member] = []
 
 team_reroll_emojis = [emojis.NO_1, emojis.NO_2, emojis.NO_3, emojis.NO_4]
 
@@ -39,7 +40,7 @@ class PvPCog(commands.Cog):
                            file=await random_unit.discord_icon())
         except LookupError:
             await ctx.send(content=ctx.author.mention,
-                           embed=embeds.Unit.lookup_error)
+                           embed=embeds.Unit.lookup_error(args))
 
     @commands.command()
     @commands.guild_only()
@@ -64,7 +65,7 @@ class PvPCog(commands.Cog):
 
         player1 = ctx.author
 
-        if player1 in pvp_time_check or enemy in pvp_time_check:
+        if player1 in in_pvp or enemy in in_pvp:
             return await ctx.send(content=ctx.author.mention,
                                   embed=embeds.PvP.cooldown_error)
 
@@ -74,8 +75,8 @@ class PvPCog(commands.Cog):
             if last_message is not None:
                 await last_message.delete()
 
-            if player not in pvp_time_check:
-                pvp_time_check.append(player)
+            if player not in in_pvp:
+                in_pvp.append(player)
 
             loading_message: discord.Message = await ctx.send(embed=embeds.loading())
             team_message: discord.Message = await ctx.send(
@@ -127,8 +128,8 @@ class PvPCog(commands.Cog):
 
                 await send(player=user, last_message=team_message)
             except asyncio.TimeoutError:
-                if player in pvp_time_check:
-                    pvp_time_check.remove(player)
+                if player in in_pvp:
+                    in_pvp.remove(player)
                 await team_message.delete()
 
         await send(player1)
@@ -148,6 +149,13 @@ class PvPCog(commands.Cog):
         attr: Dict[str, Any] = parse_arguments(args)
         amount: int = 1
 
+        if ctx.author.id in team_time_check:
+            team_time_check[ctx.author.id]["thread"].close()
+            try:
+                await (await ctx.fetch_message(team_time_check[ctx.author.id]["message"])).clear_reactions()
+            except discord.NotFound as e:
+                print(str(e))
+
         if len(attr["unparsed"]) != 0:
             try:
                 amount: int = int(attr["unparsed"][0])
@@ -159,8 +167,8 @@ class PvPCog(commands.Cog):
 
             loading: discord.Message = await ctx.send(content=ctx.author.mention, embed=embeds.loading())
             possible: List[Unit] = [get_random_unit_from_dict(attr) for _ in range(amount * 4)]
-            teams: List[Unit] = [[possible[i + 0], possible[i + 1], possible[i + 2], possible[i + 3]] for i in
-                                 range(0, amount * 4, 4)]
+            teams: List[List[Unit]] = [[possible[i + 0], possible[i + 1], possible[i + 2], possible[i + 3]] for i in
+                                       range(0, amount * 4, 4)]
             for i, ele in enumerate(teams):
                 replace_duplicates_in_team(attr, ele)
             possible: List[Unit] = [item for sublist in teams for item in sublist]
@@ -190,9 +198,6 @@ class PvPCog(commands.Cog):
                 if last_team_message is not None:
                     await last_team_message.delete()
 
-                if ctx.message.author not in team_time_check:
-                    team_time_check.append(ctx.message.author)
-
                 loading_message: discord.Message = await ctx.send(embed=embeds.loading())
                 team_message: discord.Message = await ctx.send(
                     file=await image_to_discord(await compose_team(
@@ -200,6 +205,11 @@ class PvPCog(commands.Cog):
                     content=f"{ctx.author.mention} this is your team",
                     embed=embeds.DrawEmbed())
                 await loading_message.delete()
+
+                if ctx.author.id not in team_time_check:
+                    team_time_check[ctx.author.id] = {}
+
+                team_time_check[ctx.author.id]["message"] = team_message.id
 
                 for emoji in team_reroll_emojis:
                     await team_message.add_reaction(emoji)
@@ -209,7 +219,8 @@ class PvPCog(commands.Cog):
                            and added_reaction.message == team_message
 
                 try:
-                    reaction, _ = await self.bot.wait_for("reaction_add", check=check_reroll, timeout=60)
+                    team_time_check[ctx.author.id]["thread"] = self.bot.wait_for("reaction_add", check=check_reroll, timeout=60)
+                    reaction, _ = await team_time_check[ctx.author.id]["thread"]
                     reaction = str(reaction.emoji)
 
                     c_index = -1
@@ -232,12 +243,12 @@ class PvPCog(commands.Cog):
                     replace_duplicates_in_team(criteria=attr, team_to_deduplicate=proposed_team)
                     await send_message(last_team_message=team_message)
                 except asyncio.TimeoutError:
-                    if ctx.message.author in team_time_check:
-                        team_time_check.remove(ctx.author)
+                    team_time_check.pop(ctx.author.id)
                     await team_message.clear_reactions()
 
             await send_message()
         except LookupError:
+            traceback.print_exc()
             await ctx.send(content=ctx.author.mention,
                            embed=embeds.Team.lookup_error(args))
 
@@ -245,7 +256,7 @@ class PvPCog(commands.Cog):
     @commands.guild_only()
     async def tarot(self, ctx: Context):
         __units: List[int] = [ra.randint(1, 22) for _ in range(4)]
-        __food: List[int] = ra.randint(1, 4)
+        __food: int = ra.randint(1, 4)
 
         async def send_msg(_units, _food) -> None:
             while any(_units.count(element) > 1 for element in _units):
