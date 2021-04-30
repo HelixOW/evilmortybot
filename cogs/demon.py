@@ -72,17 +72,24 @@ async def update_demon_profile(of: discord.Member, gc_id: int, name: str) -> Non
 
 
 async def try_getting_channel(x, bot):
-    return (await bot.fetch_channel(x["channel_id"])).name + " in " + (await bot.fetch_guild(x["guild"])).name
+    try:
+        return (await bot.fetch_channel(x["channel_id"])).name + " in " + (await bot.fetch_guild(x["guild"])).name
+    except discord.NotFound:
+        cursor: Cursor = connection.cursor()
+        cursor.execute('DELETE FROM "raid_channels" WHERE channel_id=? AND guild=?', (x["channel_id"], x["guild"]))
+        connection.commit()
+    except discord.Forbidden:
+        return "Can't access channel"
 
 
 class DemonCog(commands.Cog):
     def __init__(self, _bot):
         self.bot = _bot
 
-    def mutual_guilds(self, person: discord.User) -> List[discord.Guild]:
+    def mutual_guilds(self, person: discord.Member) -> List[discord.Guild]:
         return [g for g in self.bot.guilds if g.get_member(person.id) is not None]
 
-    def shared_guilds(self, person1: discord.User, person2: discord.User) -> List[discord.Guild]:
+    def shared_guilds(self, person1: discord.Member, person2: discord.Member) -> List[discord.Guild]:
         return [x for x in self.mutual_guilds(person1) if x in self.mutual_guilds(person2)]
 
     @commands.group()
@@ -122,7 +129,13 @@ class DemonCog(commands.Cog):
             try:
                 channel: discord.TextChannel = await self.bot.fetch_channel(channel_list_item["channel_id"])
                 guild: discord.Guild = await self.bot.fetch_guild(channel_list_item["guild"])
-            except (discord.Forbidden, discord.errors.NotFound, discord.errors.Forbidden) as _:
+            except (discord.Forbidden, discord.errors.NotFound) as _:
+                cursor: Cursor = connection.cursor()
+                cursor.execute('DELETE FROM "raid_channels" WHERE channel_id=? AND guild=?',
+                               (channel_list_item["channel_id"], channel_list_item["guild"]))
+                connection.commit()
+                continue
+            except discord.Forbidden:
                 continue
 
             mentions: List[str] = []

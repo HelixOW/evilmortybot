@@ -12,9 +12,9 @@ from io import BytesIO
 
 
 class Grade(Enum):
-    R: str = "r"
-    SR: str = "sr"
-    SSR: str = "ssr"
+    R = "r"
+    SR = "sr"
+    SSR = "ssr"
 
     def to_int(self) -> int:
         if self.value == "ssr":
@@ -25,41 +25,41 @@ class Grade(Enum):
 
 
 class Type(Enum):
-    RED: str = "red"
-    GRE: str = "green"
-    BLUE: str = "blue"
+    RED = "red"
+    GRE = "green"
+    BLUE = "blue"
 
 
 class Race(Enum):
-    DEMON: str = "demon"
-    GIANT: str = "giant"
-    HUMAN: str = "human"
-    FAIRY: str = "fairy"
-    GODDESS: str = "goddess"
-    UNKNOWN: str = "unknown"
+    DEMON = "demon"
+    GIANT = "giant"
+    HUMAN = "human"
+    FAIRY = "fairy"
+    GODDESS = "goddess"
+    UNKNOWN = "unknown"
 
 
 class Event(Enum):
-    GC: str = "gc"
-    SLI: str = "slime"
-    AOT: str = "aot"
-    KOF: str = "kof"
-    NEY: str = "newyear"
-    HAL: str = "halloween"
-    FES: str = "festival"
-    VAL: str = "valentine"
-    REZ: str = "rezero"
-    stranger: str = "stranger"
-    CUS: str = "custom"
+    GC = "gc"
+    SLI = "slime"
+    AOT = "aot"
+    KOF = "kof"
+    NEY = "newyear"
+    HAL = "halloween"
+    FES = "festival"
+    VAL = "valentine"
+    REZ = "rezero"
+    stranger = "stranger"
+    CUS = "custom"
 
 
 class Affection(Enum):
-    SIN: str = "sins"
-    COMMANDMENTS: str = "commandments"
-    KNIGHT: str = "holyknights"
-    CATASTROPHE: str = "catastrophes"
-    ANGEL: str = "archangels"
-    NONE: str = "none"
+    SIN = "sins"
+    COMMANDMENTS = "commandments"
+    KNIGHT = "holyknights"
+    CATASTROPHE = "catastrophes"
+    ANGEL = "archangels"
+    NONE = "none"
 
 
 all_races: List[Race] = [Race.DEMON, Race.GIANT, Race.HUMAN, Race.FAIRY, Race.GODDESS, Race.UNKNOWN]
@@ -418,7 +418,7 @@ def parse_arguments(given_args: str, list_seperator: str = "&") -> Dict[str, Any
     parsed_grades: List[Grade] = []
     parsed_types: List[Type] = []
     parsed_events: List[Event] = []
-    parsed_affections: List[Affection] = []
+    parsed_affections: List[str] = []
     parsed_url: str = ""
     parsed_new_name: str = ""
     parsed_owner: int = 0

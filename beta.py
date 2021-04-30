@@ -2,7 +2,6 @@ import aiohttp
 import utilities.embeds as embeds
 import utilities.reactions as emojis
 import structlog
-from discord.ext import tasks
 from utilities import *
 from utilities.banners import create_jp_banner, create_custom_unit_banner
 from utilities.sql_helper import *
@@ -10,7 +9,7 @@ from utilities.units import image_to_discord, unit_by_vague_name, compose_icon
 from utilities.image_composer import compose_unit_list, compose_awakening
 from utilities.awaken import *
 from utilities.tarot import *
-from discord.ext.commands import Context, has_permissions
+from discord.ext.commands import Context
 from datetime import datetime
 from io import BytesIO
 from PIL.Image import Image
@@ -24,8 +23,7 @@ author_id: int = 204150777608929280
 intents = discord.Intents.default()
 intents.members = True
 
-initial_extensions = ['cogs.blackjack',
-                      'cogs.cc',
+initial_extensions = ['cogs.cc',
                       'cogs.custom',
                       'cogs.demon',
                       'cogs.draws',
@@ -170,26 +168,6 @@ async def awake_cmd(ctx: Context, _unit: Unit, start: Optional[int] = 0, to: Opt
 @bot.command(name="code")
 async def code_cmd(ctx: Context):
     await ctx.send(f"{ctx.author.mention}: https://github.com/WhoIsAlphaHelix/evilmortybot")
-
-
-@tasks.loop(seconds=30)
-async def kof_task():
-    for guild in bot.guilds:
-        pass
-        # await fetch_data(bot, guild)
-
-
-@bot.command(name="kof")
-@has_permissions(manage_channels=True)
-async def kof_cmd(ctx: Context):
-    # await add_channel(ctx.channel)
-    await ctx.send(ctx.author.mention + " added news channel!")
-
-
-@bot.command(name="knews")
-async def kof_news(ctx: Context):
-    # await fetch_data_manual(ctx)
-    pass
 
 
 @bot.command(name="info")
