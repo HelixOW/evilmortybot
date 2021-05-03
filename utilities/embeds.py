@@ -13,6 +13,16 @@ class DefaultEmbed(Embed):
         self.colour = discord.Colour.dark_teal()
         self.set_footer(text="© Heⅼіх Sama#0578",
                         icon_url="https://cdn.discordapp.com/avatars/456276194581676062/dda3dc4e7a35fbe4afef3488054363cc.webp?size=256")
+        self.blank_fields = 0
+
+    def add_blank_field(self, inline=False, value: str = "\u200b"):
+        self.blank_fields += 1
+        self.add_field(
+            name="\u200b"*self.blank_fields,
+            value=value,
+            inline=inline
+        )
+        return self
 
 
 class ErrorEmbed(Embed):
@@ -41,16 +51,6 @@ class HelpEmbed(DefaultEmbed):
             icon_url="https://raw.githubusercontent.com/WhoIsAlphaHelix/evilmortybot/master/data/images/help.png"
         )
         self.set_thumbnail(url="https://cdn.discordapp.com/avatars/456276194581676062/dda3dc4e7a35fbe4afef3488054363cc.webp?size=256")
-        self.blank_fields = 0
-
-    def add_blank_field(self, inline=False):
-        self.blank_fields += 1
-        self.add_field(
-            name="\u200b"*self.blank_fields,
-            value="\u200b",
-            inline=inline
-        )
-        return self
 
 
 class SuccessEmbed(Embed):

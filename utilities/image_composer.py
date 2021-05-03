@@ -1,55 +1,25 @@
 import discord
 import math
-from PIL import ImageFont, ImageDraw, Image as ImageLib
+from PIL import ImageDraw, Image as ImageLib
 from PIL.ImageFont import FreeTypeFont
 from PIL.Image import Image
 from typing import Tuple, List, Dict
-from utilities import img_size, flatten, chunks, chunks_dict, connection, half_img_size
+from utilities import img_size, flatten, chunks, chunks_dict, connection, half_img_size, get_text_dimensions,\
+    font_24, font_12, text_with_shadow
 from utilities.units import Unit, longest_named, unit_by_id
 from utilities.banners import Banner, unit_with_chance
 from utilities.tarot import tarot_units, tarot_food, tarot_name
 from utilities.materials import Food
 
 
-FONT_12: FreeTypeFont = ImageFont.truetype("pvp.ttf", 12)
-FONT_24: FreeTypeFont = ImageFont.truetype("pvp.ttf", 24)
 X_OFFSET = 5
 Y_OFFSET = 9
 DRAW_OFFSET = 5
 
 
-def get_text_dimensions(text_string: str, font: FreeTypeFont = FONT_24) -> Tuple[int, int]:
-    _, descent = font.getmetrics()
-
-    text_width = font.getmask(text_string).getbbox()[2]
-    text_height = font.getmask(text_string).getbbox()[3] + descent
-
-    return text_width, text_height
-
-
 def _text_with_shadow(draw: ImageDraw, text: str, x: int, y: int, fill: Tuple[int, int, int] = (255, 255, 255),
-                      font: FreeTypeFont = FONT_24) -> None:
+                      font: FreeTypeFont = font_24) -> None:
     text_with_shadow(draw, text, (x, y), fill, font)
-
-
-def text_with_shadow(draw: ImageDraw, text: str, xy: Tuple[int, int], fill: Tuple[int, int, int] = (255, 255, 255),
-                     font: FreeTypeFont = FONT_24) -> None:
-    for x, y in [(xy[0] + 1, xy[1]),
-                 (xy[0], xy[1] + 1),
-                 (xy[0] + 1, xy[1] + 1)]:
-        draw.text(
-            xy=(x, y),
-            text=text,
-            fill=(0, 0, 0),
-            font=font
-        )
-
-    draw.text(
-        xy=(xy[0], xy[1]),
-        text=text,
-        fill=fill,
-        font=font
-    )
 
 
 VS_DIM: Tuple[int, int] = get_text_dimensions("vs")
@@ -66,7 +36,7 @@ async def compose_team(rerolled_team: List[Unit],
         re_units = {0: [], 1: [], 2: [], 3: []}
 
     icons: list[Image] = [_icon.resize([img_size, img_size]) for _icon in [_unit.icon for _unit in rerolled_team]]
-    longest_named_unit = get_text_dimensions(longest_named(re_units[3]).name, FONT_12)[0] if len(
+    longest_named_unit = get_text_dimensions(longest_named(re_units[3]).name, font_12)[0] if len(
         re_units[3]) != 0 else 0
 
     if re_units[0] == 0 and re_units[1] == 0 and re_units[2] == 0 and re_units[3] == 0:
@@ -81,7 +51,7 @@ async def compose_team(rerolled_team: List[Unit],
 
         return img
 
-    dummy_height: int = get_text_dimensions("[Dummy] Bot", FONT_12)[1]
+    dummy_height: int = get_text_dimensions("[Dummy] Bot", font_12)[1]
     img: Image = ImageLib.new('RGBA', (
         (img_size * 4) + (X_OFFSET * 3) + ((longest_named_unit - img_size) if longest_named_unit > img_size else 0),
         img_size + ((Y_OFFSET + dummy_height) * len(flatten(re_units.values())))
@@ -105,7 +75,7 @@ async def compose_team(rerolled_team: List[Unit],
                                  (Y_OFFSET + dummy_height) * pointer
                              ),
                              text=ele.name,
-                             font=FONT_12)
+                             font=font_12)
             pointer += 1
 
     return img

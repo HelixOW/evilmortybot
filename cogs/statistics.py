@@ -10,10 +10,10 @@ from utilities.banners import get_user_pull
 
 
 class LeaderboardType(Enum):
-    LUCK: str = "luck"
-    MOST_SSR: str = "ssrs"
-    MOST_UNITS: str = "units"
-    MOST_SHAFTS: str = "shafts"
+    LUCK = "luck"
+    MOST_SSR = "ssrs"
+    MOST_UNITS = "units"
+    MOST_SHAFTS = "shafts"
 
 
 def map_leaderboard(raw_leaderboard: str) -> LeaderboardType:

@@ -30,7 +30,8 @@ initial_extensions = ['cogs.cc',
                       'cogs.list',
                       'cogs.pvp',
                       'cogs.statistics',
-                      'cogs.tournament']
+                      'cogs.tournament',
+                      'cogs.users']
 
 
 bot: KingBot = KingBot(command_prefix=get_prefix,
@@ -190,6 +191,18 @@ async def info_cmd(ctx: Context, *, of_name: str):
             "content": None
         } for x in ofs]
     )
+
+
+@bot.command(name="test")
+async def test_cmd(ctx: Context, demon: str = "none"):
+    from cogs.users import BotUser
+    user = BotUser(ctx.author.id, ctx.author.display_name, 0, 0, 0, None, {
+        "red": [1, 2, 3, 4],
+        "grey": [178, 177, 176, 175],
+        "crimson": [174, 173, 172, 171]
+    }, 0, 0, 0)
+
+    await ctx.send(file=await image_to_discord(await user.create_all_team_image()))
 
 
 def set_arsenic_log_level(level=logging.WARNING):

@@ -4,7 +4,8 @@ from discord.ext import commands
 from discord.ext.commands import Context
 from itertools import islice
 from io import StringIO, BytesIO
-from PIL.Image import Image
+from PIL import ImageFont, Image, ImageDraw
+from PIL.ImageFont import FreeTypeFont
 
 import discord
 import sqlite3 as sqlite
@@ -43,6 +44,9 @@ periods: List[Tuple[str, int]] = [
 ]
 
 connection: sqlite.Connection = sqlite.connect("data/data.db")
+
+font_12: FreeTypeFont = ImageFont.truetype("pvp.ttf", 12)
+font_24: FreeTypeFont = ImageFont.truetype("pvp.ttf", 24)
 
 
 class MemberMentionConverter(commands.Converter):
@@ -122,6 +126,35 @@ def td_format(td_object):
             strings.append("%s %s%s" % (period_value, period_name, has_s))
 
     return ", ".join(strings)
+
+
+def get_text_dimensions(text_string: str, font: FreeTypeFont = font_24) -> Tuple[int, int]:
+    _, descent = font.getmetrics()
+
+    text_width = font.getmask(text_string).getbbox()[2]
+    text_height = font.getmask(text_string).getbbox()[3] + descent
+
+    return text_width, text_height
+
+
+def text_with_shadow(draw: ImageDraw, text: str, xy: Tuple[int, int], fill: Tuple[int, int, int] = (255, 255, 255),
+                     font: FreeTypeFont = font_24) -> None:
+    for x, y in [(xy[0] + 1, xy[1]),
+                 (xy[0], xy[1] + 1),
+                 (xy[0] + 1, xy[1] + 1)]:
+        draw.text(
+            xy=(x, y),
+            text=text,
+            fill=(0, 0, 0),
+            font=font
+        )
+
+    draw.text(
+        xy=(xy[0], xy[1]),
+        text=text,
+        fill=fill,
+        font=font
+    )
 
 
 async def send_paged_message(_bot: discord.ext.commands.Bot, ctx: Context,
