@@ -1,3 +1,5 @@
+import typing
+
 import discord
 import PIL.Image as ImageLib
 import aiohttp
@@ -322,6 +324,14 @@ def unit_by_name(name: str) -> Optional[Unit]:
 
 def unit_by_vague_name(name: str) -> List[Unit]:
     return [x for x in unit_list if (name.lower() in x.name.lower()) or name.lower() in [y.lower() for y in x.alt_names]]
+
+
+def unit_by_name_or_id(name_or_id: typing.Union[str, int]) -> List[Unit]:
+    if isinstance(name_or_id, str):
+        return unit_by_vague_name(name_or_id)
+    elif isinstance(name_or_id, int):
+        return unit_by_id(name_or_id)
+    raise ValueError
 
 
 def longest_named(chunk: List[Unit] = None) -> Unit:

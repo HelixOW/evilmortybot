@@ -167,7 +167,7 @@ class DemonCog(commands.Cog):
                                 "\nClick 🆗 to claim them." +
                                 "\nMake sure to have a empty spot in your friends list!",
                     color=discord.Color.green()
-                )
+                ).set_thumbnail(url=author.avatar_url)
             )
 
             await to_claim.add_reaction(emojis.OK)
