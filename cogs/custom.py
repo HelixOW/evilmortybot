@@ -1,5 +1,4 @@
 from io import BytesIO
-from sqlite3 import Cursor
 from typing import Dict, Any, Optional, List, AsyncGenerator
 
 import PIL.Image as ImageLib
@@ -10,21 +9,19 @@ from discord.ext import commands
 from discord.ext.commands import Context
 
 import utilities.embeds as embeds
-from utilities import connection
 from utilities.banners import create_custom_unit_banner
 from utilities.image_composer import compose_unit_list
 from utilities.units import parse_custom_unit_args, compose_icon, image_to_discord, Type, Race, Affection, Grade, \
     Unit, unit_list, Event, unit_by_name, unit_by_id, all_affections
+from utilities.sql_helper import fetch_item, execute, rows, exists
 
 
 async def get_next_custom_unit_id() -> int:
-    cursor: Cursor = connection.cursor()
-    return cursor.execute('SELECT unit_id FROM units WHERE event=? ORDER BY unit_id', ("custom",)).fetchone()[0] - 1
+    return await fetch_item('SELECT unit_id FROM units WHERE event=? ORDER BY unit_id', ("custom",)) - 1
 
 
 async def add_custom_unit(name: str, creator: int, type_enum: Type, grade: Grade, url: str, race: Race,
                           affection_str: str) -> None:
-    cursor: Cursor = connection.cursor()
     u: Unit = Unit(unit_id=await get_next_custom_unit_id(),
                    name=name,
                    type_enum=type_enum,
@@ -38,68 +35,51 @@ async def add_custom_unit(name: str, creator: int, type_enum: Type, grade: Grade
     unit_list.append(u)
     create_custom_unit_banner()
 
-    cursor.execute(
-        'INSERT INTO units (unit_id, name, simple_name, type, grade, race, event, affection, icon_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    await execute(
+        'INSERT INTO "units" (unit_id, name, simple_name, type, grade, race, event, affection, icon_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
         (u.unit_id, u.name, str(creator), type_enum.value, grade.value, race.value, u.event.value, affection_str, url)
     )
-    connection.commit()
 
 
 async def remove_custom_unit(unit_name: str) -> None:
-    cursor: Cursor = connection.cursor()
-    cursor.execute('DELETE FROM main.units WHERE name=? AND event=?', (unit_name, "custom"))
-    connection.commit()
+    await execute('DELETE FROM "units" WHERE name=? AND event=?', (unit_name, "custom"))
 
 
 async def parse_custom_unit_ids(owner: int) -> AsyncGenerator[int, None]:
-    cursor = connection.cursor()
-    for row in cursor.execute('SELECT unit_id FROM units WHERE simple_name=?', (owner,)).fetchall():
+    async for row in rows('SELECT unit_id FROM "units" WHERE simple_name=?', (owner,)):
         yield row[0]
 
 
 async def edit_custom_unit(to_set: str, values: List[str]) -> None:
-    cursor: Cursor = connection.cursor()
-    cursor.execute("UPDATE custom_units SET " + to_set + " WHERE name=?", tuple(values))
-    connection.commit()
+    await execute('UPDATE "custom_units" SET ' + to_set + ' WHERE name=?', tuple(values))
 
 
 async def unit_exists(name: str) -> bool:
-    cursor: Cursor = connection.cursor()
-    return cursor.execute('SELECT unit_id FROM units WHERE name=? AND event=?', (name, "custom")).fetchone() is not None
+    return await exists('SELECT unit_id FROM "units" WHERE name=? AND event=?', (name, "custom"))
 
 
 async def add_affection(name: str, owner: int) -> None:
-    cursor: Cursor = connection.cursor()
-    cursor.execute('INSERT OR IGNORE INTO affections VALUES (?, ?)', (name.lower(), owner))
-    connection.commit()
+    await execute('INSERT OR IGNORE INTO "affections" VALUES (?, ?)', (name.lower(), owner))
 
 
 async def affection_exist(name: str) -> bool:
-    cursor: Cursor = connection.cursor()
-    return cursor.execute('SELECT * FROM affections WHERE name=?', (name.lower(),)).fetchone() is not None
+    return await exists('SELECT * FROM "affections" WHERE name=?', (name.lower(),))
 
 
 async def get_affection_creator(name: str) -> int:
-    cursor: Cursor = connection.cursor()
-    return cursor.execute('SELECT creator FROM affections WHERE name=?', (name.lower(),)).fetchone()[0]
+    return await fetch_item('SELECT creator FROM "affections" WHERE name=?', (name.lower(),))
 
 
 async def update_affection_name(old_name: str, new_name: str) -> None:
-    cursor: Cursor = connection.cursor()
-    cursor.execute('UPDATE affections SET name=? WHERE name=?', (new_name.lower(), old_name.lower()))
-    connection.commit()
+    await execute('UPDATE "affections" SET name=? WHERE name=?', (new_name.lower(), old_name.lower()))
 
 
 async def update_affection_owner(name: str, owner: int) -> None:
-    cursor: Cursor = connection.cursor()
-    cursor.execute('UPDATE affections SET creator=? WHERE name=?', (owner, name.lower()))
-    connection.commit()
+    await execute('UPDATE "affections" SET creator=? WHERE name=?', (owner, name.lower()))
 
 
 async def remove_affection(name: str) -> None:
-    cursor: Cursor = connection.cursor()
-    cursor.execute('DELETE FROM affections WHERE name=?', (name.lower(),))
-    connection.commit()
+    await execute('DELETE FROM "affections" WHERE name=?', (name.lower(),))
 
 
 class CustomCog(commands.Cog):

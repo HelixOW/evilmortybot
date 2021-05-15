@@ -1,11 +1,12 @@
 import discord
 import random as ra
+import logging
 
 from enum import Enum
-from typing import List, Optional, Dict, Tuple, Any
-from sqlite3 import Cursor
-from utilities import sr_unit_list, r_unit_list, all_banner_list, unit_list, connection
-from utilities.units import Unit, Grade, Event
+from typing import List, Optional, Dict, Any
+from utilities import sr_unit_list, r_unit_list, all_banner_list, unit_list, logger
+from utilities.units import Unit, Grade, Event, unit_by_id
+from utilities.sql_helper import execute, fetch_row, fetch_item, rows, fetch_items
 
 
 class BannerType(Enum):
@@ -142,41 +143,37 @@ def create_jp_banner() -> None:
 
 
 async def add_unit_to_box(user: discord.Member, unit_to_add: Unit) -> None:
-    cursor: Cursor = connection.cursor()
-    data: Optional[Tuple[int]] = cursor.execute(
+    data: Optional[int] = await fetch_item(
         'SELECT amount FROM box_units WHERE user_id=? AND guild=? AND unit_id=?',
-        (user.id, user.guild.id, unit_to_add.unit_id)).fetchone()
+        (user.id, user.guild.id, unit_to_add.unit_id))
+
     if data is None:
-        cursor.execute('INSERT INTO box_units VALUES (?, ?, ?, ?)', (user.id, user.guild.id, unit_to_add.unit_id, 1))
+        await execute('INSERT INTO box_units VALUES (?, ?, ?, ?)', (user.id, user.guild.id, unit_to_add.unit_id, 1))
     else:
-        if data[0] < 1000:
-            cursor.execute('UPDATE box_units SET amount=? WHERE user_id=? AND guild=? AND unit_id=?',
-                           (data[0] + 1, user.id, user.guild.id, unit_to_add.unit_id))
+        if data < 1000:
+            await execute('UPDATE box_units SET amount=? WHERE user_id=? AND guild=? AND unit_id=?',
+                          (data + 1, user.id, user.guild.id, unit_to_add.unit_id))
 
 
 async def get_user_pull(user: discord.Member) -> Dict[str, int]:
-    cursor: Cursor = connection.cursor()
-    data: Optional[Tuple[int, int, int, int, int]] = cursor.execute(
+    return await fetch_row(
         'SELECT * FROM user_pulls WHERE user_id=? AND guild=?',
-        (user.id, user.guild.id)).fetchone()
-    if data is None:
-        return {}
-    return {"ssr_amount": data[1], "pull_amount": data[2], "guild": data[3], "shafts": data[4]}
+        lambda x: {"ssr_amount": x[1], "pull_amount": x[2], "guild": x[3], "shafts": x[4]},
+        (user.id, user.guild.id))
 
 
 async def add_user_pull(user: discord.Member, got_ssr: bool) -> None:
     data: Dict[str, Any] = await get_user_pull(user)
-    cursor: Cursor = connection.cursor()
     if len(data) == 0:
-        cursor.execute('INSERT INTO user_pulls VALUES (?, ?, ?, ?, ?)',
-                       (user.id, 1 if got_ssr else 0, 1, user.guild.id, 0))
+        await execute('INSERT INTO user_pulls VALUES (?, ?, ?, ?, ?)',
+                      (user.id, 1 if got_ssr else 0, 1, user.guild.id, 0))
     else:
         if got_ssr:
-            cursor.execute('UPDATE user_pulls SET ssr_amount=?, pull_amount=? WHERE user_id=? AND guild=?',
-                           (data["ssr_amount"] + 1, data["pull_amount"] + 1, user.id, user.guild.id))
+            await execute('UPDATE user_pulls SET ssr_amount=?, pull_amount=? WHERE user_id=? AND guild=?',
+                          (data["ssr_amount"] + 1, data["pull_amount"] + 1, user.id, user.guild.id))
         else:
-            cursor.execute('UPDATE user_pulls SET pull_amount=? WHERE user_id=? AND guild=?',
-                           (data["pull_amount"] + 1, user.id, user.guild.id))
+            await execute('UPDATE user_pulls SET pull_amount=? WHERE user_id=? AND guild=?',
+                          (data["pull_amount"] + 1, user.id, user.guild.id))
 
 
 async def unit_with_chance(from_banner: Banner, user: discord.Member) -> Unit:
@@ -200,11 +197,55 @@ async def unit_with_chance(from_banner: Banner, user: discord.Member) -> Unit:
 
 async def add_shaft(user: discord.Member, amount: int) -> None:
     data: Dict[str, Any] = await get_user_pull(user)
-    cursor: Cursor = connection.cursor()
     if len(data) != 0:
-        cursor.execute('UPDATE user_pulls SET shafts=? WHERE user_id=? AND guild=?',
-                       (data["shafts"] + amount, user.id, user.guild.id))
+        await execute('UPDATE user_pulls SET shafts=? WHERE user_id=? AND guild=?',
+                      (data["shafts"] + amount, user.id, user.guild.id))
     else:
-        cursor.execute('INSERT INTO user_pulls VALUES (?, ?, ?, ?, ?)',
-                       (user.id, 0, 0, user.guild.id, amount))
-    connection.commit()
+        await execute('INSERT INTO user_pulls VALUES (?, ?, ?, ?, ?)',
+                      (user.id, 0, 0, user.guild.id, amount))
+
+
+async def add_unit_to_banner(banner: str, units: str) -> None:
+    for u_id in [int(x) for x in units.replace(" ", "").split(",")]:
+        await execute('INSERT INTO banners_rate_up_units VALUES (?, ?)', (banner, u_id))
+
+
+async def add_rate_up_unit_to_banner(banner: str, units: str) -> None:
+    for u_id in [int(x) for x in units.replace(" ", "").split(",")]:
+        await execute('INSERT INTO banners_rate_up_units VALUES (?, ?)', (banner, u_id))
+
+
+async def read_banners_from_db() -> None:
+    all_banner_list.clear()
+    async for banner_data in rows('SELECT * FROM banners ORDER BY "order"'):
+        banner_names: List[str] = await fetch_items(
+            'SELECT alternative_name FROM banner_names WHERE name=?', (banner_data[0],)
+        )
+        _unit_list: List[Unit] = [unit_by_id(x) for x in await fetch_items(
+            'SELECT unit_id FROM banners_units WHERE banner_name=?', (banner_data[0],)
+        )]
+        rate_up_unit_list: List[Unit] = [unit_by_id(x) for x in await fetch_items(
+            'SELECT unit_id FROM banners_rate_up_units WHERE banner_name=?', (banner_data[0],)
+        )]
+
+        banner_names.append(banner_data[0])
+
+        if len(unit_list) == 0:
+            continue
+
+        b: Banner = Banner(
+            name=banner_names,
+            pretty_name=banner_data[1],
+            ssr_unit_rate=banner_data[2],
+            sr_unit_rate=banner_data[3],
+            bg_url=banner_data[4],
+            r_unit_rate=banner_data[5],
+            ssr_unit_rate_up=banner_data[6],
+            includes_all_sr=banner_data[7] == 1,
+            includes_all_r=banner_data[8] == 1,
+            banner_type=map_bannertype(banner_data[9]),
+            units=_unit_list,
+            rate_up_units=rate_up_unit_list
+        )
+        all_banner_list.append(b)
+        logger.log(logging.INFO, f"Read Banner {banner_names}")

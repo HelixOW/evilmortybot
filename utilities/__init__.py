@@ -1,5 +1,6 @@
 import asyncio
 from typing import List, Pattern, Generator, Any, Dict, Tuple, Callable
+
 from discord.ext import commands
 from discord.ext.commands import Context
 from itertools import islice
@@ -43,7 +44,8 @@ periods: List[Tuple[str, int]] = [
     ('second', 1)
 ]
 
-connection: sqlite.Connection = sqlite.connect("data/data.db")
+database: str = "data/data.db"
+connection = sqlite.connect(database)
 
 font_12: FreeTypeFont = ImageFont.truetype("pvp.ttf", 12)
 font_24: FreeTypeFont = ImageFont.truetype("pvp.ttf", 24)

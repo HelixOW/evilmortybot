@@ -1,5 +1,4 @@
-from sqlite3 import Cursor
-from typing import Optional, Dict, List, Tuple
+from typing import Optional, Dict, List
 
 import discord
 from discord.ext import commands
@@ -8,25 +7,25 @@ from discord.ext.commands import Context
 import utilities.embeds as embeds
 import utilities.reactions as emojis
 from utilities.embeds import DefaultEmbed
-from utilities import remove_trailing_whitespace, connection, all_banner_list, MemberMentionConverter, ssr_pattern, \
+from utilities import remove_trailing_whitespace, all_banner_list, MemberMentionConverter, ssr_pattern, \
     send_paged_message
 from utilities.banners import Banner, banner_by_name, unit_with_chance, BannerType, add_shaft, \
     find_banner_containing_any_unit
 from utilities.image_composer import compose_banner_rotation, compose_multi_draw, compose_five_multi_draw, \
     compose_draw, compose_unit_multi_draw, compose_unit_five_multi_draw, compose_banner_list, compose_box
 from utilities.units import Unit, image_to_discord, unit_by_vague_name, Grade
+from utilities.sql_helper import fetch_rows
 
 loading_image_url: str = \
     "https://raw.githubusercontent.com/dokkanart/SDSGC/master/Loading%20Screens/Gacha/loading_gacha_start_01.png"
 
 
 async def read_box(user: discord.Member) -> Dict[int, int]:
-    cursor: Cursor = connection.cursor()
-    row: Tuple[int, int]
-    return {row[0]: row[1] for row in cursor.execute("""SELECT box_units.unit_id, box_units.amount
-                                 FROM box_units INNER JOIN units u ON u.unit_id = box_units.unit_id
-                                 WHERE user_id=? AND guild=?
-                                 ORDER BY u.grade DESC, box_units.amount DESC;""", (user.id, user.guild.id))}
+    return {u_id: amount for u_id, amount in await fetch_rows(
+        'SELECT box_units.unit_id, box_units.amount FROM box_units INNER JOIN units u ON u.unit_id = box_units.unit_id WHERE user_id=? AND guild=? ORDER BY u.grade DESC, box_units.amount DESC',
+        lambda x: (x[0], x[1]),
+        (user.id, user.guild.id))
+    }
 
 
 def join_banner(other_str: str, banner_name: str):
@@ -79,7 +78,6 @@ class DrawCog(commands.Cog):
                     units[_unit] += 1
                 else:
                     units[_unit]: int = 1
-            connection.commit()
             await ctx.send(
                 file=await image_to_discord(await compose_banner_rotation(
                     dict(sorted(units.items(), key=lambda x: x[0].grade.to_int())))),
@@ -276,7 +274,6 @@ class DrawCog(commands.Cog):
                     else:
                         drawn_ssrs[x] += 1
 
-        connection.commit()
         multi_msg: str = "Multi" if i == 0 else "Multis"
 
         await ctx.send(

@@ -1,12 +1,14 @@
+from enum import Enum
+from typing import List, Dict, Any, AsyncGenerator, Union, Optional
+
 import discord
-import utilities.embeds as embeds
 from discord.ext import commands
 from discord.ext.commands import Context
-from typing import List, Dict, Any, AsyncGenerator, Union, Tuple, Optional
-from enum import Enum
-from sqlite3 import Cursor
-from utilities import StatsContext, connection
+
+import utilities.embeds as embeds
+from utilities import StatsContext
 from utilities.banners import get_user_pull
+from utilities.sql_helper import fetch_rows, execute
 
 
 class LeaderboardType(Enum):
@@ -32,89 +34,66 @@ class TopCog(commands.Cog):
         self.bot = _bot
 
     async def get_top_shafts(self, guild: discord.Guild, limit: int = 10) -> AsyncGenerator[Dict[str, Union[int, str]], None]:
-        cursor: Cursor = connection.cursor()
-        i: int
-        row: Tuple[int, int]
-        for i, row in enumerate(cursor.execute(
-                'SELECT user_id,'
-                ' shafts'
-                ' FROM user_pulls'
-                ' WHERE guild=? AND pull_amount > 99'
-                ' ORDER BY shafts'
-                ' DESC LIMIT ?',
-                (guild.id, limit)).fetchall()):
+        for i, row in enumerate(await fetch_rows(
+                'SELECT user_id, shafts FROM user_pulls WHERE guild=? AND pull_amount > 99 ORDER BY shafts DESC LIMIT ?',
+                lambda x: (x[0], x[1]),
+                (guild.id, limit)
+        )):
             try:
                 yield {"place": i + 1, "name": (await self.bot.fetch_user(row[0])).mention, "shafts": row[1]}
             except discord.NotFound:
-                connection.cursor().execute(
-                    'DELETE FROM "user_pulls" WHERE main.user_pulls.guild=? AND user_pulls.user_id=?',
-                    (guild.id, row[0]))
+                await execute('DELETE FROM "user_pulls" WHERE main.user_pulls.guild=? AND user_pulls.user_id=?',
+                              (guild.id, row[0]))
                 yield {"place": i + 1, "name": "User", "shafts": row[1]}
 
     async def get_top_lucky(self, guild: discord.Guild, limit: int = 10) -> AsyncGenerator[Dict[str, Union[int, str, float]], None]:
-        cursor: Cursor = connection.cursor()
-        i: int
-        row: Tuple[int, int, float]
-        for i, row in enumerate(cursor.execute(
-                'SELECT user_id,'
-                ' pull_amount,'
-                ' round((CAST(ssr_amount as REAL)/CAST(pull_amount as REAL)), 4) * 100 percent '
-                'FROM user_pulls'
-                ' WHERE guild=? AND pull_amount > 99'
-                ' ORDER BY percent'
-                ' DESC LIMIT ?',
+        for i, row in enumerate(await fetch_rows(
+                'SELECT user_id, pull_amount, round((CAST(ssr_amount as REAL)/CAST(pull_amount as REAL)), 4) * 100 percent'
+                ' FROM user_pulls WHERE guild=? AND pull_amount > 99 ORDER BY percent DESC LIMIT ?',
+                lambda x: (x[0], x[1], round(x[2], 2)),
                 (guild.id, limit))):
             try:
-                yield {"place": i + 1, "name": (await self.bot.fetch_user(row[0])).mention, "luck": round(row[2], 2),
+                yield {"place": i + 1, "name": (await self.bot.fetch_user(row[0])).mention, "luck": row[2],
                        "pull-amount": row[1]}
             except discord.NotFound:
-                connection.cursor().execute(
-                    'DELETE FROM "user_pulls" WHERE main.user_pulls.guild=? AND user_pulls.user_id=?',
+                await execute(
+                    'DELETE FROM "user_pulls" WHERE user_pulls.guild=? AND user_pulls.user_id=?',
                     (guild.id, row[0]))
                 yield {"place": i + 1, "name": "User", "luck": round(row[2], 2), "pull-amount": row[1]}
 
     async def get_top_ssrs(self, guild: discord.Guild, limit: int = 10) -> AsyncGenerator[Dict[str, Union[int, str]], None]:
-        cursor: Cursor = connection.cursor()
-        i: int
-        row: Tuple[int, int, int]
-        for i, row in enumerate(cursor.execute(
-                'SELECT user_id,'
-                ' ssr_amount,'
-                ' pull_amount'
+        for i, row in enumerate(await fetch_rows(
+                'SELECT user_id, ssr_amount, pull_amount'
                 ' FROM user_pulls WHERE guild=? AND pull_amount > 99'
-                ' ORDER BY ssr_amount'
-                ' DESC LIMIT ?',
+                ' ORDER BY ssr_amount DESC LIMIT ?',
+                lambda x: (x[0], x[1], x[2]),
                 (guild.id, limit))):
             try:
                 yield {"place": i + 1, "name": (await self.bot.fetch_user(row[0])).mention, "ssrs": row[1],
                        "pull-amount": row[2]}
             except discord.NotFound:
-                connection.cursor().execute(
-                    'DELETE FROM "user_pulls" WHERE main.user_pulls.guild=? AND user_pulls.user_id=?',
+                await execute(
+                    'DELETE FROM "user_pulls" WHERE user_pulls.guild=? AND user_pulls.user_id=?',
                     (guild.id, row[0]))
                 yield {"place": i + 1, "name": "User", "ssrs": row[1], "pull-amount": row[2]}
 
     async def get_top_units(self, guild: discord.Guild, limit: int = 10) -> AsyncGenerator[Dict[str, Union[int, str]], None]:
-        cursor: Cursor = connection.cursor()
-        i: int
-        row: Tuple[int, int]
-        for i, row in enumerate(cursor.execute(
-                'SELECT user_id,'
-                ' pull_amount'
-                ' FROM user_pulls'
-                ' WHERE guild=? AND pull_amount > 99'
-                ' ORDER BY pull_amount'
-                ' DESC LIMIT ?',
+        for i, row in enumerate(await fetch_rows(
+                'SELECT user_id, pull_amount'
+                ' FROM user_pulls WHERE guild=? AND pull_amount > 99'
+                ' ORDER BY pull_amount DESC LIMIT ?',
+                lambda x: (x[0], x[1]),
                 (guild.id, limit))):
             try:
                 yield {"place": i + 1, "name": (await self.bot.fetch_user(row[0])).mention, "pull-amount": row[1]}
             except discord.NotFound:
-                connection.cursor().execute(
-                    'DELETE FROM "user_pulls" WHERE main.user_pulls.guild=? AND user_pulls.user_id=?',
+                await execute(
+                    'DELETE FROM "user_pulls" WHERE user_pulls.guild=? AND user_pulls.user_id=?',
                     (guild.id, row[0]))
                 yield {"place": i + 1, "name": "User", "pull-amount": row[1]}
 
-    async def get_top_users(self, guild: discord.Guild, action: LeaderboardType = LeaderboardType.LUCK, limit: int = 10) -> \
+    async def get_top_users(self, guild: discord.Guild, action: LeaderboardType = LeaderboardType.LUCK,
+                            limit: int = 10) -> \
             List[Dict[str, Any]]:
         if action == LeaderboardType.MOST_SHAFTS:
             return [x async for x in self.get_top_shafts(guild, limit)]
@@ -129,17 +108,21 @@ class TopCog(commands.Cog):
     async def top(self, ctx: Context):
         if ctx.invoked_subcommand is not None:
             return
+
+        loading: discord.Message = await ctx.send(embed=embeds.loading())
+
         lucky: List[Dict[str, Any]] = await self.get_top_users(ctx.guild, LeaderboardType.LUCK, 5)
         most_ssr: List[Dict[str, Any]] = await self.get_top_users(ctx.guild, LeaderboardType.MOST_SSR, 5)
         most_pulled: List[Dict[str, Any]] = await self.get_top_users(ctx.guild, LeaderboardType.MOST_UNITS, 5)
         most_shafted: List[Dict[str, Any]] = await self.get_top_users(ctx.guild, LeaderboardType.MOST_SHAFTS, 5)
 
+        await loading.delete()
+
         if len(lucky) == 0:
             return await ctx.send(embed=embeds.Stats.no_summon_embed)
 
         await ctx.send(
-            embed=discord.Embed()
-            .add_field(
+            embed=discord.Embed().add_field(
                 name="Lucky",
                 value="\n".join([f"**{data['place']}.** {data['name']} (*{data['luck']}%*)" for data in lucky])
             ).add_field(
@@ -150,17 +133,17 @@ class TopCog(commands.Cog):
                 value="\u200b"
             ).add_field(
                 name="Units",
-                value="\n".join([f"**{data['place']}.** {data['name']} (*{data['pull-amount']}*)" for data in most_pulled]),
+                value="\n".join(
+                    [f"**{data['place']}.** {data['name']} (*{data['pull-amount']}*)" for data in most_pulled]),
             ).add_field(
                 name="Shafts",
                 value="\n".join([f"**{data['place']}.** {data['name']} (*{data['shafts']}*)" for data in most_shafted])
             ).add_field(
-                name="\u200b"*2,
+                name="\u200b" * 2,
                 value="\u200b"
             ).set_footer(
                 text="Do ..top [luck, ssr, unit, shaft] for top 10"
-            ).set_thumbnail(url=ctx.guild.icon_url)
-            .set_author(
+            ).set_thumbnail(url=ctx.guild.icon_url).set_author(
                 name=f"Leaderboard in {ctx.guild.name}",
                 icon_url="http://raw.githubusercontent.com/WhoIsAlphaHelix/evilmortybot/master/data/images/leaderboard_icon.png"
             )
@@ -168,9 +151,11 @@ class TopCog(commands.Cog):
 
     @top.command(name="luck", aliases=["lucky", "luckiness"])
     async def top_luck(self, ctx: Context):
+        loading: discord.Message = await ctx.send(embed=embeds.loading())
         top_users: List[Dict[str, Any]] = await self.get_top_users(ctx.guild, LeaderboardType.LUCK)
+        await loading.delete()
         if len(top_users) == 0:
-            return await ctx.send(embed=embeds.no_summon_embed)
+            return await ctx.send(embed=embeds.Stats.no_summon_embed)
 
         await ctx.send(
             embed=discord.Embed(
@@ -182,8 +167,7 @@ class TopCog(commands.Cog):
                                                                                                      "pull-amount"])
                     for top_user in top_users]),
                 colour=discord.Colour.gold()
-            ).set_thumbnail(url=ctx.guild.icon_url)
-            .set_author(
+            ).set_thumbnail(url=ctx.guild.icon_url).set_author(
                 name=f"Luckiest Members in {ctx.guild.name}",
                 icon_url="http://raw.githubusercontent.com/WhoIsAlphaHelix/evilmortybot/master/data/images/leaderboard_icon.png"
             )
@@ -191,9 +175,11 @@ class TopCog(commands.Cog):
 
     @top.command(name="ssrs", aliases=["ssr"])
     async def top_ssrs(self, ctx: Context):
+        loading: discord.Message = await ctx.send(embed=embeds.loading())
         top_users: List[Dict[str, Any]] = await self.get_top_users(ctx.guild, LeaderboardType.MOST_SSR)
+        await loading.delete()
         if len(top_users) == 0:
-            return await ctx.send(embed=embeds.no_summon_embed)
+            return await ctx.send(embed=embeds.Stats.no_summon_embed)
         await ctx.send(
             embed=discord.Embed(
                 title=f"Members with most drawn SSRs in {ctx.guild.name}",
@@ -209,9 +195,11 @@ class TopCog(commands.Cog):
 
     @top.command(name="units", aliases=["unit"])
     async def top_units(self, ctx: Context):
+        loading: discord.Message = await ctx.send(embed=embeds.loading())
         top_users: List[Dict[str, Any]] = await self.get_top_users(ctx.guild, LeaderboardType.MOST_UNITS)
+        await loading.delete()
         if len(top_users) == 0:
-            return await ctx.send(embed=embeds.no_summon_embed)
+            return await ctx.send(embed=embeds.Stats.no_summon_embed)
         await ctx.send(
             embed=discord.Embed(
                 title=f"Members with most drawn Units in {ctx.guild.name}",
@@ -226,9 +214,11 @@ class TopCog(commands.Cog):
 
     @top.command(name="shafts", aliases=["shaft"])
     async def top_shafts(self, ctx: Context):
+        loading: discord.Message = await ctx.send(embed=embeds.loading())
         top_users: List[Dict[str, Any]] = await self.get_top_users(ctx.message.guild, LeaderboardType.MOST_SHAFTS)
+        await loading.delete()
         if len(top_users) == 0:
-            return await ctx.send(embed=embeds.no_summon_embed)
+            return await ctx.send(embed=embeds.Stats.no_summon_embed)
         return await ctx.send(
             embed=discord.Embed(
                 title=f"Members with most Shafts in {ctx.guild.name}",

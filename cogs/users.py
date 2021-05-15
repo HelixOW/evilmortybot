@@ -6,16 +6,15 @@ import PIL.Image as Images
 from discord.ext import commands
 from discord.ext.commands import Context
 from typing import Dict, List, Tuple, Optional
-from utilities import connection, half_img_size, get_text_dimensions, text_with_shadow, image_to_discord
-from utilities.units import Unit, unit_by_id
+from utilities import half_img_size, get_text_dimensions, text_with_shadow, image_to_discord
+from utilities.units import Unit, unit_by_id, unit_by_vague_name
 from utilities import embeds
+from utilities.sql_helper import fetch_rows, exists, execute, fetch_row
 from PIL import Image, ImageDraw
-from sqlite3 import Cursor
 
 
-def has_profile(discord_id: int):
-    cursor: Cursor = connection.cursor()
-    return cursor.execute('SELECT * FROM "bot_users" WHERE discord_id=?', (discord_id,)).fetchone() is not None
+async def has_profile(discord_id: int):
+    return await exists('SELECT * FROM "bot_users" WHERE discord_id=?', (discord_id,))
 
 
 class BotUser:
@@ -26,9 +25,10 @@ class BotUser:
                  box_cc: float,
                  friendcode: int,
                  offered_demons: Dict[str, int],
-                 demon_teams: Dict[str, List[int]]):
-        self.demon_teams: Dict[str, List[Unit]] = {demon: [unit_by_id(x) for x in demon_teams[demon]] for demon in
-                                                   demon_teams}
+                 demon_teams: Dict[str, List[str]]):
+        self.demon_teams: Dict[str, List[Unit]] = {
+            demon: [unit_by_id(int(x)) for x in demon_teams[demon] if len(x) != 0] for demon in
+            demon_teams}
         self.offered_demons: Dict[str, int] = offered_demons
         self.friendcode: int = friendcode
         self.box_cc: float = box_cc
@@ -39,23 +39,31 @@ class BotUser:
         self.pulled_overall: Dict[int, int] = {}
         self.shafts: Dict[int, int] = {}
 
-        cursor: Cursor = connection.cursor()
-        for guild_row in cursor.execute(
+    async def init_db(self):
+        for data in await fetch_rows(
                 'SELECT ssr_amount, pull_amount, shafts, guild FROM "user_pulls" WHERE user_id=?',
-                (discord_id,)):
-            self.pulled_ssrs[guild_row[3]] = guild_row[0]
-            self.pulled_overall[guild_row[3]] = guild_row[1]
-            self.shafts[guild_row[3]] = guild_row[2]
+                lambda x: {
+                    "ssrs": x[0],
+                    "overall": x[1],
+                    "shafts": x[2],
+                    "guild": x[3]
+                },
+                (self.discord_id,)):
+            self.pulled_ssrs[data["guild"]] = data["ssrs"]
+            self.pulled_overall[data["guild"]] = data["overall"]
+            self.shafts[data["guild"]] = data["shafts"]
 
-        if not has_profile(discord_id):
-            cursor: Cursor = connection.cursor()
-            cursor.execute(
+        if not await has_profile(self.discord_id):
+            await execute(
                 'INSERT INTO "bot_users" VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                (discord_id, name, team_cc, box_cc, friendcode, offered_demons["red"], offered_demons["gray"],
-                 offered_demons["crimson"], ",".join(demon_teams["red"]), ",".join(demon_teams["gray"]),
-                 ",".join(demon_teams["crimson"]))
+                (self.discord_id, self.name, self.team_cc, self.box_cc, self.friendcode,
+                 self.offered_demons["red"], self.offered_demons["gray"], self.offered_demons["crimson"],
+                 ",".join([str(x) for x in self.demon_teams["red"]]),
+                 ",".join([str(x) for x in self.demon_teams["gray"]]),
+                 ",".join([str(x) for x in self.demon_teams["crimson"]]))
             )
-            connection.commit()
+
+        return self
 
     async def create_team_image(self, demon: str):
         if len(self.demon_teams[demon]) == 0:
@@ -118,59 +126,70 @@ class BotUser:
 
     async def set_name(self, name: str):
         self.name = name
-        cursor: Cursor = connection.cursor()
-        cursor.execute(
+        await execute(
             'UPDATE "bot_users" SET name=? WHERE discord_id=?',
             (name, self.discord_id)
         )
-        connection.commit()
 
-    async def set_demon_team(self, demon: str, team: List[int]):
-        self.demon_teams[demon] = team
-        cursor: Cursor = connection.cursor()
+    async def set_demon_team(self, demon: str, team: List[str]):
+        self.demon_teams[demon] = [unit_by_id(int(x)) for x in team]
         if demon == "red":
-            cursor.execute(
+            await execute(
                 'UPDATE "bot_users" SET red_team=? WHERE discord_id=?',
                 (",".join(team), self.discord_id)
             )
         elif demon == "gray":
-            cursor.execute(
+            await execute(
                 'UPDATE "bot_users" SET gray_team=? WHERE discord_id=?',
                 (",".join(team), self.discord_id)
             )
         elif demon == "crimson":
-            cursor.execute(
+            await execute(
                 'UPDATE "bot_users" SET crimson_team=? WHERE discord_id=?',
                 (",".join(team), self.discord_id)
             )
-        connection.commit()
 
     async def set_friendcode(self, friendcode: int):
         self.friendcode = friendcode
-        cursor: Cursor = connection.cursor()
-        cursor.execute(
+        await execute(
             'UPDATE "bot_users" SET friendcode=? WHERE discord_id=?',
             (friendcode, self.discord_id)
         )
-        connection.commit()
 
     async def set_box_cc(self, box_cc: float):
         self.box_cc = box_cc
-        cursor: Cursor = connection.cursor()
-        cursor.execute(
+        await execute(
             'UPDATE "bot_users" SET box_cc=? WHERE discord_id=?',
             (box_cc, self.discord_id)
         )
-        connection.commit()
 
     async def set_team_cc(self, team_cc: float):
         self.team_cc = team_cc
-        cursor: Cursor = connection.cursor()
-        cursor.execute(
+        await execute(
             'UPDATE "bot_users" SET team_cc=? WHERE discord_id=?',
             (team_cc, self.discord_id)
         )
-        connection.commit()
+
+    async def add_red_offer(self, amount: int = 1):
+        self.offered_demons["red"] = self.offered_demons["red"] + amount
+        await execute(
+            'UPDATE "bot_users" SET red_offered=? WHERE discord_id=?',
+            (self.offered_demons["red"], self.discord_id)
+        )
+
+    async def add_gray_offer(self, amount: int = 1):
+        self.offered_demons["gray"] = self.offered_demons["gray"] + amount
+        await execute(
+            'UPDATE "bot_users" SET gray_offered=? WHERE discord_id=?',
+            (self.offered_demons["gray"], self.discord_id)
+        )
+
+    async def add_crimson_offer(self, amount: int = 1):
+        self.offered_demons["crimson"] = self.offered_demons["crimson"] + amount
+        await execute(
+            'UPDATE "bot_users" SET crimson_offered=? WHERE discord_id=?',
+            (self.offered_demons["crimson"], self.discord_id)
+        )
 
     async def create_info(self, guild: discord.Guild, image_url: str):
         return embeds.DrawEmbed(title=f"Info about {self.name if self.name != '' else str(self.discord_id)}").add_field(
@@ -207,34 +226,52 @@ class BotUser:
 
 
 async def read_bot_user(member: discord.Member):
-    cursor: Cursor = connection.cursor()
-    row = cursor.execute('SELECT * FROM "bot_users" WHERE discord_id=?', (member.id,)).fetchone()
+    return await (await fetch_row('SELECT * FROM "bot_users" WHERE discord_id=?',
+                                  lambda x: BotUser(
+                                      discord_id=x[0],
+                                      name=x[1],
+                                      team_cc=x[2],
+                                      box_cc=x[3],
+                                      friendcode=x[4],
+                                      offered_demons={
+                                          "red": x[5],
+                                          "gray": x[6],
+                                          "crimson": x[7]
+                                      },
+                                      demon_teams={
+                                          "red": x[8].split(","),
+                                          "gray": x[9].split(","),
+                                          "crimson": x[10].split(",")
+                                      }
+                                  ),
+                                  (member.id,))).init_db()
 
-    if row is None:
-        return None
 
-    return BotUser(
-        discord_id=row[0],
-        name=row[1],
-        team_cc=row[2],
-        box_cc=row[3],
-        friendcode=row[4],
-        offered_demons={
-            "red": row[5],
-            "gray": row[6],
-            "crimson": row[7]
-        },
-        demon_teams={
-            "red": row[8].split(","),
-            "gray": row[9].split(","),
-            "crimson": row[10].split(",")
-        }
-    )
+def convert(team):
+    return [str(unit_by_vague_name(x)[0].unit_id) for x in team.split(",") if len(unit_by_vague_name(x)) > 0]
 
 
 class ProfileCog(commands.Cog):
     def __init__(self, _bot: discord.ext.commands.Bot):
         self.bot: discord.ext.commands.Bot = _bot
+
+    async def re_ask_info(self, ctx: Context, message: str, no_input_error_message: str) -> typing.Any:
+
+        def msg_check(msg: discord.Message):
+            return msg.author.id == ctx.author.id and msg.channel.id == ctx.channel.id
+
+        asking_message: discord.Message = await ctx.send(message)
+
+        try:
+            val_message: discord.Message = await self.bot.wait_for("message", check=msg_check, timeout=30)
+            val = val_message.content
+            await asking_message.delete()
+            await val_message.delete()
+            return val
+        except asyncio.TimeoutError:
+            await asking_message.delete()
+            await ctx.send(ctx.author.mention, embed=embeds.ErrorEmbed(no_input_error_message))
+            return None
 
     async def ask_for_information(self, ctx: Context, want_to_provide_msg: str, follow_up_message: str,
                                   no_input_error_message: str) -> typing.Any:
@@ -254,18 +291,22 @@ class ProfileCog(commands.Cog):
             return None
 
         if provide_val:
-            asking_message: discord.Message = await ctx.send(follow_up_message)
+            return await self.re_ask_info(ctx, follow_up_message, no_input_error_message)
 
+    async def ask(self, ctx, question, follow, no_input, _convert, default_val, convert_failed):
+        if question is not None:
+            provided = await self.ask_for_information(ctx, question, follow, no_input)
+        else:
+            provided = await self.re_ask_info(ctx, follow, no_input)
+
+        if provided is None:
+            return default_val
+        else:
             try:
-                val_message: discord.Message = await self.bot.wait_for("message", check=msg_check, timeout=30)
-                val = val_message.content
-                await asking_message.delete()
-                await val_message.delete()
-                return val
-            except asyncio.TimeoutError:
-                await asking_message.delete()
-                await ctx.send(ctx.author.mention, embed=embeds.ErrorEmbed(no_input_error_message))
-                return None
+                return _convert(provided)
+            except ValueError:
+                await ctx.send(ctx.author.mention, embed=embeds.ErrorEmbed(convert_failed))
+                return await self.ask(ctx, None, follow, no_input, _convert, default_val, convert_failed)
 
     @commands.group(name="profile")
     async def profile_cmd(self, ctx: Context, of: Optional[discord.Member]):
@@ -296,94 +337,58 @@ class ProfileCog(commands.Cog):
                                                   "No name provided!")
 
         if friendcode is None:
-            msg_val = await self.ask_for_information(ctx,
-                                                     f"{ctx.author.mention}: Do you want to provide your Grand Cross Friendcode?",
-                                                     f"{ctx.author.mention}: What's your Grand Cross Friendcode?",
-                                                     "No Friendcode provided!")
-
-            if msg_val is None:
-                friendcode = -1
-            else:
-                try:
-                    friendcode = int(msg_val)
-                except ValueError:
-                    return await ctx.send(ctx.author.mention,
-                                          embed=embeds.ErrorEmbed("Provided Friendcode is not a number!"))
+            friendcode = await self.ask(ctx,
+                                        f"{ctx.author.mention}: Do you want to provide your Grand Cross Friendcode?",
+                                        f"{ctx.author.mention}: What's your Grand Cross Friendcode?",
+                                        "No Friendcode provided!",
+                                        int,
+                                        -1,
+                                        "Provided Friendcode is not a number!")
 
         if team_cc is None:
-            msg_val = await self.ask_for_information(ctx,
-                                                     f"{ctx.author.mention}: Do you want to provide your Grand Cross Team CC?",
-                                                     f"{ctx.author.mention}: What's your Grand Cross Team CC?",
-                                                     "No Team CC provided!")
-
-            if msg_val is None:
-                team_cc = -1
-            else:
-                try:
-                    team_cc = int(msg_val)
-                except ValueError:
-                    return await ctx.send(ctx.author.mention,
-                                          embed=embeds.ErrorEmbed("Provided Team CC is not a number!"))
+            team_cc = await self.ask(ctx,
+                                     f"{ctx.author.mention}: Do you want to provide your Grand Cross Team CC?",
+                                     f"{ctx.author.mention}: What's your Grand Cross Team CC?",
+                                     "No Team CC provided!",
+                                     int,
+                                     -1,
+                                     "Provided Team CC is not a number!")
 
         if box_cc is None:
-            msg_val = await self.ask_for_information(ctx,
-                                                     f"{ctx.author.mention}: Do you want to provide your Grand Cross Box CC?",
-                                                     f"{ctx.author.mention}: What's your Grand Cross Box CC?",
-                                                     "No Box CC provided!")
-
-            if msg_val is None:
-                box_cc = -1
-            else:
-                try:
-                    box_cc = int(msg_val)
-                except ValueError:
-                    return await ctx.send(ctx.author.mention,
-                                          embed=embeds.ErrorEmbed("Provided Box CC is not a number!"))
+            box_cc = await self.ask(ctx,
+                                    f"{ctx.author.mention}: Do you want to provide your Grand Cross Box CC?",
+                                    f"{ctx.author.mention}: What's your Grand Cross Box CC?",
+                                    "No Box CC provided!",
+                                    int,
+                                    -1,
+                                    "Provided Box CC is not a number!")
 
         if red_team is None:
-            red_team: str = await self.ask_for_information(ctx,
-                                                           f"{ctx.author.mention}: Do you want to provide your team for red demons?",
-                                                           f"{ctx.author.mention}: What's your team for red demons? *(Please format it like `1,178,15,76`)*",
-                                                           "No Team for red demons provided!")
-
-            if red_team is not None:
-                try:
-                    red_team: List[int] = [int(x) for x in red_team.split(",")]
-                except ValueError:
-                    return await ctx.send(ctx.author.mention,
-                                          embed=embeds.ErrorEmbed("Can't find any team like this!"))
-            else:
-                red_team = []
+            red_team: List[str] = await self.ask(ctx,
+                                                 f"{ctx.author.mention}: Do you want to provide your team for red demons?",
+                                                 f"{ctx.author.mention}: What's your team for red demons? *(Please format it like `t1,beastin,bslater,bsrjericho`)*",
+                                                 "No Team for red demons provided!",
+                                                 convert,
+                                                 [],
+                                                 "Can't find any team like this!")
 
         if gray_team is None:
-            gray_team: str = await self.ask_for_information(ctx,
-                                                            f"{ctx.author.mention}: Do you want to provide your team for gray demons?",
-                                                            f"{ctx.author.mention}: What's your team for gray demons? *(Please format it like `1,178,15,76`)*",
-                                                            "No Team for gray demons provided!")
-
-            if gray_team is not None:
-                try:
-                    gray_team: List[int] = [int(x) for x in gray_team.split(",")]
-                except ValueError:
-                    return await ctx.send(ctx.author.mention,
-                                          embed=embeds.ErrorEmbed("Can't find any team like this!"))
-            else:
-                gray_team = []
+            gray_team: List[str] = await self.ask(ctx,
+                                                  f"{ctx.author.mention}: Do you want to provide your team for gray demons?",
+                                                  f"{ctx.author.mention}: What's your team for gray demons? *(Please format it like `danaforliz,lolimerlin,ggowther,deathpierce`)*",
+                                                  "No Team for gray demons provided!",
+                                                  convert,
+                                                  [],
+                                                  "Can't find any team like this!")
 
         if crimson_team is None:
-            crimson_team: str = await self.ask_for_information(ctx,
-                                                               f"{ctx.author.mention}: Do you want to provide your team for crimson demons?",
-                                                               f"{ctx.author.mention}: What's your team for crimson demons? *(Please format it like `1,178,15,76`)*",
-                                                               "No Team for crimson demons provided!")
-
-            if crimson_team is not None:
-                try:
-                    crimson_team: List[int] = [int(x) for x in crimson_team.split(",")]
-                except ValueError:
-                    return await ctx.send(ctx.author.mention,
-                                          embed=embeds.ErrorEmbed("Can't find any team like this!"))
-            else:
-                crimson_team = []
+            crimson_team: List[str] = await self.ask(ctx,
+                                                     f"{ctx.author.mention}: Do you want to provide your team for crimson demons?",
+                                                     f"{ctx.author.mention}: What's your team for crimson demons? *(Please format it like `rderi,rzel,rgowther,rsrjericho`)*",
+                                                     "No Team for crimson demons provided!",
+                                                     convert,
+                                                     [],
+                                                     "Can't find any team like this!")
 
         BotUser(
             discord_id=ctx.author.id,
@@ -413,94 +418,58 @@ class ProfileCog(commands.Cog):
                                                   "No name provided!")
 
         if friendcode is None:
-            msg_val = await self.ask_for_information(ctx,
-                                                     f"{ctx.author.mention}: Do you want to update your Grand Cross Friendcode?",
-                                                     f"{ctx.author.mention}: What's your Grand Cross Friendcode?",
-                                                     "No Friendcode provided!")
-
-            if msg_val is None:
-                friendcode = -1
-            else:
-                try:
-                    friendcode = int(msg_val)
-                except ValueError:
-                    return await ctx.send(ctx.author.mention,
-                                          embed=embeds.ErrorEmbed("Provided Friendcode is not a number!"))
+            friendcode = await self.ask(ctx,
+                                        f"{ctx.author.mention}: Do you want to update your Grand Cross Friendcode?",
+                                        f"{ctx.author.mention}: What's your Grand Cross Friendcode?",
+                                        "No Friendcode provided!",
+                                        int,
+                                        -1,
+                                        "Provided Friendcode is not a number!")
 
         if team_cc is None:
-            msg_val = await self.ask_for_information(ctx,
-                                                     f"{ctx.author.mention}: Do you want to update your Grand Cross Team CC?",
-                                                     f"{ctx.author.mention}: What's your Grand Cross Team CC?",
-                                                     "No Team CC provided!")
-
-            if msg_val is None:
-                team_cc = -1
-            else:
-                try:
-                    team_cc = int(msg_val)
-                except ValueError:
-                    return await ctx.send(ctx.author.mention,
-                                          embed=embeds.ErrorEmbed("Provided Team CC is not a number!"))
+            team_cc = await self.ask(ctx,
+                                     f"{ctx.author.mention}: Do you want to update your Grand Cross Team CC?",
+                                     f"{ctx.author.mention}: What's your Grand Cross Team CC?",
+                                     "No Team CC provided!",
+                                     int,
+                                     -1,
+                                     "Provided Team CC is not a number!")
 
         if box_cc is None:
-            msg_val = await self.ask_for_information(ctx,
-                                                     f"{ctx.author.mention}: Do you want to update your Grand Cross Box CC?",
-                                                     f"{ctx.author.mention}: What's your Grand Cross Box CC?",
-                                                     "No Box CC provided!")
-
-            if msg_val is None:
-                box_cc = -1
-            else:
-                try:
-                    box_cc = int(msg_val)
-                except ValueError:
-                    return await ctx.send(ctx.author.mention,
-                                          embed=embeds.ErrorEmbed("Provided Box CC is not a number!"))
+            box_cc = await self.ask(ctx,
+                                    f"{ctx.author.mention}: Do you want to update your Grand Cross Box CC?",
+                                    f"{ctx.author.mention}: What's your Grand Cross Box CC?",
+                                    "No Box CC provided!",
+                                    int,
+                                    -1,
+                                    "Provided Box CC is not a number!")
 
         if red_team is None:
-            red_team: str = await self.ask_for_information(ctx,
-                                                           f"{ctx.author.mention}: Do you want to update your team for red demons?",
-                                                           f"{ctx.author.mention}: What's your team for red demons? *(Please format it like `1,178,15,76`)*",
-                                                           "No Team for red demons provided!")
-
-            if red_team is not None:
-                try:
-                    red_team: List[int] = [int(x) for x in red_team.split(",")]
-                except ValueError:
-                    return await ctx.send(ctx.author.mention,
-                                          embed=embeds.ErrorEmbed("Can't find any team like this!"))
-            else:
-                red_team = []
+            red_team: List[str] = await self.ask(ctx,
+                                                 f"{ctx.author.mention}: Do you want to update your team for red demons?",
+                                                 f"{ctx.author.mention}: What's your team for red demons? *(Please format it like `t1,beastin,bslater,bsrjericho`)*",
+                                                 "No Team for red demons provided!",
+                                                 convert,
+                                                 [],
+                                                 "Can't find any team like this!")
 
         if gray_team is None:
-            gray_team: str = await self.ask_for_information(ctx,
-                                                            f"{ctx.author.mention}: Do you want to update your team for gray demons?",
-                                                            f"{ctx.author.mention}: What's your team for gray demons? *(Please format it like `1,178,15,76`)*",
-                                                            "No Team for gray demons provided!")
-
-            if gray_team is not None:
-                try:
-                    gray_team: List[int] = [int(x) for x in gray_team.split(",")]
-                except ValueError:
-                    return await ctx.send(ctx.author.mention,
-                                          embed=embeds.ErrorEmbed("Can't find any team like this!"))
-            else:
-                gray_team = []
+            gray_team: List[str] = await self.ask(ctx,
+                                                  f"{ctx.author.mention}: Do you want to update your team for gray demons?",
+                                                  f"{ctx.author.mention}: What's your team for gray demons? *(Please format it like `danaforliz,lolimerlin,ggowther,deathpierce`)*",
+                                                  "No Team for gray demons provided!",
+                                                  convert,
+                                                  [],
+                                                  "Can't find any team like this!")
 
         if crimson_team is None:
-            crimson_team: str = await self.ask_for_information(ctx,
-                                                               f"{ctx.author.mention}: Do you want to update your team for crimson demons?",
-                                                               f"{ctx.author.mention}: What's your team for crimson demons? *(Please format it like `1,178,15,76`)*",
-                                                               "No Team for crimson demons provided!")
-
-            if crimson_team is not None:
-                try:
-                    crimson_team: List[int] = [int(x) for x in crimson_team.split(",")]
-                except ValueError:
-                    return await ctx.send(ctx.author.mention,
-                                          embed=embeds.ErrorEmbed("Can't find any team like this!"))
-            else:
-                crimson_team = []
+            crimson_team: List[str] = await self.ask(ctx,
+                                                     f"{ctx.author.mention}: Do you want to update your team for crimson demons?",
+                                                     f"{ctx.author.mention}: What's your team for crimson demons? *(Please format it like `rderi,rzel,rgowther,rsrjericho`)*",
+                                                     "No Team for crimson demons provided!",
+                                                     convert,
+                                                     [],
+                                                     "Can't find any team like this!")
 
         bot_user: BotUser = await read_bot_user(ctx.author)
 

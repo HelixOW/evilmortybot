@@ -2,15 +2,14 @@ import aiohttp
 import utilities.embeds as embeds
 import utilities.reactions as emojis
 import structlog
-from discord.ext import tasks
 from utilities import *
-from utilities.banners import create_jp_banner, create_custom_unit_banner
+from utilities.banners import create_jp_banner, create_custom_unit_banner, read_banners_from_db
 from utilities.sql_helper import *
-from utilities.units import image_to_discord, unit_by_vague_name, compose_icon
+from utilities.units import image_to_discord, unit_by_vague_name, compose_icon, unit_by_id
 from utilities.image_composer import compose_unit_list, compose_awakening
 from utilities.awaken import *
 from utilities.tarot import *
-from discord.ext.commands import Context, has_permissions
+from discord.ext.commands import Context
 from datetime import datetime
 from io import BytesIO
 from PIL.Image import Image
@@ -24,15 +23,13 @@ author_id: int = 204150777608929280
 intents = discord.Intents.default()
 intents.members = True
 
-initial_extensions = ['cogs.blackjack',
-                      'cogs.cc',
-                      'cogs.custom',
+initial_extensions = ['cogs.custom',
                       'cogs.demon',
                       'cogs.draws',
                       'cogs.list',
                       'cogs.pvp',
                       'cogs.statistics',
-                      'cogs.tournament']
+                      'cogs.users']
 
 
 bot: KingBot = KingBot(command_prefix=get_prefix,
@@ -93,21 +90,9 @@ async def custom_help(ctx: Context):
 
 
 @bot.command()
-async def add_banner_unit(ctx: Context, banner_name: str, *, units: str):
-    await add_unit_to_banner(banner_name, units)
-    await ctx.send(content=f"Units ({units}) added to {banner_name}")
-
-
-@bot.command()
-async def add_banner_rate_up_unit(ctx: Context, banner_name: str, *, units: str):
-    await add_rate_up_unit_to_banner(banner_name, units)
-    await ctx.send(content=f"Rate up units ({units}) added to {banner_name}")
-
-
-@bot.command()
 async def update(ctx: Context):
-    read_units_from_db()
-    read_banners_from_db()
+    await read_units_from_db()
+    await read_banners_from_db()
     create_custom_unit_banner()
     create_jp_banner()
     await ctx.send(content=f"{ctx.author.mention} Updated Units & Banners")
@@ -172,26 +157,6 @@ async def code_cmd(ctx: Context):
     await ctx.send(f"{ctx.author.mention}: https://github.com/WhoIsAlphaHelix/evilmortybot")
 
 
-@tasks.loop(seconds=30)
-async def kof_task():
-    for guild in bot.guilds:
-        pass
-        # await fetch_data(bot, guild)
-
-
-@bot.command(name="kof")
-@has_permissions(manage_channels=True)
-async def kof_cmd(ctx: Context):
-    # await add_channel(ctx.channel)
-    await ctx.send(ctx.author.mention + " added news channel!")
-
-
-@bot.command(name="knews")
-async def kof_news(ctx: Context):
-    # await fetch_data_manual(ctx)
-    pass
-
-
 @bot.command(name="info")
 async def info_cmd(ctx: Context, *, of_name: str):
     ofs: List[Unit] = unit_by_vague_name(of_name)
@@ -232,9 +197,11 @@ def start_up_bot(token_path: str = "data/bot_token.txt", _is_beta: bool = False)
         for extension in initial_extensions:
             bot.load_extension(extension)
 
-        read_affections_from_db()
-        read_units_from_db()
-        read_banners_from_db()
+        loop = asyncio.new_event_loop()
+        loop.run_until_complete(read_affections_from_db())
+        loop.run_until_complete(read_units_from_db())
+        loop.run_until_complete(read_banners_from_db())
+        loop.close()
 
         with open(token_path, 'r') as token_file:
             token = token_file.read()

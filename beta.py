@@ -3,9 +3,9 @@ import utilities.embeds as embeds
 import utilities.reactions as emojis
 import structlog
 from utilities import *
-from utilities.banners import create_jp_banner, create_custom_unit_banner
+from utilities.banners import create_jp_banner, create_custom_unit_banner, read_banners_from_db
 from utilities.sql_helper import *
-from utilities.units import image_to_discord, unit_by_vague_name, compose_icon
+from utilities.units import image_to_discord, unit_by_vague_name, compose_icon, unit_by_id
 from utilities.image_composer import compose_unit_list, compose_awakening
 from utilities.awaken import *
 from utilities.tarot import *
@@ -23,14 +23,12 @@ author_id: int = 204150777608929280
 intents = discord.Intents.default()
 intents.members = True
 
-initial_extensions = ['cogs.cc',
-                      'cogs.custom',
+initial_extensions = ['cogs.custom',
                       'cogs.demon',
                       'cogs.draws',
                       'cogs.list',
                       'cogs.pvp',
                       'cogs.statistics',
-                      'cogs.tournament',
                       'cogs.users']
 
 
@@ -92,21 +90,9 @@ async def custom_help(ctx: Context):
 
 
 @bot.command()
-async def add_banner_unit(ctx: Context, banner_name: str, *, units: str):
-    await add_unit_to_banner(banner_name, units)
-    await ctx.send(content=f"Units ({units}) added to {banner_name}")
-
-
-@bot.command()
-async def add_banner_rate_up_unit(ctx: Context, banner_name: str, *, units: str):
-    await add_rate_up_unit_to_banner(banner_name, units)
-    await ctx.send(content=f"Rate up units ({units}) added to {banner_name}")
-
-
-@bot.command()
 async def update(ctx: Context):
-    read_units_from_db()
-    read_banners_from_db()
+    await read_units_from_db()
+    await read_banners_from_db()
     create_custom_unit_banner()
     create_jp_banner()
     await ctx.send(content=f"{ctx.author.mention} Updated Units & Banners")
@@ -193,18 +179,6 @@ async def info_cmd(ctx: Context, *, of_name: str):
     )
 
 
-@bot.command(name="test")
-async def test_cmd(ctx: Context, demon: str = "none"):
-    from cogs.users import BotUser
-    user = BotUser(ctx.author.id, ctx.author.display_name, 0, 0, 0, None, {
-        "red": [1, 2, 3, 4],
-        "grey": [178, 177, 176, 175],
-        "crimson": [174, 173, 172, 171]
-    }, 0, 0, 0)
-
-    await ctx.send(file=await image_to_discord(await user.create_all_team_image()))
-
-
 def set_arsenic_log_level(level=logging.WARNING):
     lo = logging.getLogger('arsenic')
 
@@ -223,9 +197,11 @@ def start_up_bot(token_path: str = "data/bot_token.txt", _is_beta: bool = False)
         for extension in initial_extensions:
             bot.load_extension(extension)
 
-        read_affections_from_db()
-        read_units_from_db()
-        read_banners_from_db()
+        loop = asyncio.new_event_loop()
+        loop.run_until_complete(read_affections_from_db())
+        loop.run_until_complete(read_units_from_db())
+        loop.run_until_complete(read_banners_from_db())
+        loop.close()
 
         with open(token_path, 'r') as token_file:
             token = token_file.read()

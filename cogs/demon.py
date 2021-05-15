@@ -5,79 +5,59 @@ import utilities.reactions as emojis
 from discord.ext import commands
 from discord.ext.commands import Context, has_permissions
 from typing import Optional, Tuple, AsyncGenerator, Dict, Union, List, Any
-from sqlite3 import Cursor
-from utilities import connection
-
+from utilities.sql_helper import execute, fetch_item, rows
 
 demon_offer_messages = {}
 
 
 async def add_demon_role(role: discord.Role, demon: str) -> None:
-    cursor: Cursor = connection.cursor()
-    cursor.execute('INSERT INTO demon_roles VALUES (?, ?, ?)', (role.id, role.guild.id, demon))
-    connection.commit()
+    await execute('INSERT INTO "demon_roles" VALUES (?, ?, ?)', (role.id, role.guild.id, demon))
 
 
-async def get_demon_role(guild: discord.Guild, demon: str) -> Optional[Tuple[int]]:
-    cursor: Cursor = connection.cursor()
-    return cursor.execute('SELECT role_id FROM demon_roles WHERE guild=? AND demon_type=?', (guild.id, demon)).fetchone()
+async def get_demon_role(guild: discord.Guild, demon: str) -> Optional[int]:
+    return await fetch_item('SELECT role_id FROM "demon_roles" WHERE guild=? AND demon_type=?', (guild.id, demon))
 
 
 async def get_raid_channels() -> AsyncGenerator[Dict[str, int], None]:
-    cursor: Cursor = connection.cursor()
-    row: Tuple[int, int]
-    for row in cursor.execute('SELECT * FROM "raid_channels"'):
+    async for row in rows('SELECT * FROM "raid_channels"'):
         yield {"guild": row[0], "channel_id": row[1]}
 
 
 async def add_raid_channel(by: discord.Message) -> None:
-    cursor: Cursor = connection.cursor()
-    cursor.execute('INSERT INTO "raid_channels" VALUES (?, ?)', (by.guild.id, by.channel.id))
-    connection.commit()
+    await execute('INSERT INTO "raid_channels" VALUES (?, ?)', (by.guild.id, by.channel.id))
 
 
-async def get_friendcode(of: discord.Member) -> Optional[Tuple[int]]:
-    cursor: Cursor = connection.cursor()
-    return cursor.execute('SELECT gc_id FROM "users" WHERE discord_id=?', (of.id,)).fetchone()
+async def get_friendcode(of: discord.Member) -> Optional[int]:
+    return await fetch_item('SELECT gc_id FROM "users" WHERE discord_id=?', (of.id,))
 
 
 async def get_profile_name_and_friendcode(of: discord.Member) -> AsyncGenerator[Dict[str, Union[str, int]], None]:
-    cursor: Cursor = connection.cursor()
-    for row in cursor.execute('SELECT name, gc_id FROM "users" WHERE discord_id=?', (of.id,)):
+    async for row in rows('SELECT name, gc_id FROM "users" WHERE discord_id=?', (of.id,)):
         yield {"name": row[0], "code": row[1]}
 
 
 async def get_demon_profile(of: discord.Member, name: str) -> Optional[Tuple[int, int, str]]:
-    cursor: Cursor = connection.cursor()
-    return cursor.execute('SELECT * FROM "users" WHERE discord_id=? AND name=?', (of.id, name.lower())).fetchone()
+    return await fetch_item('SELECT * FROM "users" WHERE discord_id=? AND name=?', (of.id, name.lower()))
 
 
 async def create_demon_profile(of: discord.Member, gc_id: int, name: str) -> None:
-    cursor: Cursor = connection.cursor()
-    cursor.execute('INSERT OR IGNORE INTO "users" VALUES (?, ?, ?)', (of.id, gc_id, name.lower()))
-    connection.commit()
+    await execute('INSERT OR IGNORE INTO "users" VALUES (?, ?, ?)', (of.id, gc_id, name.lower()))
 
 
 async def delete_demon_profile(of: discord.Member, name: str) -> None:
-    cursor: Cursor = connection.cursor()
-    cursor.execute('DELETE FROM "users" WHERE name=? AND discord_id=?', (name.lower(), of.id))
-    connection.commit()
+    await execute('DELETE FROM "users" WHERE name=? AND discord_id=?', (name.lower(), of.id))
 
 
 async def update_demon_profile(of: discord.Member, gc_id: int, name: str) -> None:
-    cursor: Cursor = connection.cursor()
-    cursor.execute('UPDATE "users" SET gc_id=?, name=? WHERE discord_id=? AND name=?',
-                   (gc_id, name.lower(), of.id, name.lower()))
-    connection.commit()
+    await execute('UPDATE "users" SET gc_id=?, name=? WHERE discord_id=? AND name=?',
+                  (gc_id, name.lower(), of.id, name.lower()))
 
 
 async def try_getting_channel(x, bot):
     try:
         return (await bot.fetch_channel(x["channel_id"])).name + " in " + (await bot.fetch_guild(x["guild"])).name
     except discord.NotFound:
-        cursor: Cursor = connection.cursor()
-        cursor.execute('DELETE FROM "raid_channels" WHERE channel_id=? AND guild=?', (x["channel_id"], x["guild"]))
-        connection.commit()
+        await execute('DELETE FROM "raid_channels" WHERE channel_id=? AND guild=?', (x["channel_id"], x["guild"]))
     except discord.Forbidden:
         return "Can't access channel"
 
@@ -103,7 +83,7 @@ class DemonCog(commands.Cog):
         if of is None:
             of = ctx.author
 
-        friendcode: Optional[Tuple[int]] = await get_friendcode(of)
+        friendcode: Optional[int] = await get_friendcode(of)
 
         if friendcode is None:
             if of == ctx.author:
@@ -112,7 +92,7 @@ class DemonCog(commands.Cog):
             else:
                 await ctx.send(f"{ctx.author.mention}: {of.display_name} is not registered in the bot yet!")
         else:
-            await ctx.send(f"{ctx.author.mention}: {friendcode[0]}")
+            await ctx.send(f"{ctx.author.mention}: {friendcode}")
 
     @demon.command(name="offer")
     async def demon_offer(self, ctx: Context, reds: int = 0, greys: int = 0, crimsons: int = 0, *,
@@ -130,10 +110,8 @@ class DemonCog(commands.Cog):
                 channel: discord.TextChannel = await self.bot.fetch_channel(channel_list_item["channel_id"])
                 guild: discord.Guild = await self.bot.fetch_guild(channel_list_item["guild"])
             except (discord.Forbidden, discord.errors.NotFound) as _:
-                cursor: Cursor = connection.cursor()
-                cursor.execute('DELETE FROM "raid_channels" WHERE channel_id=? AND guild=?',
-                               (channel_list_item["channel_id"], channel_list_item["guild"]))
-                connection.commit()
+                await execute('DELETE FROM "raid_channels" WHERE channel_id=? AND guild=?',
+                              (channel_list_item["channel_id"], channel_list_item["guild"]))
                 continue
             except discord.Forbidden:
                 continue
@@ -146,14 +124,14 @@ class DemonCog(commands.Cog):
             all_role = await get_demon_role(guild, "all")
 
             if reds != 0 and red_role is not None:
-                mentions.append(guild.get_role(red_role[0]).mention)
+                mentions.append(guild.get_role(red_role).mention)
             if greys != 0 and grey_role is not None:
-                mentions.append(guild.get_role(grey_role[0]).mention)
+                mentions.append(guild.get_role(grey_role).mention)
             if crimsons != 0 and crimson_role is not None:
-                mentions.append(guild.get_role(crimson_role[0]).mention)
+                mentions.append(guild.get_role(crimson_role).mention)
 
             if all_role is not None and None in [red_role, grey_role, crimson_role]:
-                mentions.append(guild.get_role(all_role[0]).mention)
+                mentions.append(guild.get_role(all_role).mention)
 
             to_claim: discord.Message = await channel.send(
                 content=", ".join(mentions),
@@ -191,20 +169,28 @@ class DemonCog(commands.Cog):
             if user == author:
                 await ctx.send(f"{author.mention} deleted your demon offer.")
             else:
-                author_friendcode: Optional[Tuple[int]] = await get_friendcode(author)
-                claim_friendcode: Optional[Tuple[int]] = await get_friendcode(user)
+                # author_profile: BotUser = await read_bot_user(author)
+                # if reds != 0:
+                #   await author_profile.add_red_offer(reds)
+                # if greys != 0:
+                #    await author_profile.add_gray_offer(greys)
+                # if crimsons != 0:
+                #   await author_profile.add_crimson_offer(crimsons)
+
+                author_friendcode: Optional[int] = await get_friendcode(author)
+                claim_friendcode: Optional[int] = await get_friendcode(user)
 
                 if author_friendcode is None and claim_friendcode is None:
                     await ctx.send(f"{author.mention}: {user.mention} has claimed your demons!")
                 elif author_friendcode is None and claim_friendcode is not None:
                     await ctx.send(
-                        f"{author.mention}: {user.mention} (Friendcode: {claim_friendcode[0]}) has claimed your demons!")
+                        f"{author.mention}: {user.mention} (Friendcode: {claim_friendcode}) has claimed your demons!")
                 elif author_friendcode is not None and claim_friendcode is None:
                     await ctx.send(
-                        f"{author.mention} (Friendcode: {author_friendcode[0]}): {user.mention} has claimed your demons!")
+                        f"{author.mention} (Friendcode: {author_friendcode}): {user.mention} has claimed your demons!")
                 else:
                     await ctx.send(
-                        f"{author.mention} (Friendcode: {author_friendcode[0]}): {user.mention} (Friendcode: {claim_friendcode[0]}) has claimed your demons!")
+                        f"{author.mention} (Friendcode: {author_friendcode}): {user.mention} (Friendcode: {claim_friendcode}) has claimed your demons!")
 
                 if len(self.shared_guilds(author, user)) != 0 and added_reaction.message.guild.id != \
                         demon_offer_messages[added_reaction.message.id]["created_in"].id:
@@ -303,7 +289,8 @@ class DemonCog(commands.Cog):
             await add_raid_channel(ctx.message)
             return await ctx.send(f"{ctx.author.mention} added demon channel!")
 
-        channels: List[discord.TextChannel] = [await try_getting_channel(x, self.bot) async for x in get_raid_channels()]
+        channels: List[discord.TextChannel] = [await try_getting_channel(x, self.bot) async for x in
+                                               get_raid_channels()]
         await ctx.author.send("\n".join(channels))
 
     @demon.command(name="role")

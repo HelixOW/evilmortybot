@@ -330,7 +330,7 @@ def unit_by_name_or_id(name_or_id: typing.Union[str, int]) -> List[Unit]:
     if isinstance(name_or_id, str):
         return unit_by_vague_name(name_or_id)
     elif isinstance(name_or_id, int):
-        return unit_by_id(name_or_id)
+        return [unit_by_id(name_or_id)]
     raise ValueError
 
 
