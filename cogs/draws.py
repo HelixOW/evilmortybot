@@ -72,7 +72,8 @@ class DrawCog(commands.Cog):
 
         if rot:
             units: Dict[Unit, int] = {}
-            for _ in range(30 * 11):
+            multis: int = int(from_banner.loyality / 30)
+            for _ in range(multis * 11):
                 _unit: Unit = await unit_with_chance(from_banner, person)
                 if _unit in units:
                     units[_unit] += 1
@@ -83,7 +84,7 @@ class DrawCog(commands.Cog):
                     dict(sorted(units.items(), key=lambda x: x[0].grade.to_int())))),
                 content=f"{person.display_name} those are the units you pulled in 1 rotation" if person is ctx.author
                 else f"{person.display_name} those are the units you pulled in 1 rotation coming from {ctx.author.display_name}",
-                embed=embeds.DrawEmbed(title=f"{from_banner.pretty_name} ~ 1 Rotation (900 Gems)"))
+                embed=embeds.DrawEmbed(title=f"{from_banner.pretty_name} ~ 1 Rotation ({from_banner.loyality} Gems)"))
             return await draw.delete()
 
         await send_paged_message(

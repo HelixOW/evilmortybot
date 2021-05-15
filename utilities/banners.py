@@ -32,7 +32,8 @@ class Banner:
                  ssr_unit_rate_up: float = 0.5,
                  includes_all_sr: bool = True,
                  includes_all_r: bool = True,
-                 banner_type: BannerType = BannerType.ELEVEN) -> None:
+                 banner_type: BannerType = BannerType.ELEVEN,
+                 loyality: int = 900) -> None:
 
         if rate_up_units is None:
             rate_up_units = []
@@ -72,6 +73,8 @@ class Banner:
         self.background: str = bg_url
 
         self.shaftable: bool = len([x for x in name if "gssr" in x]) == 0
+
+        self.loyality: int = loyality
 
     def __repr__(self) -> str:
         return "Banner: " + ", ".join([f"{x}: {self.__getattribute__(x)} " for x in dir(self)])
@@ -132,6 +135,7 @@ def create_jp_banner() -> None:
         all_banner_list.remove(banner_by_name("jp"))
     all_banner_list.append(
         Banner(name=["kr", "jp"],
+               loyality=150,
                pretty_name="JP/KR exclusive draw",
                units=jp_units,
                ssr_unit_rate=(4 / len(ssrs)) if len(ssrs) > 0 else -1,
@@ -245,7 +249,8 @@ async def read_banners_from_db() -> None:
             includes_all_r=banner_data[8] == 1,
             banner_type=map_bannertype(banner_data[9]),
             units=_unit_list,
-            rate_up_units=rate_up_unit_list
+            rate_up_units=rate_up_unit_list,
+            loyality=banner_data[11]
         )
         all_banner_list.append(b)
         logger.log(logging.INFO, f"Read Banner {banner_names}")
