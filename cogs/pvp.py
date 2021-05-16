@@ -252,9 +252,12 @@ class PvPCog(commands.Cog):
             await ctx.send(content=ctx.author.mention,
                            embed=embeds.Team.lookup_error(args))
 
-    @commands.command()
+    @commands.group()
     @commands.guild_only()
     async def tarot(self, ctx: Context):
+        if ctx.invoked_subcommand is not None:
+            return
+
         __units: List[int] = [ra.randint(1, 22) for _ in range(4)]
         __food: int = ra.randint(1, 4)
 
@@ -294,6 +297,13 @@ class PvPCog(commands.Cog):
                 await msg.clear_reactions()
 
         await send_msg(__units, __food)
+
+    @tarot.command(name="rules")
+    async def tarot_rules(self, ctx):
+        await ctx.send(embed=embeds.HelpEmbed(help_title="Tarot Rules", description=
+                                              """> Select 1 Unit from each row 
+> Select 1 Food from the list underneath the units
+                                              """))
 
 
 def setup(_bot):
