@@ -1,5 +1,5 @@
 import asyncio
-from typing import List, Pattern, Generator, Any, Dict, Tuple, Callable
+from typing import List, Pattern, Generator, Any, Dict, Tuple, Callable, TypeVar
 
 from discord.ext import commands
 from discord.ext.commands import Context
@@ -14,6 +14,9 @@ import re
 import logging
 
 import utilities.reactions
+import utilities.embeds
+
+T = TypeVar('T')
 
 logger = logging.getLogger('discord')
 logger.setLevel(logging.DEBUG)
@@ -227,4 +230,76 @@ async def send_paged_message(_bot: discord.ext.commands.Bot, ctx: Context,
                 pass
         except asyncio.TimeoutError:
             await page_content.clear_reactions()
+
     await display_page(0, None)
+
+
+async def ask(ctx: Context,
+              question: str,
+              convert: Callable[..., T],
+              no_input: str = None,
+              default_val: T = None,
+              convert_failed: str = None,
+              timeout: int = 30,
+              interrupt_check: Callable[[str], bool] = lambda x: x.lower() in ["stop", "s", "end"]) -> T:
+    asking_message: discord.Message = await ctx.send(question)
+
+    try:
+        awnser_message: discord.Message = await ctx.bot.wait_for(
+            "message",
+            check=lambda x: x.author.id == ctx.author.id and x.channel.id == ctx.channel.id,
+            timeout=timeout)
+
+        awnser = awnser_message.content
+        await asking_message.delete()
+        await awnser_message.delete()
+
+        if interrupt_check(awnser):
+            return default_val
+
+        try:
+            return convert(awnser)
+        except ValueError:
+            if convert_failed is not None:
+                await ctx.send(ctx.author.mention, embed=embeds.ErrorEmbed(convert_failed))
+            return await ask(ctx, question, convert, no_input, default_val, convert_failed, timeout)
+    except asyncio.TimeoutError:
+        await asking_message.delete()
+        if no_input is not None:
+            await ctx.send(ctx.author.mention, embed=embeds.ErrorEmbed(no_input))
+        return default_val
+
+
+async def dialogue(ctx: Context,
+                   provide_question: str,
+                   followed_question: str,
+                   convert: Callable[..., T],
+                   no_input: str = None,
+                   default_val: T = None,
+                   convert_failed: str = None,
+                   provide_timeout: int = 30,
+                   follow_timeout: int = 30) -> T:
+
+    def cont_conv(x: str):
+        if x.lower() in ("true", "yes", "y", "ye", "yeah", "1", "yup", "ok"):
+            return "continue"
+        elif x.lower() in ("stop", "s", "end"):
+            return "stop"
+
+    cont: str = await ask(ctx,
+                          question=provide_question,
+                          convert=cont_conv,
+                          default_val="no",
+                          timeout=provide_timeout,
+                          interrupt_check=lambda x: False)
+
+    if cont == "continue":
+        return await ask(ctx,
+                         question=followed_question,
+                         convert=convert,
+                         no_input=no_input,
+                         default_val=default_val,
+                         convert_failed=convert_failed,
+                         timeout=follow_timeout)
+    elif cont == "stop":
+        raise InterruptedError

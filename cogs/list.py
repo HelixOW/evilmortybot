@@ -1,12 +1,11 @@
 import discord
 import math
 import asyncio
-import utilities.embeds as embeds
 import utilities.reactions as emojis
 from discord.ext import commands
 from discord.ext.commands import Context
 from typing import Optional, Dict, Any, List
-from utilities import all_banner_list, send_paged_message
+from utilities import all_banner_list, send_paged_message, embeds
 from utilities.units import parse_arguments, Unit, get_units_matching, image_to_discord
 from utilities.image_composer import compose_paged_unit_list, compose_tarot_list, compose_paged_tarot_list
 from utilities.tarot import tarot_name

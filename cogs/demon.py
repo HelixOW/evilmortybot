@@ -1,10 +1,10 @@
 import discord
 import asyncio
-import utilities.embeds as embeds
 import utilities.reactions as emojis
 from discord.ext import commands
 from discord.ext.commands import Context, has_permissions
 from typing import Optional, Tuple, AsyncGenerator, Dict, Union, List, Any
+from utilities import embeds
 from utilities.sql_helper import execute, fetch_item, rows
 
 demon_offer_messages = {}

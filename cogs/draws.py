@@ -4,8 +4,9 @@ import discord
 from discord.ext import commands
 from discord.ext.commands import Context
 
-import utilities.embeds as embeds
 import utilities.reactions as emojis
+
+from utilities import embeds
 from utilities.embeds import DefaultEmbed
 from utilities import remove_trailing_whitespace, all_banner_list, MemberMentionConverter, ssr_pattern, \
     send_paged_message

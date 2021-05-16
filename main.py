@@ -1,5 +1,4 @@
 import aiohttp
-import utilities.embeds as embeds
 import utilities.reactions as emojis
 import structlog
 from utilities import *

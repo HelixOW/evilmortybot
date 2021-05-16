@@ -8,7 +8,7 @@ from PIL.Image import Image
 from discord.ext import commands
 from discord.ext.commands import Context
 
-import utilities.embeds as embeds
+from utilities import embeds
 from utilities.banners import create_custom_unit_banner
 from utilities.image_composer import compose_unit_list
 from utilities.units import parse_custom_unit_args, compose_icon, image_to_discord, Type, Race, Affection, Grade, \

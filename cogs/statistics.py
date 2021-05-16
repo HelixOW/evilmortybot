@@ -5,8 +5,7 @@ import discord
 from discord.ext import commands
 from discord.ext.commands import Context
 
-import utilities.embeds as embeds
-from utilities import StatsContext
+from utilities import StatsContext, embeds
 from utilities.banners import get_user_pull
 from utilities.sql_helper import fetch_rows, execute
 

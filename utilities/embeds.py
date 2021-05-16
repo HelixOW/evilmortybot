@@ -1,10 +1,19 @@
 import discord
 from discord import Embed
-from utilities.units import image_to_discord
+from io import BytesIO
+from PIL.Image import Image
 
-import utilities.messages as m
 import utilities.reactions as e
 import utilities.images as i
+
+
+async def _image_to_discord(img: Image, image_name: str = "image.png") -> \
+        discord.File:
+    with BytesIO() as image_bin:
+        img.save(image_bin, 'webp', quality=10, optimize=True)
+        image_bin.seek(0)
+        image_file = discord.File(fp=image_bin, filename=image_name)
+    return image_file
 
 
 class DefaultEmbed(Embed):
@@ -294,7 +303,7 @@ If you have multiple account please provide the account name after the friendcod
     async def send_demon_help(ctx, content: str):
         return await ctx.send(
             content=content,
-            file=await image_to_discord(i.demon_banner),
+            file=await _image_to_discord(i.demon_banner),
             embed=Help.demon_help
         )
 
@@ -389,7 +398,7 @@ Please mind that you do loose all permission to the affection!```"""
     async def send_help(ctx, content: str):
         return await ctx.send(
             content=content,
-            file=await image_to_discord(i.affection_banner),
+            file=await _image_to_discord(i.affection_banner),
             embed=Affection._help
         )
 
@@ -508,7 +517,7 @@ You **__don't__** need to provide criteria if you don't want to edit it!```
     async def send_help(ctx, content: str):
         return await ctx.send(
             content=content,
-            file=await image_to_discord(i.custom_banner),
+            file=await _image_to_discord(i.custom_banner),
             embed=Custom._help
         )
 
@@ -525,11 +534,6 @@ You **__don't__** need to provide criteria if you don't want to edit it!```
         @staticmethod
         def success(unit_name: str):
             return SuccessEmbed(f"Removed Unit `{unit_name}` successfully")
-
-
-class Tourney:
-    help: Embed = discord.Embed(title=m.Tourney.Help.title, colour=discord.Color.gold(),
-                                description=m.Tourney.Help.desc)
 
 
 def loading(title: str = "Loading..."):

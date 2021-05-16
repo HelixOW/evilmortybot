@@ -4,12 +4,12 @@ import discord
 import PIL.Image as ImageLib
 import aiohttp
 import random as ra
-import utilities.embeds as embeds
 
 from PIL.Image import Image as Img
 from typing import List, Dict, Optional, Any
 from enum import Enum
-from utilities import img_size, unit_list, remove_trailing_whitespace, remove_beginning_ignore_case, image_to_discord
+from utilities import img_size, unit_list, remove_trailing_whitespace, remove_beginning_ignore_case, image_to_discord, \
+    embeds
 from io import BytesIO
 
 
@@ -373,7 +373,7 @@ def get_units_matching(grades: Optional[List[Grade]] = None,
     possible_units: List[Unit] = [x for x in unit_list if test(x)]
 
     if jp:
-        
+
         possible_units += [x for x in possible_units if x.is_jp]
     else:
         possible_units = [x for x in unit_list if test(x) and not x.is_jp]
