@@ -1,4 +1,6 @@
 import aiohttp
+import discord
+
 import utilities.reactions as emojis
 import structlog
 from utilities import *
@@ -43,8 +45,6 @@ async def on_ready():
 
     create_custom_unit_banner()
     create_jp_banner()
-
-    # kof_task.start()
 
     print('Logged in as')
     print(bot.user.name)
@@ -136,12 +136,6 @@ async def icon(ctx: Context, of: Unit):
                 await ctx.send(file=await image_to_discord(img))
 
 
-@bot.command(name="age")
-async def age_cmd(ctx: Context):
-    await ctx.send(
-        f"{ctx.author.mention} you're on {ctx.guild.name} for {td_format((datetime.now() - ctx.author.joined_at))}")
-
-
 @bot.command(name="awake")
 async def awake_cmd(ctx: Context, _unit: Unit, start: Optional[int] = 0, to: Optional[int] = 6):
     data = calc_cost(_unit, min(max(start, 0), 6) + 1, min(max(to, 0), 6) + 1)
@@ -157,8 +151,11 @@ async def code_cmd(ctx: Context):
 
 
 @bot.command(name="info")
-async def info_cmd(ctx: Context, *, of_name: str):
+async def info_cmd(ctx: Context, include_custom: Optional[bool] = False, *, of_name: str):
     ofs: List[Unit] = unit_by_vague_name(of_name)
+
+    if not include_custom:
+        ofs = [x for x in ofs if x not in [y for y in unit_list if y.event == Event.CUS]]
 
     if len(ofs) == 0:
         return await ctx.send(ctx.author.mention, embed=embeds.ErrorEmbed(
@@ -176,6 +173,12 @@ async def info_cmd(ctx: Context, *, of_name: str):
             "content": None
         } for x in ofs]
     )
+
+
+@info_cmd.error
+async def info_error(ctx: Context, error: discord.ext.commands.CommandError):
+    if isinstance(error, discord.ext.commands.MissingRequiredArgument):
+        await ctx.send(ctx.author.mention, embed=embeds.ErrorEmbed("No Unit name provided!").set_usage("info <unit name>"))
 
 
 def set_arsenic_log_level(level=logging.WARNING):

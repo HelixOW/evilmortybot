@@ -72,7 +72,7 @@ async def read_units_from_db() -> None:
             'SELECT name FROM additional_unit_names WHERE unit_id=?', (row[0], )
         )
 
-        unit_list.append(Unit(
+        u: Unit = Unit(
             unit_id=row[0],
             name=row[1],
             simple_name=row[2],
@@ -84,7 +84,12 @@ async def read_units_from_db() -> None:
             affection_str=map_affection(row[7]),
             icon_path=row[8] if row[0] < 0 else "gc/icons/{}.png",
             is_jp=row[9] == 1,
-        ))
+            emoji_id=row[10]
+        )
+
+        unit_list.append(u)
+
+
         logger.log(logging.INFO, f"Registering Unit: {row[1]} ({row[0]}) is JP? {row[9] == 1}")
 
     r_unit_list.extend([x for x in unit_list if x.grade == Grade.R and x.event == Event.GC])

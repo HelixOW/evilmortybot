@@ -203,7 +203,8 @@ class Unit:
                  affection_str: str = Affection.NONE.value,
                  icon_path: str = "gc/icons/{}.png",
                  alt_names: Optional[List[str]] = None,
-                 is_jp: bool = False) -> None:
+                 is_jp: bool = False,
+                 emoji_id: str = None) -> None:
 
         if alt_names is None:
             alt_names: List[str] = []
@@ -219,6 +220,7 @@ class Unit:
         self.affection: str = affection_str
         self.icon_path: str = icon_path
         self.is_jp: bool = is_jp
+        self.emoji: str = f"<:{self.unit_id if self.unit_id > 9 else '0' + str(self.unit_id)}:{emoji_id}>"
 
         if unit_id > 0:
             img: Img = ImageLib.new('RGBA', (img_size, img_size))
@@ -252,6 +254,9 @@ class Unit:
         ).add_field(
             name="ID",
             value=f"```{self.unit_id}```"
+        ).add_field(
+            name="Emoji",
+            value=f"```{self.emoji}```",
         )
         if len(self.alt_names) != 0:
             embed._fields = [
@@ -323,7 +328,7 @@ def unit_by_name(name: str) -> Optional[Unit]:
 
 
 def unit_by_vague_name(name: str) -> List[Unit]:
-    return [x for x in unit_list if (name.lower() in x.name.lower()) or name.lower() in [y.lower() for y in x.alt_names]]
+    return [x for x in unit_list if (name.lower() in [y.lower() for y in x.alt_names] or f" {name.lower()}" in x.name.lower())]
 
 
 def unit_by_name_or_id(name_or_id: typing.Union[str, int]) -> List[Unit]:

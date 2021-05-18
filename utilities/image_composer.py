@@ -35,7 +35,7 @@ async def compose_team(rerolled_team: List[Unit],
     if re_units is None:
         re_units = {0: [], 1: [], 2: [], 3: []}
 
-    icons: list[Image] = [_icon.resize([img_size, img_size]) for _icon in [_unit.icon for _unit in rerolled_team]]
+    icons: list[Image] = [_icon.resize([img_size, img_size]) for _icon in [_unit.icon for _unit in rerolled_team] if _icon is not None]
     longest_named_unit = get_text_dimensions(longest_named(re_units[3]).name, font_12)[0] if len(
         re_units[3]) != 0 else 0
 

@@ -44,11 +44,13 @@ class ErrorEmbed(Embed):
         )
 
     def set_title(self, error_title: str):
-        self.set_author(
+        return self.set_author(
             name="Error: " + error_title,
             icon_url="https://raw.githubusercontent.com/WhoIsAlphaHelix/evilmortybot/master/data/images/error.png"
         )
-        return self
+
+    def set_usage(self, usage: str):
+        return self.add_field(name="Usage", value=f"```{usage}```")
 
 
 class HelpEmbed(DefaultEmbed):
