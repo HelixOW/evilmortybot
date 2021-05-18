@@ -91,8 +91,9 @@ class BotUser:
         red_dimension: Tuple[int, int] = get_text_dimensions(f"{self.name}'s Team for red Demon")
         gray_dimension: Tuple[int, int] = get_text_dimensions(f"{self.name}'s Team for gray Demon")
         crimson_dimension: Tuple[int, int] = get_text_dimensions(f"{self.name}'s Team for crimson Demon")
+        x: int = (4 * half_img_size) + (3 * 5)
         image: Image = Images.new('RGBA', (
-            (4 * half_img_size) + (3 * 5),
+            x if x > crimson_dimension[0] else crimson_dimension[0],
             (red_dimension[1] + gray_dimension[1] + crimson_dimension[1]) + (9 * 3) + (half_img_size * 3)
         ))
         draw: ImageDraw = ImageDraw.Draw(image)
