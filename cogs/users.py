@@ -111,15 +111,23 @@ class BotUser:
         return image
 
     def get_pulled_overall(self, guild: discord.Guild):
+        if guild.id not in self.pulled_overall:
+            return 0
         return self.pulled_overall[guild.id]
 
     def get_pulled_ssrs(self, guild: discord.Guild):
+        if guild.id not in self.pulled_ssrs:
+            return 0
         return self.pulled_ssrs[guild.id]
 
     def get_shafts(self, guild: discord.Guild):
+        if guild.id not in self.shafts:
+            return 0
         return self.shafts[guild.id]
 
     def get_luck(self, guild: discord.Guild):
+        if self.get_pulled_overall(guild) == 0:
+            return 0
         return round((self.get_pulled_ssrs(guild) / self.get_pulled_overall(guild)) * 100, 2)
 
     async def set_name(self, name: str):

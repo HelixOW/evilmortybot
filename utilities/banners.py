@@ -163,7 +163,8 @@ async def get_user_pull(user: discord.Member) -> Dict[str, int]:
     return await fetch_row(
         'SELECT * FROM user_pulls WHERE user_id=? AND guild=?',
         lambda x: {"ssr_amount": x[1], "pull_amount": x[2], "guild": x[3], "shafts": x[4]},
-        (user.id, user.guild.id))
+        (user.id, user.guild.id),
+        {})
 
 
 async def add_user_pull(user: discord.Member, got_ssr: bool) -> None:

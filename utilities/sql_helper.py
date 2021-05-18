@@ -23,10 +23,13 @@ async def rows(sql: str, args: Tuple[Any, ...] = ()) -> AsyncGenerator[Tuple[Any
                 yield row
 
 
-async def fetch_row(sql: str, converter: Callable[..., T], args: Tuple[Any, ...] = ()) -> T:
+async def fetch_row(sql: str, converter: Callable[..., T], args: Tuple[Any, ...] = (), default: T = None) -> T:
     async with aiosqlite.connect(database) as db:
         async with db.cursor() as cursor:
-            return converter(await (await cursor.execute(sql, args)).fetchone())
+            val = await (await cursor.execute(sql, args)).fetchone()
+            if val is None:
+                return default
+            return converter(val)
 
 
 async def fetch_rows(sql: str, converter: Callable[..., T], args: Tuple[Any, ...] = ()) -> List[T]:
