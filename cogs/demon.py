@@ -120,7 +120,7 @@ class DemonCog(commands.Cog):
 
             red_role = await get_demon_role(guild, "red")
             grey_role = await get_demon_role(guild, "grey")
-            crimson_role = await get_demon_role(guild, "red")
+            crimson_role = await get_demon_role(guild, "crimson")
             all_role = await get_demon_role(guild, "all")
 
             if reds != 0 and red_role is not None:
