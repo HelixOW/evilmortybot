@@ -264,6 +264,9 @@ class Unit:
             ] + embed._fields
         return embed
 
+    def display_alt_names(self) -> str:
+        return "```" + ",\n".join(self.alt_names) + "```"
+
     async def discord_icon(self) -> discord.File:
         return await image_to_discord(self.icon)
 
@@ -325,6 +328,10 @@ def unit_by_id(unit_id: int) -> Optional[Unit]:
 
 def unit_by_name(name: str) -> Optional[Unit]:
     return next((x for x in unit_list if name == x.name), None)
+
+
+def unit_by_name_no_case(name: str) -> Optional[Unit]:
+    return next((x for x in unit_list if name.lower() == x.name.lower()), None)
 
 
 def unit_by_vague_name(name: str) -> List[Unit]:
