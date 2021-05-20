@@ -1,8 +1,6 @@
 import aiohttp
-import discord
 
 import utilities.reactions as emojis
-import structlog
 from utilities import *
 from utilities.banners import create_jp_banner, create_custom_unit_banner, read_banners_from_db
 from utilities.sql_helper import *
@@ -11,7 +9,6 @@ from utilities.image_composer import compose_unit_list, compose_awakening
 from utilities.awaken import *
 from utilities.tarot import *
 from discord.ext.commands import Context
-from datetime import datetime
 from io import BytesIO
 from PIL.Image import Image
 
@@ -181,21 +178,9 @@ async def info_error(ctx: Context, error: discord.ext.commands.CommandError):
         await ctx.send(ctx.author.mention, embed=embeds.ErrorEmbed("No Unit name provided!").set_usage("info <unit name>"))
 
 
-def set_arsenic_log_level(level=logging.WARNING):
-    lo = logging.getLogger('arsenic')
-
-    def logger_factory():
-        return lo
-
-    structlog.configure(logger_factory=logger_factory)
-    lo.setLevel(level)
-
-
 def start_up_bot(token_path: str = "data/bot_token.txt", _is_beta: bool = False):
     global token, is_beta
     try:
-        set_arsenic_log_level(logging.CRITICAL)
-
         for extension in initial_extensions:
             bot.load_extension(extension)
 
@@ -213,7 +198,7 @@ def start_up_bot(token_path: str = "data/bot_token.txt", _is_beta: bool = False)
                            (3, ["cc", "ult", "evade"]),
                            (4, ["def", "hp", "reg", "rec"])]:
             for f_type in f_types:
-                food_list: List[Food] = []
+                food_list: List[Image] = []
                 name = map_food(f_type)
                 for _i in range(1, 4):
                     with ImageLib.open(f"gc/food/{f_type}_{_i}.png") as food_image:
