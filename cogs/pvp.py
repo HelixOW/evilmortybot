@@ -19,14 +19,9 @@ class PvPCog(commands.Cog):
     def __init__(self, _bot):
         self.bot = _bot
 
-    @commands.command(name="show")
+    @commands.command(name="show", aliases=["emoji", "emote"])
     async def show_cmd(self, ctx: Context, *, team: str):
-        for x in [y.strip() for y in team.split(",")]:
-            print(unit_by_name_or_id(x))
         await ctx.send(" ".join([unit_by_name_or_id(x)[0].emoji for x in [y.strip() for y in team.split(",")] if len(unit_by_name_or_id(x)) != 0]))
-        # await ctx.send(ctx.author.mention, embed=embeds.DrawEmbed(), file=await image_to_discord(
-        #     await compose_team([find_unit(x)[0] for x in [y.strip() for y in team.split(",")]])
-        # ))
 
     @commands.command()
     @commands.guild_only()
