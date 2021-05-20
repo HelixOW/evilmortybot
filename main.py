@@ -187,7 +187,8 @@ async def quiz_cmd(ctx: Context, mode: Optional[str] = "unit"):
             unit: Unit = unit_list[random.randint(0, len(unit_list) - 1)]
 
         question: discord.Message = await ctx.send(ctx.author.mention,
-                                                   embed=embeds.DrawEmbed(title="What Unit is this?"),
+                                                   embed=embeds.DrawEmbed(title="What Unit is this?",
+                                                                          description="Enter the **__full name__**."),
                                                    file=await image_to_discord(await unit.set_icon()))
 
         awnser: str = await ask(ctx,
