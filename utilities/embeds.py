@@ -109,6 +109,9 @@ class Help:
     ).add_field(
         name="List",
         value="```help list```"
+    ).add_field(
+        name="Profile",
+        value="````help profile```"
     )
 
     pvp_help: HelpEmbed = HelpEmbed(help_title="PvP Help", description="For *criteria* please check bottom").add_field(
@@ -270,6 +273,18 @@ If no criteria is given, it will by default display all custom created units.```
 ```Displays a menu with all Tarot Units in the bot.```"""
     )
 
+    profile_help: HelpEmbed = HelpEmbed(help_title="Profile Help").add_field(
+        name="Create",
+        value="""__Usage__:
+> `profile create`
+```Answer the question being asked to create a profile```"""
+    ).add_field(
+        name="Edit",
+        value="""__Usage__:
+> `profile edit`
+```Answer the question being asked to edit your profile```"""
+    )
+
     demon_help: HelpEmbed = HelpEmbed(
         help_title="Demon Help",
         description="In case you claim demons from someone you don't share a server with you can reply to the offer message to message the person."
@@ -299,6 +314,20 @@ If you have multiple account please provide the account name after the friendcod
         value="""__Usage__:
 > `demon info [@Of]`
 ```Shows all Profiles of "@Of"```"""
+    ).add_blank_field().add_field(
+        name="Queue",
+        value="""__Usage__:
+> `demon queue [reds, grays, crimsons, bellmoth]`
+```Shows everyone currently in queue for demon mats.
+To sign up -> ..demon notify```"""
+    ).add_field(
+        name="Notify",
+        value="""__Usage__:
+> `demon notify`
+```Puts you on the queue for people.
+Valied Queues are:
+ reds, grays, crimsons, bellmoth
+If you want to signup for multiple queues just append the Queue names with a ,```"""
     ).set_image(url="attachment://image.png")
 
     @staticmethod

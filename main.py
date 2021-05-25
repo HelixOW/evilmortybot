@@ -84,6 +84,11 @@ async def custom_help(ctx: Context):
     await ctx.send(embed=embeds.Help.custom_help)
 
 
+@bot_help.command(name="profile")
+async def profile_help(ctx: Context):
+    await ctx.send(embed=embeds.Help.profile_help)
+
+
 @bot.command()
 async def update(ctx: Context):
     await read_units_from_db()
