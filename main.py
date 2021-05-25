@@ -1,19 +1,16 @@
+import random
+
 import aiohttp
-import discord
+from discord.ext.commands import Context
 
 import utilities.reactions as emojis
-import structlog
 from utilities import *
-from utilities.banners import create_jp_banner, create_custom_unit_banner, read_banners_from_db
-from utilities.sql_helper import *
-from utilities.units import image_to_discord, unit_by_vague_name, compose_icon, unit_by_id
-from utilities.image_composer import compose_unit_list, compose_awakening
 from utilities.awaken import *
+from utilities.banners import create_jp_banner, create_custom_unit_banner, read_banners_from_db
+from utilities.image_composer import compose_unit_list, compose_awakening
+from utilities.sql_helper import *
 from utilities.tarot import *
-from discord.ext.commands import Context
-from datetime import datetime
-from io import BytesIO
-from PIL.Image import Image
+from utilities.units import image_to_discord, unit_by_vague_name, compose_icon, unit_by_id, unit_by_name_no_case
 
 token: int = 0
 is_beta: bool = False
@@ -31,7 +28,6 @@ initial_extensions = ['cogs.custom',
                       'cogs.pvp',
                       'cogs.statistics',
                       'cogs.users']
-
 
 bot: KingBot = KingBot(command_prefix=get_prefix,
                        description='..help for Help',
@@ -178,24 +174,47 @@ async def info_cmd(ctx: Context, include_custom: Optional[bool] = False, *, of_n
 @info_cmd.error
 async def info_error(ctx: Context, error: discord.ext.commands.CommandError):
     if isinstance(error, discord.ext.commands.MissingRequiredArgument):
-        await ctx.send(ctx.author.mention, embed=embeds.ErrorEmbed("No Unit name provided!").set_usage("info <unit name>"))
+        await ctx.send(ctx.author.mention,
+                       embed=embeds.ErrorEmbed("No Unit name provided!").set_usage("info <unit name>"))
 
 
-def set_arsenic_log_level(level=logging.WARNING):
-    lo = logging.getLogger('arsenic')
+@bot.command(name="quiz")
+async def quiz_cmd(ctx: Context, mode: Optional[str] = "unit"):
+    if mode in ["unit", "icon", "character"]:
+        unit: Unit = unit_list[random.randint(0, len(unit_list) - 1)]
 
-    def logger_factory():
-        return lo
+        while unit.event == Event.CUS:
+            unit: Unit = unit_list[random.randint(0, len(unit_list) - 1)]
 
-    structlog.configure(logger_factory=logger_factory)
-    lo.setLevel(level)
+        question: discord.Message = await ctx.send(ctx.author.mention,
+                                                   embed=embeds.DrawEmbed(title="What Unit is this?",
+                                                                          description="Enter the **__full name__**."),
+                                                   file=await image_to_discord(await unit.set_icon()))
+
+        awnser: str = await ask(ctx,
+                                question=question,
+                                convert=str,
+                                convert_failed="No Unit like this found",
+                                delete_question=False,
+                                delete_awnser=False)
+
+        if awnser is None or awnser in ["stop", "s", "e", "end", "interrupt", "i"]:
+            return await ctx.send(ctx.author.mention, embed=embeds.ErrorEmbed("Interrupted game."))
+
+        awnser: Unit = unit_by_name_no_case(awnser)
+
+        if awnser is not None and awnser.unit_id == unit.unit_id:
+            return await ctx.send(ctx.author.mention, embed=embeds.SuccessEmbed("Correct!"))
+
+        return await ctx.send(ctx.author.mention, embed=embeds.ErrorEmbed("Wrong!", description=f"""
+        Correct awnser was:
+        `{unit.name}`
+        """))
 
 
 def start_up_bot(token_path: str = "data/bot_token.txt", _is_beta: bool = False):
     global token, is_beta
     try:
-        set_arsenic_log_level(logging.CRITICAL)
-
         for extension in initial_extensions:
             bot.load_extension(extension)
 
@@ -213,7 +232,7 @@ def start_up_bot(token_path: str = "data/bot_token.txt", _is_beta: bool = False)
                            (3, ["cc", "ult", "evade"]),
                            (4, ["def", "hp", "reg", "rec"])]:
             for f_type in f_types:
-                food_list: List[Food] = []
+                food_list: List[Image] = []
                 name = map_food(f_type)
                 for _i in range(1, 4):
                     with ImageLib.open(f"gc/food/{f_type}_{_i}.png") as food_image:

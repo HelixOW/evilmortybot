@@ -168,6 +168,7 @@ class DemonCog(commands.Cog):
             return user != self.bot.user and str(added_reaction.emoji) in emojis.OK
 
         try:
+            user: discord.User
             added_reaction, user = await self.bot.wait_for('reaction_add', check=check, timeout=60 * 60 * 4)
 
             if user == author:
@@ -185,16 +186,25 @@ class DemonCog(commands.Cog):
                 claim_friendcode: Optional[int] = await get_friendcode(user)
 
                 if author_friendcode is None and claim_friendcode is None:
-                    await ctx.send(f"{author.mention}: {user.mention} has claimed your demons!")
+                    await ctx.send(f"{author.mention}: {user.display_name} has claimed your demons!")
+                    await user.send(
+                        f"Please contact {author.display_name} from {author.guild.name} for their friendcode")
                 elif author_friendcode is None and claim_friendcode is not None:
                     await ctx.send(
                         f"{author.mention}: {user.mention} (Friendcode: {claim_friendcode}) has claimed your demons!")
+                    await user.send(
+                        f"Please contact {author.display_name} from {author.guild.name} for their friendcode")
                 elif author_friendcode is not None and claim_friendcode is None:
                     await ctx.send(
                         f"{author.mention} (Friendcode: {author_friendcode}): {user.mention} has claimed your demons!")
+                    await user.send(
+                        f"Please add {author.mention} (Friendcode: {author_friendcode}) from {author.guild.name} for your demons")
                 else:
                     await ctx.send(
                         f"{author.mention} (Friendcode: {author_friendcode}): {user.mention} (Friendcode: {claim_friendcode}) has claimed your demons!")
+                    await user.send(
+                        f"You claimed {author.mention}'s (Friendcode: {author_friendcode}), from {author.guild.name}, demons."
+                    )
 
                 if len(self.shared_guilds(author, user)) != 0 and added_reaction.message.guild.id != \
                         demon_offer_messages[added_reaction.message.id]["created_in"].id:

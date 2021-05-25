@@ -1,5 +1,5 @@
 import asyncio
-from typing import List, Pattern, Generator, Any, Dict, Tuple, Callable, TypeVar
+from typing import List, Pattern, Generator, Any, Dict, Tuple, Callable, TypeVar, Union
 
 from discord.ext import commands
 from discord.ext.commands import Context
@@ -235,14 +235,19 @@ async def send_paged_message(_bot: discord.ext.commands.Bot, ctx: Context,
 
 
 async def ask(ctx: Context,
-              question: str,
+              question: Union[str, discord.Message],
               convert: Callable[..., T],
               no_input: str = None,
               default_val: T = None,
               convert_failed: str = None,
               timeout: int = 30,
-              interrupt_check: Callable[[str], bool] = lambda x: x.lower() in ["stop", "s", "end"]) -> T:
-    asking_message: discord.Message = await ctx.send(question)
+              interrupt_check: Callable[[str], bool] = lambda x: x.lower() in ["stop", "s", "end"],
+              delete_question: bool = True,
+              delete_awnser: bool = True) -> T:
+    if isinstance(question, str):
+        asking_message: discord.Message = await ctx.send(question)
+    else:
+        asking_message = question
 
     try:
         awnser_message: discord.Message = await ctx.bot.wait_for(
@@ -251,8 +256,10 @@ async def ask(ctx: Context,
             timeout=timeout)
 
         awnser = awnser_message.content
-        await asking_message.delete()
-        await awnser_message.delete()
+        if delete_question:
+            await asking_message.delete()
+        if delete_awnser:
+            await awnser_message.delete()
 
         if interrupt_check(awnser):
             return default_val

@@ -1,3 +1,5 @@
+import random
+
 import discord
 import math
 from PIL import ImageDraw, Image as ImageLib
