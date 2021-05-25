@@ -111,7 +111,7 @@ class Help:
         value="```help list```"
     ).add_field(
         name="Profile",
-        value="````help profile```"
+        value="```help profile```"
     )
 
     pvp_help: HelpEmbed = HelpEmbed(help_title="PvP Help", description="For *criteria* please check bottom").add_field(
