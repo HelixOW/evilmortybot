@@ -162,13 +162,13 @@ class DemonCog(commands.Cog):
             return await ctx.send(ctx.author.mention, embed=embeds.DefaultEmbed(title=f"Queue for {demon.lower().capitalize()}", description="\n".join(
                 [self.bot.get_user(x['offer_id']).display_name +
                  (f" __{await get_friendcode_with_id(x['offer_id'])}__" if await get_friendcode_with_id(x['offer_id']) is not None else "") +
-                 f" (_..demon profile {self.bot.get_user(x['offer_id']).mention}_)"
+                 f" (_..profile {self.bot.get_user(x['offer_id']).mention}_)"
                  for x in queue])))
 
         await ctx.send(ctx.author.mention, embed=embeds.DefaultEmbed(title=f"Demon Queue", description="\n".join(
             [self.bot.get_user(x['offer_id']).display_name +
              (f" __{await get_friendcode_with_id(x['offer_id'])}__" if await get_friendcode_with_id(x['offer_id']) is not None else "") +
-             f" (_..demon profile {self.bot.get_user(x['offer_id']).mention}_)"
+             f" (_..profile {self.bot.get_user(x['offer_id']).mention}_)"
              f" for {demon_bools_to_str(x)}"
              for x in queue])))
 
