@@ -4,8 +4,8 @@ import utilities.reactions as emojis
 from discord.ext import commands
 from discord.ext.commands import Context, has_permissions
 from typing import Optional, Tuple, AsyncGenerator, Dict, Union, List, Any
-from utilities import embeds
-from utilities.sql_helper import execute, fetch_item, rows
+from utilities import embeds, ask
+from utilities.sql_helper import execute, fetch_item, rows, fetch_rows, exists
 
 demon_offer_messages = {}
 
@@ -31,6 +31,10 @@ async def get_friendcode(of: discord.Member) -> Optional[int]:
     return await fetch_item('SELECT gc_id FROM "users" WHERE discord_id=?', (of.id,))
 
 
+async def get_friendcode_with_id(discord_id: int) -> Optional[int]:
+    return await fetch_item('SELECT gc_id FROM "users" WHERE discord_id=?', (discord_id,))
+
+
 async def get_profile_name_and_friendcode(of: discord.Member) -> AsyncGenerator[Dict[str, Union[str, int]], None]:
     async for row in rows('SELECT name, gc_id FROM "users" WHERE discord_id=?', (of.id,)):
         yield {"name": row[0], "code": row[1]}
@@ -51,6 +55,79 @@ async def delete_demon_profile(of: discord.Member, name: str) -> None:
 async def update_demon_profile(of: discord.Member, gc_id: int, name: str) -> None:
     await execute('UPDATE "users" SET gc_id=?, name=? WHERE discord_id=? AND name=?',
                   (gc_id, name.lower(), of.id, name.lower()))
+
+
+def demon_converter(demon: str) -> List[str]:
+    notified: List[str] = []
+    for d in demon.lower().split(","):
+        d = d.strip()
+        if d in ["red", "reds"]:
+            notified.append("reds")
+        elif d in ["grays", "gray", "greys", "grey"]:
+            notified.append("grays")
+        elif d in ["crimsons", "crimson", "howlex"]:
+            notified.append("crimsons")
+        elif d in ["belmos", "bellmoth", "bellmoths"]:
+            notified.append("bellmoths")
+    return notified
+
+
+async def get_demon_queue(demon: str) -> List[Dict[str, int]]:
+    demon = demon.lower()
+    if demon in ["red", "reds"]:
+        demon = "reds"
+    elif demon in ["grays", "gray", "greys", "grey"]:
+        demon = "grays"
+    elif demon in ["crimsons", "crimson", "howlex"]:
+        demon = "crimsons"
+    elif demon in ["belmos", "bellmoth", "bellmoths"]:
+        demon = "bellmoths"
+    elif demon in ["all"]:
+        return await fetch_rows('SELECT * FROM "demon_offers" WHERE reds>=1 OR grays>=1 OR crimsons>=1 OR bellmoths>=1',
+                                lambda x: {
+                                    "offer_id": x[0],
+                                    "reds": x[1] == 1,
+                                    "grays": x[2] == 1,
+                                    "crimsons": x[3] == 1,
+                                    "bellmoths": x[4] == 1
+                                })
+    else:
+        return []
+    return await fetch_rows('SELECT * FROM "demon_offers" WHERE ' + demon + '=1',
+                            lambda x: {
+                                "offer_id": x[0],
+                                "reds": x[1] == 1,
+                                "grays": x[2] == 1,
+                                "crimsons": x[3] == 1,
+                                "bellmoths": x[4] == 1
+                            })
+
+
+async def add_demon_queue(of: discord.Member, reds: bool, grays: bool, crimsons: bool, bellmoths: bool) -> None:
+    await execute('INSERT OR IGNORE INTO "demon_offers" VALUES (?, ?, ?, ?, ?)',
+                  (of.id, int(reds), int(grays), int(crimsons), int(bellmoths)))
+
+
+async def update_demon_queue(of: discord.Member, reds: bool, grays: bool, crimsons: bool, bellmoths: bool) -> None:
+    await execute('UPDATE "demon_offers" SET reds=?, grays=?, crimsons=?, bellmoths=? WHERE discord_id=?',
+                  (int(reds), int(grays), int(crimsons), int(bellmoths), of.id))
+
+
+async def in_demon_queue(of: discord.Member) -> bool:
+    return await exists('SELECT * FROM "demon_offers" WHERE discord_id=?', (of.id,))
+
+
+def demon_bools_to_str(x) -> str:
+    li = []
+    if x['reds']:
+        li.append("Reds")
+    if x['grays']:
+        li.append("Grays")
+    if x['crimsons']:
+        li.append("Crimsons")
+    if x['bellmoths']:
+        li.append("Bellmoths")
+    return ', '.join(li)
 
 
 async def try_getting_channel(x, bot):
@@ -77,6 +154,36 @@ class DemonCog(commands.Cog):
     async def demon(self, ctx: Context):
         if ctx.invoked_subcommand is None:
             await embeds.Help.send_demon_help(ctx, ctx.author.mention)
+
+    @demon.command(name="queue", aliases=["list"])
+    async def demon_queue(self, ctx: Context, demon: str = "all"):
+        queue = await get_demon_queue(demon.lower())
+        if demon != "all":
+            return await ctx.send(ctx.author.mention, embed=embeds.DefaultEmbed(title=f"Queue for {demon.lower().capitalize()}", description="\n".join(
+                [self.bot.get_user(x['offer_id']).display_name +
+                 (f" __{await get_friendcode_with_id(x['offer_id'])}__" if await get_friendcode_with_id(x['offer_id']) is not None else "") +
+                 f" (_..demon profile {self.bot.get_user(x['offer_id']).mention}_)"
+                 for x in queue])))
+
+        await ctx.send(ctx.author.mention, embed=embeds.DefaultEmbed(title=f"Demon Queue", description="\n".join(
+            [self.bot.get_user(x['offer_id']).display_name +
+             (f" __{await get_friendcode_with_id(x['offer_id'])}__" if await get_friendcode_with_id(x['offer_id']) is not None else "") +
+             f" (_..demon profile {self.bot.get_user(x['offer_id']).mention}_)"
+             f" for {demon_bools_to_str(x)}"
+             for x in queue])))
+
+    @demon.command(name="notify", aliases=["ping"])
+    async def demon_notify(self, ctx: Context):
+        what_demon: List[str] = await ask(ctx,
+                                          question="Which demon do you want to be notified for?", convert=demon_converter)
+        if len(what_demon) == 0:
+            return await update_demon_queue(ctx.author, False, False, False, False)
+
+        if await in_demon_queue(ctx.author):
+            await update_demon_queue(ctx.author, "reds" in what_demon, "grays" in what_demon, "crimsons" in what_demon, "bellmoths" in what_demon)
+        else:
+            await add_demon_queue(ctx.author, "reds" in what_demon, "grays" in what_demon, "crimsons" in what_demon, "bellmoths" in what_demon)
+        await ctx.send(ctx.author.mention, embed=embeds.SuccessEmbed("Success", description="You are now in queue for " + ", ".join(what_demon)))
 
     @demon.command(name="friend", aliases=["friendcode", "code"])
     async def demon_friend(self, ctx: Context, of: Optional[discord.Member]):

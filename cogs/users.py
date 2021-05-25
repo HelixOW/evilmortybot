@@ -53,12 +53,14 @@ class BotUser:
 
         if not await has_profile(self.discord_id):
             await execute(
-                'INSERT INTO "bot_users" VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                'INSERT INTO "bot_users" VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 (self.discord_id, self.name, self.team_cc, self.box_cc, self.friendcode,
                  self.offered_demons["red"], self.offered_demons["gray"], self.offered_demons["crimson"],
                  ",".join([str(x) for x in self.demon_teams["red"]]),
                  ",".join([str(x) for x in self.demon_teams["gray"]]),
-                 ",".join([str(x) for x in self.demon_teams["crimson"]]))
+                 ",".join([str(x) for x in self.demon_teams["crimson"]]),
+                 ",".join([str(x) for x in self.demon_teams["bellmoth"]]),
+                 self.offered_demons["bellmoth"])
             )
 
         return self
@@ -91,10 +93,11 @@ class BotUser:
         red_dimension: Tuple[int, int] = get_text_dimensions(f"{self.name}'s Team for red Demon")
         gray_dimension: Tuple[int, int] = get_text_dimensions(f"{self.name}'s Team for gray Demon")
         crimson_dimension: Tuple[int, int] = get_text_dimensions(f"{self.name}'s Team for crimson Demon")
+        bellmoth_dimension: Tuple[int, int] = get_text_dimensions(f"{self.name}'s Team for bellmoth Demon")
         x: int = (4 * half_img_size) + (3 * 5)
         image: Image = Images.new('RGBA', (
             x if x > crimson_dimension[0] else crimson_dimension[0],
-            (red_dimension[1] + gray_dimension[1] + crimson_dimension[1]) + (9 * 3) + (half_img_size * 3)
+            (red_dimension[1] + gray_dimension[1] + crimson_dimension[1] + bellmoth_dimension[1]) + (9 * 4) + (half_img_size * 4)
         ))
         draw: ImageDraw = ImageDraw.Draw(image)
 
@@ -155,6 +158,11 @@ class BotUser:
                 'UPDATE "bot_users" SET crimson_team=? WHERE discord_id=?',
                 (",".join(team), self.discord_id)
             )
+        elif demon == "bellmoth":
+            await execute(
+                'UPDATE "bot_users" SET bellmoth_team=? WHERE discord_id=?',
+                (",".join(team), self.discord_id)
+            )
 
     async def set_friendcode(self, friendcode: int):
         self.friendcode = friendcode
@@ -198,6 +206,13 @@ class BotUser:
             (self.offered_demons["crimson"], self.discord_id)
         )
 
+    async def add_bellmoth_offer(self, amount: int = 1):
+        self.offered_demons["bellmoth"] = self.offered_demons["bellmoth"] + amount
+        await execute(
+            'UPDATE "bot_users" SET bellmoth_offered=? WHERE discord_id=?',
+            (self.offered_demons["bellmoth"], self.discord_id)
+        )
+
     async def create_info(self, guild: discord.Guild, image_url: str):
         return embeds.DrawEmbed(title=f"Info about {self.name if self.name != '' else str(self.discord_id)}").add_field(
             name="Team CC",
@@ -223,12 +238,15 @@ class BotUser:
         ).add_blank_field().add_field(
             name="Red Demons offered",
             value=f"```{self.offered_demons['red']}```"
-        ).add_field(
+        ).add_blank_field(True).add_field(
             name="Gray Demons offered",
             value=f"```{self.offered_demons['gray']}```"
         ).add_field(
             name="Crimson Demons offered",
             value=f"```{self.offered_demons['crimson']}```"
+        ).add_blank_field(True).add_field(
+            name="Bellmoth Demons offered",
+            value=f"```{self.offered_demons['bellmoth']}```"
         ).set_thumbnail(url=image_url)
 
 
@@ -246,12 +264,14 @@ async def read_bot_user(member: discord.Member):
                                       offered_demons={
                                           "red": x[5],
                                           "gray": x[6],
-                                          "crimson": x[7]
+                                          "crimson": x[7],
+                                          "bellmoth": x[12]
                                       },
                                       demon_teams={
                                           "red": () if len(x[8]) == 0 else x[8].split(","),
                                           "gray": () if len(x[9]) == 0 else x[9].split(","),
-                                          "crimson": () if len(x[10]) == 0 else x[10].split(",")
+                                          "crimson": () if len(x[10]) == 0 else x[10].split(","),
+                                          "bellmoth": () if len(x[11]) == 0 else x[11].split(",")
                                       }
                                   ),
                                   (member.id,))).init_db()
@@ -303,7 +323,7 @@ class ProfileCog(commands.Cog):
     @profile_cmd.command(name="create", aliases=["+", "add"])
     async def profile_create_cmd(self, ctx: Context,
                                  name: str = None, team_cc: int = None, box_cc: int = None, friendcode: int = None,
-                                 red_team: str = None, gray_team: str = None, crimson_team: str = None):
+                                 red_team: str = None, gray_team: str = None, crimson_team: str = None, bellmoth_team: str = None):
 
         rupted = False
 
@@ -377,7 +397,7 @@ class ProfileCog(commands.Cog):
                 gray_team: Tuple[str, ...] = await dialogue(
                     ctx,
                     provide_question=f"{ctx.author.mention}: Do you want to provide your team for gray demons?",
-                    followed_question=f"{ctx.author.mention}: What's your team for gray demons? *(Please format it like `danaforliz,lolimerlin,ggowther,deathpierce`)*",
+                    followed_question=f"{ctx.author.mention}: What's your team for gray demons? *(Please format it like `danaforliz,lolimerlin,hwgowther,deathpierce`)*",
                     no_input="No Team for gray demons provided!",
                     convert=convert,
                     default_val=tuple(),
@@ -398,6 +418,20 @@ class ProfileCog(commands.Cog):
                     convert_failed="Can't find any team like this!",
                     follow_timeout=60*5)
             except InterruptedError:
+                rupted = True
+
+        if bellmoth_team is None and not rupted:
+            try:
+                bellmoth_team: Tuple[str, ...] = await dialogue(
+                    ctx,
+                    provide_question=f"{ctx.author.mention}: Do you want to provide your team for bellmoth demons?",
+                    followed_question=f"{ctx.author.mention}: What's your team for bellmoth demons? *(Please format it like `hwgowther,danaforliz,gjericho,deathpierce`)*",
+                    no_input="No Team for bellmoth demons provided!",
+                    convert=convert,
+                    default_val=tuple(),
+                    convert_failed="Can't find any team like this!",
+                    follow_timeout=60*5)
+            except InterruptedError:
                 pass
 
         await BotUser(
@@ -409,9 +443,10 @@ class ProfileCog(commands.Cog):
             demon_teams={
                 "red": red_team if red_team is not None else (),
                 "gray": gray_team if gray_team is not None else (),
-                "crimson": crimson_team if crimson_team is not None else ()
+                "crimson": crimson_team if crimson_team is not None else (),
+                "bellmoth": bellmoth_team if bellmoth_team is not None else ()
             },
-            offered_demons={"red": 0, "gray": 0, "crimson": 0}
+            offered_demons={"red": 0, "gray": 0, "crimson": 0, "bellmoth": 0}
         ).init_db()
 
         return await ctx.send(ctx.author.mention, embed=embeds.SuccessEmbed("Added your profile!"))
@@ -420,7 +455,7 @@ class ProfileCog(commands.Cog):
     async def profile_edit_cmd(self, ctx: Context,
                                what: Optional[str] = None,
                                name: str = None, team_cc: int = None, box_cc: int = None, friendcode: int = None,
-                               red_team: str = None, gray_team: str = None, crimson_team: str = None):
+                               red_team: str = None, gray_team: str = None, crimson_team: str = None, bellmoth_team: str = None):
 
         bot_user: BotUser = await read_bot_user(ctx.author)
 
@@ -517,6 +552,19 @@ class ProfileCog(commands.Cog):
             except InterruptedError:
                 return None, True
 
+        async def ask_bellmoth():
+            try:
+                return await dialogue(
+                    ctx,
+                    provide_question=f"{ctx.author.mention}: Do you want to update your team for bellmoth demons?",
+                    followed_question=f"{ctx.author.mention}: What's your team for bellmoth demons? *(Please format it like `hwgowther,danaforliz,gjericho,deathpierce`)*",
+                    no_input="No Team for bellmoth demons provided!",
+                    convert=convert,
+                    convert_failed="Can't find any team like this!",
+                    follow_timeout=60*5), False
+            except InterruptedError:
+                return None, True
+
         if what is not None:
             if what in ["name", "accountname", "account"]:
                 name = (await ask_name())[0]
@@ -538,6 +586,9 @@ class ProfileCog(commands.Cog):
                 rupted = True
             elif what in ["crimson", "howlex", "crimson team", "howlex team", "cteam", "hteam"]:
                 crimson_team = (await ask_crimson())[0]
+                rupted = True
+            elif what in ["bellmoth", "belmos", "bellmos", "belmoth"]:
+                bellmoth_team = (await ask_bellmoth())[0]
                 rupted = True
 
         if name is None and not rupted:
@@ -573,6 +624,12 @@ class ProfileCog(commands.Cog):
         if crimson_team is None and not rupted:
             question = await ask_crimson()
             crimson_team = question[0]
+            rupted = question[1]
+
+        if bellmoth_team is None and not rupted:
+            question = await ask_bellmoth()
+            bellmoth_team = question[0]
+            rupted = question[1]
 
         if name is not None:
             await bot_user.set_name(name)
@@ -594,6 +651,9 @@ class ProfileCog(commands.Cog):
 
         if crimson_team is not None:
             await bot_user.set_demon_team("crimson", crimson_team)
+
+        if bellmoth_team is not None:
+            await bot_user.set_demon_team("bellmoth", bellmoth_team)
 
         return await ctx.send(ctx.author.mention, embed=embeds.SuccessEmbed("Updated your profile!"))
 
