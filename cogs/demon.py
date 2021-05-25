@@ -95,9 +95,9 @@ class DemonCog(commands.Cog):
             await ctx.send(f"{ctx.author.mention}: {friendcode}")
 
     @demon.command(name="offer")
-    async def demon_offer(self, ctx: Context, reds: int = 0, greys: int = 0, crimsons: int = 0, *,
+    async def demon_offer(self, ctx: Context, reds: int = 0, greys: int = 0, crimsons: int = 0, belmos: int = 0, *,
                           additional_message: str = ""):
-        if reds == 0 and greys == 0 and crimsons == 0:
+        if reds == 0 and greys == 0 and crimsons == 0 and belmos == 0:
             return await ctx.send(
                 content=f"{ctx.author.mention}",
                 embed=embeds.ErrorEmbed(error_message="Please provide at least one demon")
@@ -121,6 +121,7 @@ class DemonCog(commands.Cog):
             red_role = await get_demon_role(guild, "red")
             grey_role = await get_demon_role(guild, "grey")
             crimson_role = await get_demon_role(guild, "crimson")
+            belmos_role = await get_demon_role(guild, "bellmoth")
             all_role = await get_demon_role(guild, "all")
 
             if reds != 0 and red_role is not None:
@@ -129,8 +130,10 @@ class DemonCog(commands.Cog):
                 mentions.append(guild.get_role(grey_role).mention)
             if crimsons != 0 and crimson_role is not None:
                 mentions.append(guild.get_role(crimson_role).mention)
+            if belmos != 0 and belmos_role is not None:
+                mentions.append(guild.get_role(belmos_role).mention)
 
-            if all_role is not None and None in [red_role, grey_role, crimson_role]:
+            if all_role is not None and None in [red_role, grey_role, crimson_role, belmos_role]:
                 mentions.append(guild.get_role(all_role).mention)
 
             to_claim: discord.Message = await channel.send(
@@ -141,6 +144,7 @@ class DemonCog(commands.Cog):
                                 (f"Reds: `{reds}` \n" if reds != 0 else "") +
                                 (f"Greys: `{greys}` \n" if greys != 0 else "") +
                                 (f"Crimsons: `{crimsons}` \n" if crimsons != 0 else "") +
+                                (f"Bellmoths: `{belmos}` \n" if belmos != 0 else "") +
                                 (f"\n {additional_message} \n" if additional_message != "" else "") +
                                 "\nClick 🆗 to claim them." +
                                 "\nMake sure to have a empty spot in your friends list!",
