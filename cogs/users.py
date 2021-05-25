@@ -278,7 +278,7 @@ async def read_bot_user(member: discord.Member):
 
 
 def convert(team) -> Tuple[str, ...]:
-    return tuple(str(unit_by_vague_name(x)[0].unit_id) for x in team.split(",") if len(unit_by_vague_name(x)) > 0)
+    return tuple(str(unit_by_vague_name(x.strip())[0].unit_id) for x in team.split(",") if len(unit_by_vague_name(x)) > 0)
 
 
 def convert_team_cc(cc: str):
@@ -331,7 +331,7 @@ class ProfileCog(commands.Cog):
             try:
                 name = await dialogue(
                     ctx,
-                    provide_question=f"{ctx.author.mention}: Do you want to provide your Grand Cross account name?",
+                    provide_question=f"{ctx.author.mention}: Do you want to provide your Grand Cross account name? __Yes__ _or_ __No__",
                     followed_question=f"{ctx.author.mention}: What's your Grand Cross account name?",
                     no_input="No name provided!",
                     convert=str
@@ -343,7 +343,7 @@ class ProfileCog(commands.Cog):
             try:
                 friendcode = await dialogue(
                     ctx,
-                    provide_question=f"{ctx.author.mention}: Do you want to provide your Grand Cross Friendcode?",
+                    provide_question=f"{ctx.author.mention}: Do you want to provide your Grand Cross Friendcode? __Yes__ _or_ __No__",
                     followed_question=f"{ctx.author.mention}: What's your Grand Cross Friendcode?",
                     no_input="No Friendcode provided!",
                     convert=int,
@@ -356,7 +356,7 @@ class ProfileCog(commands.Cog):
             try:
                 team_cc = await dialogue(
                     ctx,
-                    provide_question=f"{ctx.author.mention}: Do you want to provide your Grand Cross Team CC?",
+                    provide_question=f"{ctx.author.mention}: Do you want to provide your Grand Cross Team CC? __Yes__ _or_ __No__",
                     followed_question=f"{ctx.author.mention}: What's your Grand Cross Team CC?",
                     no_input="No Team CC provided!",
                     convert=convert_team_cc,
@@ -369,7 +369,7 @@ class ProfileCog(commands.Cog):
             try:
                 box_cc = await dialogue(
                     ctx,
-                    provide_question=f"{ctx.author.mention}: Do you want to provide your Grand Cross Box CC?",
+                    provide_question=f"{ctx.author.mention}: Do you want to provide your Grand Cross Box CC? __Yes__ _or_ __No__",
                     followed_question=f"{ctx.author.mention}: What's your Grand Cross Box CC?",
                     no_input="No Box CC provided!",
                     convert=convert_box_cc,
@@ -382,8 +382,8 @@ class ProfileCog(commands.Cog):
             try:
                 red_team: Tuple[str, ...] = await dialogue(
                     ctx,
-                    provide_question=f"{ctx.author.mention}: Do you want to provide your team for red demons?",
-                    followed_question=f"{ctx.author.mention}: What's your team for red demons? *(Please format it like `t1,beastin,bslater,bsrjericho`)*",
+                    provide_question=f"{ctx.author.mention}: Do you want to provide your team for red demons? __Yes__ _or_ __No__",
+                    followed_question=f"{ctx.author.mention}: What's your team for red demons? *(Please format it like `t1, beastin, bslater, bsrjericho`)*",
                     no_input="No Team for red demons provided!",
                     convert=convert,
                     default_val=tuple(),
@@ -396,8 +396,8 @@ class ProfileCog(commands.Cog):
             try:
                 gray_team: Tuple[str, ...] = await dialogue(
                     ctx,
-                    provide_question=f"{ctx.author.mention}: Do you want to provide your team for gray demons?",
-                    followed_question=f"{ctx.author.mention}: What's your team for gray demons? *(Please format it like `danaforliz,lolimerlin,hwgowther,deathpierce`)*",
+                    provide_question=f"{ctx.author.mention}: Do you want to provide your team for gray demons? __Yes__ _or_ __No__",
+                    followed_question=f"{ctx.author.mention}: What's your team for gray demons? *(Please format it like `danaforliz, lolimerlin, ggowther, deathpierce`)*",
                     no_input="No Team for gray demons provided!",
                     convert=convert,
                     default_val=tuple(),
@@ -410,8 +410,8 @@ class ProfileCog(commands.Cog):
             try:
                 crimson_team: Tuple[str, ...] = await dialogue(
                     ctx,
-                    provide_question=f"{ctx.author.mention}: Do you want to provide your team for crimson demons?",
-                    followed_question=f"{ctx.author.mention}: What's your team for crimson demons? *(Please format it like `rderi,rzel,rgowther,rsrjericho`)*",
+                    provide_question=f"{ctx.author.mention}: Do you want to provide your team for crimson demons? __Yes__ _or_ __No__",
+                    followed_question=f"{ctx.author.mention}: What's your team for crimson demons? *(Please format it like `rderi, rzel, rgowther, rsrjericho`)*",
                     no_input="No Team for crimson demons provided!",
                     convert=convert,
                     default_val=tuple(),
@@ -424,8 +424,8 @@ class ProfileCog(commands.Cog):
             try:
                 bellmoth_team: Tuple[str, ...] = await dialogue(
                     ctx,
-                    provide_question=f"{ctx.author.mention}: Do you want to provide your team for bellmoth demons?",
-                    followed_question=f"{ctx.author.mention}: What's your team for bellmoth demons? *(Please format it like `hwgowther,danaforliz,gjericho,deathpierce`)*",
+                    provide_question=f"{ctx.author.mention}: Do you want to provide your team for bellmoth demons? __Yes__ _or_ __No__",
+                    followed_question=f"{ctx.author.mention}: What's your team for bellmoth demons? *(Please format it like `ggowther, danaforliz, gjericho, deathpierce`)*",
                     no_input="No Team for bellmoth demons provided!",
                     convert=convert,
                     default_val=tuple(),
@@ -470,7 +470,7 @@ class ProfileCog(commands.Cog):
             try:
                 return await dialogue(
                     ctx,
-                    provide_question=f"{ctx.author.mention}: Do you want to update your Grand Cross account name?",
+                    provide_question=f"{ctx.author.mention}: Do you want to update your Grand Cross account name? __Yes__ _or_ __No__",
                     followed_question=f"{ctx.author.mention}: What's your Grand Cross account name?",
                     no_input="No name provided!",
                     convert=str), False
@@ -481,7 +481,7 @@ class ProfileCog(commands.Cog):
             try:
                 return await dialogue(
                     ctx,
-                    provide_question=f"{ctx.author.mention}: Do you want to update your Grand Cross Friendcode?",
+                    provide_question=f"{ctx.author.mention}: Do you want to update your Grand Cross Friendcode? __Yes__ _or_ __No__",
                     followed_question=f"{ctx.author.mention}: What's your Grand Cross Friendcode?",
                     no_input="No Friendcode provided!",
                     convert=int,
@@ -493,7 +493,7 @@ class ProfileCog(commands.Cog):
             try:
                 return await dialogue(
                     ctx,
-                    provide_question=f"{ctx.author.mention}: Do you want to update your Grand Cross Team CC?",
+                    provide_question=f"{ctx.author.mention}: Do you want to update your Grand Cross Team CC? __Yes__ _or_ __No__",
                     followed_question=f"{ctx.author.mention}: What's your Grand Cross Team CC?",
                     no_input="No Team CC provided!",
                     convert=convert_team_cc,
@@ -505,7 +505,7 @@ class ProfileCog(commands.Cog):
             try:
                 return await dialogue(
                     ctx,
-                    provide_question=f"{ctx.author.mention}: Do you want to update your Grand Cross Box CC?",
+                    provide_question=f"{ctx.author.mention}: Do you want to update your Grand Cross Box CC? __Yes__ _or_ __No__",
                     followed_question=f"{ctx.author.mention}: What's your Grand Cross Box CC?",
                     no_input="No Box CC provided!",
                     convert=convert_box_cc,
@@ -517,8 +517,8 @@ class ProfileCog(commands.Cog):
             try:
                 return await dialogue(
                     ctx,
-                    provide_question=f"{ctx.author.mention}: Do you want to update your team for red demons?",
-                    followed_question=f"{ctx.author.mention}: What's your team for red demons? *(Please format it like `t1,beastin,bslater,bsrjericho`)*",
+                    provide_question=f"{ctx.author.mention}: Do you want to update your team for red demons? __Yes__ _or_ __No__",
+                    followed_question=f"{ctx.author.mention}: What's your team for red demons? *(Please format it like `t1, beastin, bslater, bsrjericho`)*",
                     no_input="No Team for red demons provided!",
                     convert=convert,
                     convert_failed="Can't find any team like this!",
@@ -530,8 +530,8 @@ class ProfileCog(commands.Cog):
             try:
                 return await dialogue(
                     ctx,
-                    provide_question=f"{ctx.author.mention}: Do you want to update your team for gray demons?",
-                    followed_question=f"{ctx.author.mention}: What's your team for gray demons? *(Please format it like `danaforliz,lolimerlin,ggowther,deathpierce`)*",
+                    provide_question=f"{ctx.author.mention}: Do you want to update your team for gray demons? __Yes__ _or_ __No__",
+                    followed_question=f"{ctx.author.mention}: What's your team for gray demons? *(Please format it like `danaforliz, lolimerlin, ggowther, deathpierce`)*",
                     no_input="No Team for gray demons provided!",
                     convert=convert,
                     convert_failed="Can't find any team like this!",
@@ -543,8 +543,8 @@ class ProfileCog(commands.Cog):
             try:
                 return await dialogue(
                     ctx,
-                    provide_question=f"{ctx.author.mention}: Do you want to update your team for crimson demons?",
-                    followed_question=f"{ctx.author.mention}: What's your team for crimson demons? *(Please format it like `rderi,rzel,rgowther,rsrjericho`)*",
+                    provide_question=f"{ctx.author.mention}: Do you want to update your team for crimson demons? __Yes__ _or_ __No__",
+                    followed_question=f"{ctx.author.mention}: What's your team for crimson demons? *(Please format it like `rderi, rzel, rgowther, rsrjericho`)*",
                     no_input="No Team for crimson demons provided!",
                     convert=convert,
                     convert_failed="Can't find any team like this!",
@@ -556,8 +556,8 @@ class ProfileCog(commands.Cog):
             try:
                 return await dialogue(
                     ctx,
-                    provide_question=f"{ctx.author.mention}: Do you want to update your team for bellmoth demons?",
-                    followed_question=f"{ctx.author.mention}: What's your team for bellmoth demons? *(Please format it like `hwgowther,danaforliz,gjericho,deathpierce`)*",
+                    provide_question=f"{ctx.author.mention}: Do you want to update your team for bellmoth demons? __Yes__ _or_ __No__",
+                    followed_question=f"{ctx.author.mention}: What's your team for bellmoth demons? *(Please format it like `ggowther, danaforliz, gjericho, deathpierce`)*",
                     no_input="No Team for bellmoth demons provided!",
                     convert=convert,
                     convert_failed="Can't find any team like this!",
