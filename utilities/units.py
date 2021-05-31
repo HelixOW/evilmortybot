@@ -364,7 +364,7 @@ def unit_by_name_no_case(name: str) -> Optional[Unit]:
 
 
 def unit_by_vague_name(name: str) -> List[Unit]:
-    return [x for x in unit_list if (name.lower() in [y.lower() for y in x.alt_names] or f" {name.lower()}" in x.name.lower())]
+    return [x for x in unit_list if (name.strip().lower() in [y.lower() for y in x.alt_names] or f" {name.strip().lower()}" in x.name.lower())]
 
 
 def unit_by_name_or_id(name_or_id: typing.Union[str, int]) -> List[Unit]:

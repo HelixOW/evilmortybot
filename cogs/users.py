@@ -278,7 +278,7 @@ async def read_bot_user(member: discord.Member):
 
 
 def convert(team) -> Tuple[str, ...]:
-    return tuple(str(unit_by_vague_name(x.strip())[0].unit_id) for x in team.split(",") if len(unit_by_vague_name(x)) > 0)
+    return tuple(str(unit_by_vague_name(x)[0].unit_id) for x in team.split(",") if len(unit_by_vague_name(x)) > 0)
 
 
 def convert_team_cc(cc: str):
