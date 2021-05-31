@@ -2,10 +2,8 @@ from PIL import Image
 import pytesseract
 import re
 
-# pytesseract.pytesseract.tesseract_cmd = r'/opt/homebrew/Cellar/tesseract/4.1.1/bin/tesseract'
 
-
-async def read_base_cc_from_image(ctx, image: Image.Image) -> float:
+async def read_base_cc_from_image(image: Image.Image) -> float:
     text = pytesseract.image_to_string(image.resize((1242, 2688), resample=Image.BOX), config="-psm 1")
 
     result = re.search(r'(.*)Team (.?)(.?): ([\d,]{1,7})', text)
@@ -16,7 +14,7 @@ async def read_base_cc_from_image(ctx, image: Image.Image) -> float:
     return float(result.group(4).replace(",", "."))
 
 
-async def read_kh_cc_from_image(ctx, image: Image.Image) -> float:
+async def read_kh_cc_from_image(image: Image.Image) -> float:
     if image.size[0] > image.size[1]:
         im = image
         thresh = 175

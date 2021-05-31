@@ -107,7 +107,7 @@ async def find(ctx: Context, *, units: str = ""):
     found: List[Unit] = []
 
     for _, ele in enumerate(unit_vague_name_list):
-        ele = remove_trailing_whitespace(ele)
+        ele = ele.strip()
 
         try:
             pot_unit: Unit = unit_by_id(int(ele))

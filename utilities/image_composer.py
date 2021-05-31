@@ -1,12 +1,10 @@
-import random
-
 import discord
 import math
 from PIL import ImageDraw, Image as ImageLib
 from PIL.ImageFont import FreeTypeFont
 from PIL.Image import Image
 from typing import Tuple, List, Dict
-from utilities import img_size, flatten, chunks, chunks_dict, connection, half_img_size, get_text_dimensions,\
+from utilities import img_size, flatten, chunks, chunks_dict, half_img_size, get_text_dimensions,\
     font_24, font_12, text_with_shadow
 from utilities.units import Unit, longest_named, unit_by_id
 from utilities.banners import Banner, unit_with_chance
@@ -125,19 +123,16 @@ async def compose_pvp(player1: discord.Member, team1: List[Unit], player2: disco
 
 async def compose_draw(from_banner: Banner, user: discord.Member) -> discord.File:
     u: Unit = await unit_with_chance(from_banner, user)
-    connection.commit()
     return await u.discord_icon()
 
 
 async def compose_five_multi_draw(from_banner: Banner, user: discord.Member) -> Image:
     img: Image = await compose_unit_five_multi_draw([(await unit_with_chance(from_banner, user)) for _ in range(5)])
-    connection.commit()
     return img
 
 
 async def compose_multi_draw(from_banner: Banner, user: discord.Member) -> Image:
     img: Image = await compose_unit_multi_draw([(await unit_with_chance(from_banner, user)) for _ in range(11)])
-    connection.commit()
     return img
 
 

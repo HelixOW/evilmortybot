@@ -8,7 +8,7 @@ import utilities.reactions as emojis
 
 from utilities import embeds
 from utilities.embeds import DefaultEmbed
-from utilities import remove_trailing_whitespace, all_banner_list, MemberMentionConverter, ssr_pattern, \
+from utilities import all_banner_list, MemberMentionConverter, ssr_pattern, \
     send_paged_message
 from utilities.banners import Banner, banner_by_name, unit_with_chance, BannerType, add_shaft, \
     find_banner_containing_any_unit
@@ -51,13 +51,13 @@ class DrawCog(commands.Cog):
 
         if banner_name.startswith("rot") or banner_name.startswith("rotation"):
             rot: bool = True
-            banner_name: str = remove_trailing_whitespace(banner_name.replace("rotation", "").replace("rot", ""))
+            banner_name: str = banner_name.replace("rotation", "").replace("rot", "").strip()
             if banner_name.replace(" ", "") == "":
                 banner_name: str = "banner 1"
         else:
             while banner_name.startswith(tuple(str(i) for i in range(50))):
-                amount_str += remove_trailing_whitespace(banner_name[0])
-                banner_name: str = remove_trailing_whitespace(banner_name[1:])
+                amount_str += banner_name[0].strip()
+                banner_name: str = banner_name[1:].strip()
                 amount: int = int(amount_str)
 
             if banner_name.replace(" ", "") == "":

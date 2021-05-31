@@ -1,3 +1,4 @@
+from __future__ import annotations
 import typing
 
 import discord
@@ -8,7 +9,7 @@ import random as ra
 from PIL.Image import Image as Img
 from typing import List, Dict, Optional, Any
 from enum import Enum
-from utilities import img_size, unit_list, remove_trailing_whitespace, remove_beginning_ignore_case, image_to_discord, \
+from utilities import img_size, unit_list, remove_beginning_ignore_case, image_to_discord, \
     embeds
 from io import BytesIO
 
@@ -293,11 +294,39 @@ class Unit:
         return discord.Color.gold()
 
     def __str__(self) -> str:
-        return f"Unit: {self.name} ({self.unit_id})"
+        return f"{self.name} ({self.unit_id})"
 
-    def __eq__(self, other) -> bool:
+    def __repr__(self):
+        return f"{self.name} ({self.unit_id})"
+
+    def __eq__(self, other: Unit) -> bool:
         if other is not None:
             return self.unit_id == other.unit_id
+        return False
+
+    # def __lt__(self, other: Unit) -> bool:
+    #     if other is not None:
+    #         return sorted([self.name, other.name], key=lambda item: (item, len(item)))[0] == self.name
+    #     return False
+
+    def __lt__(self, other: Unit) -> bool:
+        if other is not None:
+            return self.unit_id < other.unit_id
+        return False
+
+    def __gt__(self, other: Unit) -> bool:
+        if other is not None:
+            return self.unit_id > other.unit_id
+        return False
+
+    def __le__(self, other: Unit) -> bool:
+        if other is not None:
+            return self.unit_id <= other.unit_id
+        return False
+
+    def __ge__(self, other: Unit) -> bool:
+        if other is not None:
+            return self.unit_id >= other.unit_id
         return False
 
     def __hash__(self):
@@ -448,14 +477,14 @@ def parse_arguments(given_args: str, list_seperator: str = "&") -> Dict[str, Any
     unparsed: List[str] = []
 
     for _, ele in enumerate(args):
-        arg: str = remove_trailing_whitespace(ele)
+        arg: str = ele.strip()
 
         if arg.lower().startswith("new_name:"):
-            parsed_new_name = remove_trailing_whitespace(remove_beginning_ignore_case(arg, "new_name:"))
+            parsed_new_name = remove_beginning_ignore_case(arg, "new_name:").strip()
             continue
 
         if arg.lower().startswith("url:"):
-            parsed_url = remove_trailing_whitespace(remove_beginning_ignore_case(arg, "url:"))
+            parsed_url = remove_beginning_ignore_case(arg, "url:").strip()
             continue
 
         if arg.lower().startswith("jp") or arg.lower().startswith("kr"):
@@ -463,26 +492,26 @@ def parse_arguments(given_args: str, list_seperator: str = "&") -> Dict[str, Any
             continue
 
         if arg.lower().startswith("owner:"):
-            parsed_owner = int(remove_trailing_whitespace(remove_beginning_ignore_case(arg, "owner:"))[3:-1])
+            parsed_owner = int(remove_beginning_ignore_case(arg, "owner:").strip()[3:-1])
             continue
 
         if arg.lower().startswith("name:"):
-            name_str = remove_trailing_whitespace(remove_beginning_ignore_case(arg, "name:"))
+            name_str = remove_beginning_ignore_case(arg, "name:").strip()
 
             if name_str.startswith("!"):
                 parsed_names = [x.name for x in unit_list if
                                 x.name.lower() != remove_beginning_ignore_case(name_str, "!").lower()]
             else:
-                parsed_names = [remove_trailing_whitespace(x) for x in name_str.split(",")]
+                parsed_names = [x.strip() for x in name_str.split(",")]
             continue
 
         if arg.lower().startswith("race:"):
-            race_str = remove_trailing_whitespace(remove_beginning_ignore_case(arg, "race:").lower())
+            race_str = remove_beginning_ignore_case(arg, "race:").lower().strip()
 
             if race_str.startswith("!"):
                 parsed_races = [x for x in all_races if x.value != remove_beginning_ignore_case(race_str, "!")]
             else:
-                races_with_count = [remove_trailing_whitespace(x) for x in race_str.split(",")]
+                races_with_count = [x.strip() for x in race_str.split(",")]
                 for _, element in enumerate(races_with_count):
                     apr = element.split("*")
 
@@ -494,39 +523,39 @@ def parse_arguments(given_args: str, list_seperator: str = "&") -> Dict[str, Any
             continue
 
         if arg.lower().startswith("grade:"):
-            grade_str = remove_trailing_whitespace(remove_beginning_ignore_case(arg, "grade:").lower())
+            grade_str = remove_beginning_ignore_case(arg, "grade:").lower().strip()
 
             if grade_str.startswith("!"):
                 parsed_grades = [x for x in all_grades if x.value != remove_beginning_ignore_case(grade_str, "!")]
             else:
-                parsed_grades = [map_grade(remove_trailing_whitespace(x)) for x in grade_str.split(",")]
+                parsed_grades = [map_grade(x.strip()) for x in grade_str.split(",")]
             continue
 
         if arg.lower().startswith("type:"):
-            type_str = remove_trailing_whitespace(remove_beginning_ignore_case(arg, "type:").lower())
+            type_str = remove_beginning_ignore_case(arg, "type:").lower().strip()
 
             if type_str.startswith("!"):
                 parsed_types = [x for x in all_types if x.value != remove_beginning_ignore_case(type_str, "!")]
             else:
-                parsed_types = [map_attribute(remove_trailing_whitespace(x)) for x in type_str.split(",")]
+                parsed_types = [map_attribute(x.strip()) for x in type_str.split(",")]
             continue
 
         if arg.lower().startswith("event:"):
-            event_str = remove_trailing_whitespace(remove_beginning_ignore_case(arg, "event:").lower())
+            event_str = remove_beginning_ignore_case(arg, "event:").lower().strip()
 
             if event_str.startswith("!"):
                 parsed_events = [x for x in all_events if x.value != remove_beginning_ignore_case(event_str, "!")]
             else:
-                parsed_events = [map_event(remove_trailing_whitespace(x)) for x in event_str.split(",")]
+                parsed_events = [map_event(x.strip()) for x in event_str.split(",")]
             continue
 
         if arg.lower().startswith("affection:"):
-            affection_str = remove_trailing_whitespace(remove_beginning_ignore_case(arg, "affection:").lower())
+            affection_str = remove_beginning_ignore_case(arg, "affection:").lower().strip()
 
             if affection_str.startswith("!"):
                 parsed_affections = [x for x in all_affections if x != remove_beginning_ignore_case(affection_str, "!")]
             else:
-                parsed_affections = [map_affection(remove_trailing_whitespace(x)) for x in affection_str.split(",")]
+                parsed_affections = [map_affection(x.strip()) for x in affection_str.split(",")]
             continue
 
         unparsed.append(arg.lower())

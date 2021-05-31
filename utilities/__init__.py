@@ -9,7 +9,6 @@ from PIL import ImageFont, Image, ImageDraw
 from PIL.ImageFont import FreeTypeFont
 
 import discord
-import sqlite3 as sqlite
 import re
 import logging
 
@@ -48,7 +47,6 @@ periods: List[Tuple[str, int]] = [
 ]
 
 database: str = "data/data.db"
-connection = sqlite.connect(database)
 
 font_12: FreeTypeFont = ImageFont.truetype("pvp.ttf", 12)
 font_24: FreeTypeFont = ImageFont.truetype("pvp.ttf", 24)
@@ -105,32 +103,10 @@ def flatten(to_flatten: List[List[Any]]) -> List[Any]:
     return [item for sublist in to_flatten for item in sublist]
 
 
-def remove_trailing_whitespace(to_remove: str) -> str:
-    while to_remove.startswith(" "):
-        to_remove = to_remove[1:]
-
-    while to_remove.endswith(" "):
-        to_remove = to_remove[:-1]
-    return to_remove
-
-
 def remove_beginning_ignore_case(remove_from: str, beginning: str) -> str:
     if remove_from.lower().startswith(beginning.lower()):
         return remove_from[len(beginning):]
     return remove_from
-
-
-def td_format(td_object):
-    seconds = int(td_object.total_seconds())
-
-    strings = []
-    for period_name, period_seconds in periods:
-        if seconds > period_seconds:
-            period_value, seconds = divmod(seconds, period_seconds)
-            has_s = 's' if period_value > 1 else ''
-            strings.append("%s %s%s" % (period_value, period_name, has_s))
-
-    return ", ".join(strings)
 
 
 def get_text_dimensions(text_string: str, font: FreeTypeFont = font_24) -> Tuple[int, int]:

@@ -5,7 +5,7 @@ from discord.ext.commands import Context, has_permissions
 from utilities.cc_register import *
 from utilities.sql_helper import execute, fetch_item, rows
 from io import BytesIO
-from typing import Optional, Tuple, AsyncGenerator
+from typing import Optional, AsyncGenerator
 
 
 async def add_cc_role(role: discord.Role, cc: float, guild_cc: bool) -> None:
@@ -47,13 +47,13 @@ class CCCog(commands.Cog):
             async with session.get(ctx.message.attachments[0].url) as resp:
                 with BytesIO(await resp.read()) as a:
                     if await is_cc_knighthood(ctx.guild):
-                        read_cc = await read_kh_cc_from_image(ctx, Image.open(a))
+                        read_cc = await read_kh_cc_from_image(Image.open(a))
 
                         if read_cc == -1:
                             return await loading.edit(
                                 content=f"{ctx.author.mention} Can't read CC from Image. Please make sure to provide a full screenshot")
                     else:
-                        read_cc: float = await read_base_cc_from_image(ctx, Image.open(a))
+                        read_cc: float = await read_base_cc_from_image(Image.open(a))
 
                         if read_cc == -1:
                             return await loading.edit(
