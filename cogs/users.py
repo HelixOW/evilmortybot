@@ -3,9 +3,9 @@ import PIL.Image as Images
 from discord.ext import commands
 from discord.ext.commands import Context
 from typing import Dict, List, Tuple, Optional
-from utilities import half_img_size, get_text_dimensions, text_with_shadow, image_to_discord
+from utilities import half_img_size, img_size, get_text_dimensions, text_with_shadow, image_to_discord
 from utilities.units import Unit, unit_by_id, unit_by_vague_name
-from utilities import embeds, dialogue
+from utilities import embeds, dialogue, ask
 from utilities.sql_helper import fetch_rows, exists, execute, fetch_row
 from PIL import Image, ImageDraw
 
@@ -73,19 +73,15 @@ class BotUser:
             return image
 
         team: List[Unit] = [unit_by_id(x) for x in self.demon_teams[demon]]
-        demon_dimension: Tuple[int, int] = get_text_dimensions(f"{self.name}'s Team for {demon} Demon")
         image: Image = Images.new('RGBA', (
-            (4 * half_img_size) + (3 * 5),
-            half_img_size + 3 + demon_dimension[1]
+            (4 * img_size) + (3 * 5),
+            img_size
         ))
-        draw: ImageDraw = ImageDraw.Draw(image)
-
-        text_with_shadow(draw, f"{self.name}'s Team for {demon} Demon", (0, 0))
 
         x: int = 0
         for team_unit in team:
-            image.paste(await team_unit.set_icon(), (x, 3 + demon_dimension[1]))
-            x += 5
+            image.paste(await team_unit.set_icon(), (x, 0))
+            x += 5 + img_size
 
         return image
 
@@ -249,6 +245,9 @@ class BotUser:
             value=f"```{self.offered_demons['bellmoth']}```"
         ).set_thumbnail(url=image_url)
 
+    async def create_team_info(self, demon: str, image_url: str):
+        return embeds.DrawEmbed(title=f"{self.name if self.name != '' else str(self.discord_id)}'s team for {demon} demon").set_thumbnail(url=image_url)
+
 
 async def read_bot_user(member: discord.Member):
     if not await exists('SELECT * FROM "bot_users" WHERE discord_id=?', (member.id,)):
@@ -319,6 +318,37 @@ class ProfileCog(commands.Cog):
             await ctx.send(ctx.author.mention,
                            embed=await bot_user.create_info(ctx.guild, of.avatar_url),
                            file=await image_to_discord(await bot_user.create_all_team_image()))
+
+    @profile_cmd.command(name="demon", alises=["teams", "team"])
+    async def profile_demon_cmd(self, ctx: Context, of: Optional[discord.Member], demon: str = None):
+        if not of:
+            of = ctx.author
+
+        bot_user = await read_bot_user(of)
+
+        if not bot_user:
+            return await ctx.send(ctx.author.mention,
+                                  embed=embeds.ErrorEmbed(f"{of.display_name} didn't create a profile yet",
+                                                          description=f"Use `..profile create` to create one"))
+
+        if demon is None:
+            demon = await ask(ctx,
+                              question="Which demon team you want to see?",
+                              convert=str,
+                              default_val="red")
+
+        if demon in ["reds", "red"]:
+            demon = "red"
+        elif demon in ["grays", "gray", "greys", "grey"]:
+            demon = "gray"
+        elif demon in ["crimsons", "crimson", "howlex"]:
+            demon = "crimson"
+        elif demon in ["bellmoths", "bellmoth", "belmos"]:
+            demon = "bellmoth"
+
+        await ctx.send(ctx.author.mention,
+                       embed=await bot_user.create_team_info(demon, of.avatar_url),
+                       file=await image_to_discord(await bot_user.create_team_image(demon)))
 
     @profile_cmd.command(name="create", aliases=["+", "add"])
     async def profile_create_cmd(self, ctx: Context,
@@ -607,9 +637,9 @@ class ProfileCog(commands.Cog):
             rupted = question[1]
 
         if box_cc is None and not rupted:
-           question = await ask_box_cc()
-           box_cc = question[0]
-           rupted = question[1]
+            question = await ask_box_cc()
+            box_cc = question[0]
+            rupted = question[1]
 
         if red_team is None and not rupted:
             question = await ask_red()

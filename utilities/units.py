@@ -301,7 +301,10 @@ class Unit:
 
     def __eq__(self, other: Unit) -> bool:
         if other is not None:
-            return self.unit_id == other.unit_id
+            if isinstance(other, Unit):
+                return self.unit_id == other.unit_id
+            elif isinstance(other, int):
+                return self.unit_id == other
         return False
 
     # def __lt__(self, other: Unit) -> bool:
@@ -311,22 +314,34 @@ class Unit:
 
     def __lt__(self, other: Unit) -> bool:
         if other is not None:
-            return self.unit_id < other.unit_id
+            if isinstance(other, Unit):
+                return self.unit_id < other.unit_id
+            elif isinstance(other, int):
+                return self.unit_id < other
         return False
 
     def __gt__(self, other: Unit) -> bool:
         if other is not None:
-            return self.unit_id > other.unit_id
+            if isinstance(other, Unit):
+                return self.unit_id > other.unit_id
+            elif isinstance(other, int):
+                return self.unit_id > other
         return False
 
     def __le__(self, other: Unit) -> bool:
         if other is not None:
-            return self.unit_id <= other.unit_id
+            if isinstance(other, Unit):
+                return self.unit_id <= other.unit_id
+            elif isinstance(other, int):
+                return self.unit_id <= other
         return False
 
     def __ge__(self, other: Unit) -> bool:
         if other is not None:
-            return self.unit_id >= other.unit_id
+            if isinstance(other, Unit):
+                return self.unit_id >= other.unit_id
+            elif isinstance(other, int):
+                return self.unit_id >= other
         return False
 
     def __hash__(self):
