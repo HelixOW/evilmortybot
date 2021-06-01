@@ -1,4 +1,4 @@
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Union
 
 import discord
 from discord.ext import commands
@@ -11,7 +11,7 @@ from utilities.embeds import DefaultEmbed
 from utilities import all_banner_list, MemberMentionConverter, ssr_pattern, \
     send_paged_message
 from utilities.banners import Banner, banner_by_name, unit_with_chance, BannerType, add_shaft, \
-    find_banner_containing_any_unit
+    find_banner_containing_any_unit, banner_starting_names
 from utilities.image_composer import compose_banner_rotation, compose_multi_draw, compose_five_multi_draw, \
     compose_draw, compose_unit_multi_draw, compose_unit_five_multi_draw, compose_banner_list, compose_box
 from utilities.units import Unit, image_to_discord, unit_by_vague_name, Grade
@@ -41,27 +41,15 @@ class DrawCog(commands.Cog):
 
     @commands.command()
     @commands.guild_only()
-    async def multi(self, ctx: Context, person: Optional[discord.Member], *, banner_name: str = "1 banner 1"):
+    async def multi(self, ctx: Context, person: Optional[discord.Member], amount: Union[str, int] = 1, *, banner_name: str = None):
         if person is None:
             person: discord.Member = ctx.author
 
-        amount_str: str = ""
-        amount: int = 1
-        rot: bool = False
+        if isinstance(amount, str) and amount not in ["rotation", "rot"]:
+            banner_name = amount + (banner_name if banner_name else "")
 
-        if banner_name.startswith("rot") or banner_name.startswith("rotation"):
-            rot: bool = True
-            banner_name: str = banner_name.replace("rotation", "").replace("rot", "").strip()
-            if banner_name.replace(" ", "") == "":
-                banner_name: str = "banner 1"
-        else:
-            while banner_name.startswith(tuple(str(i) for i in range(50))):
-                amount_str += banner_name[0].strip()
-                banner_name: str = banner_name[1:].strip()
-                amount: int = int(amount_str)
-
-            if banner_name.replace(" ", "") == "":
-                banner_name: str = "banner 1"
+        if not banner_name:
+            banner_name = "banner one"
 
         from_banner: Optional[Banner] = banner_by_name(banner_name)
         if from_banner is None:
@@ -71,15 +59,15 @@ class DrawCog(commands.Cog):
 
         draw: discord.Message = await ctx.send(embed=embeds.loading().set_image(url=loading_image_url))
 
-        if rot:
+        if amount in ["rotation", "rot"]:
             units: Dict[Unit, int] = {}
-            multis: int = int(from_banner.loyality / 30)
-            for _ in range(multis * 11):
+            for _ in range(int(from_banner.loyality / 30) * 11):
                 _unit: Unit = await unit_with_chance(from_banner, person)
                 if _unit in units:
                     units[_unit] += 1
                 else:
                     units[_unit]: int = 1
+
             await ctx.send(
                 file=await image_to_discord(await compose_banner_rotation(
                     dict(sorted(units.items(), key=lambda x: x[0].grade.to_int())))),
@@ -191,13 +179,16 @@ class DrawCog(commands.Cog):
     @commands.command()
     @commands.guild_only()
     async def shaft(self, ctx: Context, person: Optional[MemberMentionConverter],
-                    unit_name: Optional[str] = None, *, banner_name: str = "banner 1"):
+                    unit_name: Optional[str] = None, *, banner_name: str = None):
         if person is None:
             person: discord.Member = ctx.author
 
-        joined = join_banner(unit_name, banner_name)
-        unit_name = joined[0]
-        banner_name = joined[1]
+        if unit_name in banner_starting_names():
+            banner_name = unit_name + (banner_name if banner_name else "")
+            unit_name = None
+
+        if banner_name is None:
+            banner_name = "banner one"
 
         from_banner: Banner = banner_by_name(banner_name)
         if from_banner is None:

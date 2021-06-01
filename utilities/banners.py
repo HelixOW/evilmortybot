@@ -4,7 +4,7 @@ import logging
 
 from enum import Enum
 from typing import List, Optional, Dict, Any
-from utilities import sr_unit_list, r_unit_list, all_banner_list, unit_list, logger
+from utilities import sr_unit_list, r_unit_list, all_banner_list, unit_list, logger, flatten
 from utilities.units import Unit, Grade, Event, unit_by_id
 from utilities.sql_helper import execute, fetch_row, fetch_item, rows, fetch_items
 
@@ -38,6 +38,7 @@ class Banner:
         if rate_up_units is None:
             rate_up_units = []
 
+        self.unique_name = name[0]
         self.name: List[str] = name
         self.pretty_name: str = pretty_name
 
@@ -255,3 +256,7 @@ async def read_banners_from_db() -> None:
         )
         all_banner_list.append(b)
         logger.log(logging.INFO, f"Read Banner {banner_names}")
+
+
+def banner_starting_names() -> List[str]:
+    return list(set([y.split(" ")[0] for y in flatten([x.name for x in all_banner_list])]))
