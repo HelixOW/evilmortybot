@@ -3,7 +3,7 @@ import PIL.Image as Images
 from discord.ext import commands
 from discord.ext.commands import Context
 from typing import Dict, List, Tuple, Optional
-from utilities import half_img_size, img_size, get_text_dimensions, text_with_shadow, image_to_discord
+from utilities import half_img_size, img_size, link_img_size, half_link_img_size, get_text_dimensions, text_with_shadow, image_to_discord
 from utilities.units import Unit, unit_by_id, unit_by_vague_name
 from utilities import embeds, dialogue, ask
 from utilities.sql_helper import fetch_rows, exists, execute, fetch_row
@@ -22,11 +22,15 @@ class BotUser:
                  box_cc: float,
                  friendcode: int,
                  offered_demons: Dict[str, int],
-                 demon_teams: Dict[str, Tuple[str, ...]]):
+                 demon_teams: Dict[str, Tuple[str, ...]],
+                 pvp_teams: Dict[str, Tuple[str, ...]]):
 
         self.demon_teams: Dict[str, Tuple[Optional[Unit]], ...] = {
-            demon: tuple(unit_by_id(int(x)) for x in demon_teams[demon] if x is not None) for demon in
+            demon: tuple(unit_by_id(int(x)) for x in demon_teams[demon] if x) for demon in
             demon_teams}
+        self.pvp_teams: Dict[str, Tuple[Optional[Unit]], ...] = {
+            mode: tuple(unit_by_id(int(x)) for x in pvp_teams[mode] if x) for mode in pvp_teams
+        }
         self.offered_demons: Dict[str, int] = offered_demons
         self.friendcode: int = friendcode
         self.box_cc: float = box_cc
@@ -53,14 +57,16 @@ class BotUser:
 
         if not await has_profile(self.discord_id):
             await execute(
-                'INSERT INTO "bot_users" VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                'INSERT INTO "bot_users" VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 (self.discord_id, self.name, self.team_cc, self.box_cc, self.friendcode,
                  self.offered_demons["red"], self.offered_demons["gray"], self.offered_demons["crimson"],
                  ",".join([str(x) for x in self.demon_teams["red"]]),
                  ",".join([str(x) for x in self.demon_teams["gray"]]),
                  ",".join([str(x) for x in self.demon_teams["crimson"]]),
                  ",".join([str(x) for x in self.demon_teams["bellmoth"]]),
-                 self.offered_demons["bellmoth"])
+                 self.offered_demons["bellmoth"],
+                 self.pvp_teams["ungeared"],
+                 self.pvp_teams["geared"]),
             )
 
         return self
@@ -72,28 +78,60 @@ class BotUser:
             text_with_shadow(draw, f"No team provided for {demon} demon", (0, 0))
             return image
 
-        team: List[Unit] = [unit_by_id(x) for x in self.demon_teams[demon]]
-        image: Image = Images.new('RGBA', (
-            (4 * img_size) + (3 * 5),
+        team: List[Unit] = [self.demon_teams[demon][x] for x in range(4) if len(self.demon_teams[demon]) > x]
+        links: List[Unit] = [self.demon_teams[demon][x] for x in range(4, 8) if len(self.demon_teams[demon]) > x]
+        i: Image = Images.new('RGBA', (
+            (img_size * 4) + (5 * 3),
             img_size
         ))
 
         x: int = 0
-        for team_unit in team:
-            image.paste(await team_unit.set_icon(), (x, 0))
+        for index, main_unit in enumerate(team):
+            if main_unit:
+                i.paste(await main_unit.set_icon(), (x, 0))
+            if index < len(links):
+                i.paste((await links[index].set_icon()).resize((link_img_size, link_img_size)),
+                        (x + img_size - link_img_size, img_size - link_img_size))
             x += 5 + img_size
 
-        return image
+        return i
+
+    async def create_pvp_image(self, mode: str):
+        if len(self.pvp_teams[mode]) == 0:
+            image: Image = Images.new('RGBA', get_text_dimensions(f"No team provided for {mode} PvP"))
+            draw: ImageDraw = ImageDraw.Draw(image)
+            text_with_shadow(draw, f"No team provided for {mode} PvP", (0, 0))
+            return image
+
+        team: List[Unit] = [self.pvp_teams[mode][x] for x in range(4) if len(self.pvp_teams[mode]) > x]
+        links: List[Unit] = [self.pvp_teams[mode][x] for x in range(4, 8) if len(self.pvp_teams[mode]) > x]
+        i: Image = Images.new('RGBA', (
+            (img_size * 4) + (5 * 3),
+            img_size
+        ))
+
+        x: int = 0
+        for index, main_unit in enumerate(team):
+            if main_unit:
+                i.paste(await main_unit.set_icon(), (x, 0))
+            if index < len(links):
+                i.paste((await links[index].set_icon()).resize((link_img_size, link_img_size)),
+                        (x + img_size - link_img_size, img_size - link_img_size))
+            x += 5 + img_size
+
+        return i
 
     async def create_all_team_image(self):
         red_dimension: Tuple[int, int] = get_text_dimensions(f"{self.name}'s Team for red Demon")
         gray_dimension: Tuple[int, int] = get_text_dimensions(f"{self.name}'s Team for gray Demon")
         crimson_dimension: Tuple[int, int] = get_text_dimensions(f"{self.name}'s Team for crimson Demon")
         bellmoth_dimension: Tuple[int, int] = get_text_dimensions(f"{self.name}'s Team for bellmoth Demon")
+        ungeared_dimension: Tuple[int, int] = get_text_dimensions(f"{self.name}'s Team for ungeared PvP")
+        geared_dimension: Tuple[int, int] = get_text_dimensions(f"{self.name}'s Team for geared PvP")
         x: int = (4 * half_img_size) + (3 * 5)
         image: Image = Images.new('RGBA', (
-            x if x > crimson_dimension[0] else crimson_dimension[0],
-            (red_dimension[1] + gray_dimension[1] + crimson_dimension[1] + bellmoth_dimension[1]) + (9 * 4) + (half_img_size * 4)
+            x if x > bellmoth_dimension[0] else bellmoth_dimension[0],
+            (red_dimension[1] + gray_dimension[1] + crimson_dimension[1] + bellmoth_dimension[1] + ungeared_dimension[1] + geared_dimension[1]) + (9 * 5) + (half_img_size * 6)
         ))
         draw: ImageDraw = ImageDraw.Draw(image)
 
@@ -102,9 +140,32 @@ class BotUser:
             text_with_shadow(draw, f"{self.name}'s Team for {demon} Demon", (0, y))
             y += crimson_dimension[1] + 3
             x: int = 0
-            for team_unit in self.demon_teams[demon]:
-                if team_unit is not None:
+
+            team: List[Unit] = [self.demon_teams[demon][z] for z in range(4) if len(self.demon_teams[demon]) > z]
+            links: List[Unit] = [self.demon_teams[demon][z] for z in range(4, 8) if len(self.demon_teams[demon]) > z]
+
+            for i, team_unit in enumerate(team):
+                if team_unit:
                     image.paste((await team_unit.set_icon()).resize((half_img_size, half_img_size)), (x, y))
+                if i < len(links):
+                    image.paste((await links[i].set_icon()).resize((half_link_img_size, half_link_img_size)),
+                                (x + half_img_size - half_link_img_size, y + half_img_size - half_link_img_size))
+                x += 5 + half_img_size
+            y += half_img_size + 6
+
+        for pvp in self.pvp_teams:
+            text_with_shadow(draw, f"{self.name}'s Team for {pvp} PvP", (0, y))
+            y += ungeared_dimension[1] + 3
+            x: int = 0
+
+            team: List[Unit] = [self.pvp_teams[pvp][z] for z in range(4) if len(self.pvp_teams[pvp]) > z]
+            links: List[Unit] = [self.pvp_teams[pvp][z] for z in range(4, 8) if len(self.pvp_teams[pvp]) > z]
+
+            for i, team_unit in enumerate(team):
+                if team_unit:
+                    image.paste((await team_unit.set_icon()).resize((half_img_size, half_img_size)), (x, y))
+                if i < len(links):
+                    image.paste((await links[i].set_icon()).resize((half_link_img_size, half_link_img_size)), (x + half_img_size - half_link_img_size, y + half_img_size - half_link_img_size))
                 x += 5 + half_img_size
             y += half_img_size + 6
 
@@ -136,6 +197,19 @@ class BotUser:
             'UPDATE "bot_users" SET name=? WHERE discord_id=?',
             (name, self.discord_id)
         )
+
+    async def set_pvp_team(self, mode: str, team: Tuple[str, ...]):
+        self.pvp_teams[mode] = tuple(unit_by_id(int(x)) for x in team)
+        if mode == "ungeared":
+            await execute(
+                'UPDATE "bot_users" SET ungeared_team=? WHERE discord_id=?',
+                (",".join(team), self.discord_id)
+            )
+        elif mode == "geared":
+            await execute(
+                'UPDATE "bot_users" SET geared_team=? WHERE discord_id=?',
+                (",".join(team), self.discord_id)
+            )
 
     async def set_demon_team(self, demon: str, team: Tuple[str, ...]):
         self.demon_teams[demon] = tuple(unit_by_id(int(x)) for x in team)
@@ -248,6 +322,9 @@ class BotUser:
     async def create_team_info(self, demon: str, image_url: str):
         return embeds.DrawEmbed(title=f"{self.name if self.name != '' else str(self.discord_id)}'s team for {demon} demon").set_thumbnail(url=image_url)
 
+    async def create_pvp_team_info(self, mode: str, image_url: str):
+        return embeds.DrawEmbed(title=f"{self.name if self.name != '' else str(self.discord_id)}'s team for {mode} PvP").set_thumbnail(url=image_url)
+
 
 async def read_bot_user(member: discord.Member):
     if not await exists('SELECT * FROM "bot_users" WHERE discord_id=?', (member.id,)):
@@ -271,6 +348,10 @@ async def read_bot_user(member: discord.Member):
                                           "gray": () if len(x[9]) == 0 else x[9].split(","),
                                           "crimson": () if len(x[10]) == 0 else x[10].split(","),
                                           "bellmoth": () if len(x[11]) == 0 else x[11].split(",")
+                                      },
+                                      pvp_teams={
+                                          "ungeared": () if len(x[13]) == 0 else x[13].split(","),
+                                          "geared": () if len(x[14]) == 0 else x[14].split(",")
                                       }
                                   ),
                                   (member.id,))).init_db()
@@ -319,7 +400,36 @@ class ProfileCog(commands.Cog):
                            embed=await bot_user.create_info(ctx.guild, of.avatar_url),
                            file=await image_to_discord(await bot_user.create_all_team_image()))
 
-    @profile_cmd.command(name="demon", alises=["teams", "team"])
+    @profile_cmd.command(name="pvp")
+    async def profile_pvp_cmd(self, ctx: Context, of: Optional[discord.Member], mode: str = None):
+        if not of:
+            of = ctx.author
+
+        if not mode:
+            mode = await ask(ctx,
+                             question="Which PvP team do you want to see? __Ungeared__ or __Geared__",
+                             convert=str,
+                             default_val="ungeared")
+
+        bot_user = await read_bot_user(of)
+
+        if not bot_user:
+            return await ctx.send(ctx.author.mention,
+                                  embed=embeds.ErrorEmbed(f"{of.display_name} didn't create a profile yet",
+                                                          description=f"Use `..profile create` to create one"))
+
+        mode = mode.lower().strip()
+
+        if mode in ["ungeared", "normal"]:
+            mode = "ungeared"
+        else:
+            mode = "geared"
+
+        await ctx.send(ctx.author.mention,
+                       embed=await bot_user.create_pvp_team_info(mode, of.avatar_url),
+                       file=await image_to_discord(await bot_user.create_pvp_image(mode)))
+
+    @profile_cmd.command(name="demon", aliases=["teams", "team"])
     async def profile_demon_cmd(self, ctx: Context, of: Optional[discord.Member], demon: str = None):
         if not of:
             of = ctx.author
@@ -355,7 +465,12 @@ class ProfileCog(commands.Cog):
     @profile_cmd.command(name="create", aliases=["+", "add"])
     async def profile_create_cmd(self, ctx: Context,
                                  name: str = None, team_cc: int = None, box_cc: int = None, friendcode: int = None,
-                                 red_team: str = None, gray_team: str = None, crimson_team: str = None, bellmoth_team: str = None):
+                                 red_team: str = None, gray_team: str = None, crimson_team: str = None, bellmoth_team: str = None, ungeared_team: str = None, geared_team: str = None):
+
+        bot_user = await read_bot_user(ctx.author)
+
+        if bot_user:
+            return await self.profile_edit_cmd(ctx, None, name, team_cc, box_cc, friendcode, red_team, gray_team, crimson_team, bellmoth_team, ungeared_team, geared_team)
 
         rupted = False
 
@@ -464,6 +579,34 @@ class ProfileCog(commands.Cog):
                     convert_failed="Can't find any team like this!",
                     follow_timeout=60*5)
             except InterruptedError:
+                rupted = True
+
+        if ungeared_team is None and not rupted:
+            try:
+                ungeared_team: Tuple[str, ...] = await dialogue(
+                    ctx,
+                    provide_question=f"{ctx.author.mention}: Do you want to provide your team for ungeared pvp? __Yes__ _or_ __No__",
+                    followed_question=f"{ctx.author.mention}: What's your team for ungeared pvp? *(Please format it like `ggowther, t1, gliz, deathpierce`)*",
+                    no_input="No Team for ungeared pvp provided!",
+                    convert=convert,
+                    default_val=tuple(),
+                    convert_failed="Can't find any team like this!",
+                    follow_timeout=60*5)
+            except InterruptedError:
+                rupted = True
+
+        if geared_team is None and not rupted:
+            try:
+                geared_team: Tuple[str, ...] = await dialogue(
+                    ctx,
+                    provide_question=f"{ctx.author.mention}: Do you want to provide your team for geared pvp? __Yes__ _or_ __No__",
+                    followed_question=f"{ctx.author.mention}: What's your team for geared pvp? *(Please format it like `ggowther, t1, gliz, deathpierce`)*",
+                    no_input="No Team for geared pvp provided!",
+                    convert=convert,
+                    default_val=tuple(),
+                    convert_failed="Can't find any team like this!",
+                    follow_timeout=60*5)
+            except InterruptedError:
                 pass
 
         await BotUser(
@@ -478,7 +621,9 @@ class ProfileCog(commands.Cog):
                 "crimson": crimson_team if crimson_team is not None else (),
                 "bellmoth": bellmoth_team if bellmoth_team is not None else ()
             },
-            offered_demons={"red": 0, "gray": 0, "crimson": 0, "bellmoth": 0}
+            offered_demons={"red": 0, "gray": 0, "crimson": 0, "bellmoth": 0},
+            pvp_teams={"ungeared": ungeared_team if ungeared_team else (),
+                       "geared": geared_team if geared_team else ()}
         ).init_db()
 
         return await ctx.send(ctx.author.mention, embed=embeds.SuccessEmbed("Added your profile!"))
@@ -487,7 +632,7 @@ class ProfileCog(commands.Cog):
     async def profile_edit_cmd(self, ctx: Context,
                                what: Optional[str] = None,
                                name: str = None, team_cc: int = None, box_cc: int = None, friendcode: int = None,
-                               red_team: str = None, gray_team: str = None, crimson_team: str = None, bellmoth_team: str = None):
+                               red_team: str = None, gray_team: str = None, crimson_team: str = None, bellmoth_team: str = None, ungeared_team: str = None, geared_team: str = None):
 
         bot_user: BotUser = await read_bot_user(ctx.author)
 
@@ -597,6 +742,32 @@ class ProfileCog(commands.Cog):
             except InterruptedError:
                 return None, True
 
+        async def ask_ungeared():
+            try:
+                return await dialogue(
+                    ctx,
+                    provide_question=f"{ctx.author.mention}: Do you want to update your team for ungeared pvp? __Yes__ _or_ __No__",
+                    followed_question=f"{ctx.author.mention}: What's your team for ungeared pvp? *(Please format it like `ggowther, t1, gliz, deathpierce`)*",
+                    no_input="No Team for ungeared pvp provided!",
+                    convert=convert,
+                    convert_failed="Can't find any team like this!",
+                    follow_timeout=60*5), False
+            except InterruptedError:
+                return None, True
+
+        async def ask_geared():
+            try:
+                return await dialogue(
+                    ctx,
+                    provide_question=f"{ctx.author.mention}: Do you want to update your team for geared pvp? __Yes__ _or_ __No__",
+                    followed_question=f"{ctx.author.mention}: What's your team for geared pvp? *(Please format it like `ggowther, t1, gliz, deathpierce`)*",
+                    no_input="No Team for geared pvp provided!",
+                    convert=convert,
+                    convert_failed="Can't find any team like this!",
+                    follow_timeout=60*5), False
+            except InterruptedError:
+                return None, True
+
         if what is not None:
             if what in ["name", "accountname", "account"]:
                 name = (await ask_name())[0]
@@ -621,6 +792,12 @@ class ProfileCog(commands.Cog):
                 rupted = True
             elif what in ["bellmoth", "belmos", "bellmos", "belmoth"]:
                 bellmoth_team = (await ask_bellmoth())[0]
+                rupted = True
+            elif what in ["ungeared"]:
+                ungeared_team = (await ask_ungeared())[0]
+                rupted = True
+            elif what in ["geared"]:
+                geared_team = (await ask_geared())[0]
                 rupted = True
 
         if name is None and not rupted:
@@ -663,6 +840,16 @@ class ProfileCog(commands.Cog):
             bellmoth_team = question[0]
             rupted = question[1]
 
+        if ungeared_team is None and not rupted:
+            question = await ask_ungeared()
+            ungeared_team = question[0]
+            rupted = question[1]
+
+        if geared_team is None and not rupted:
+            question = await ask_geared()
+            geared_team = question[0]
+            rupted = question[1]
+
         if name is not None:
             await bot_user.set_name(name)
 
@@ -686,6 +873,12 @@ class ProfileCog(commands.Cog):
 
         if bellmoth_team is not None:
             await bot_user.set_demon_team("bellmoth", bellmoth_team)
+
+        if ungeared_team is not None:
+            await bot_user.set_pvp_team("ungeared", ungeared_team)
+
+        if geared_team is not None:
+            await bot_user.set_pvp_team("geared", geared_team)
 
         return await ctx.send(ctx.author.mention, embed=embeds.SuccessEmbed("Updated your profile!"))
 

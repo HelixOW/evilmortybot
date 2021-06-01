@@ -4,7 +4,7 @@ from PIL import ImageDraw, Image as ImageLib
 from PIL.ImageFont import FreeTypeFont
 from PIL.Image import Image
 from typing import Tuple, List, Dict
-from utilities import img_size, flatten, chunks, chunks_dict, half_img_size, get_text_dimensions,\
+from utilities import img_size, link_img_size, flatten, chunks, chunks_dict, half_img_size, get_text_dimensions,\
     font_24, font_12, text_with_shadow
 from utilities.units import Unit, longest_named, unit_by_id
 from utilities.banners import Banner, unit_with_chance

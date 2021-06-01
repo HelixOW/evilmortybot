@@ -25,6 +25,8 @@ logger.addHandler(handler)
 
 img_size: int = 150
 half_img_size: int = 75
+link_img_size: int = 50
+half_link_img_size: int = 30
 
 unit_list = []
 r_unit_list = []
