@@ -337,6 +337,8 @@ class ProfileCog(commands.Cog):
                               convert=str,
                               default_val="red")
 
+        demon = demon.lower().strip()
+
         if demon in ["reds", "red"]:
             demon = "red"
         elif demon in ["grays", "gray", "greys", "grey"]:
