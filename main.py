@@ -219,37 +219,34 @@ async def quiz_cmd(ctx: Context, mode: Optional[str] = "unit"):
 
 def start_up_bot(token_path: str = "data/bot_token.txt", _is_beta: bool = False):
     global token, is_beta
-    try:
-        for extension in initial_extensions:
-            bot.load_extension(extension)
+    for extension in initial_extensions:
+        bot.load_extension(extension)
 
-        loop = asyncio.new_event_loop()
-        loop.run_until_complete(read_affections_from_db())
-        loop.run_until_complete(read_units_from_db())
-        loop.run_until_complete(read_banners_from_db())
-        loop.close()
+    loop = asyncio.new_event_loop()
+    loop.run_until_complete(read_affections_from_db())
+    loop.run_until_complete(read_units_from_db())
+    loop.run_until_complete(read_banners_from_db())
+    loop.close()
 
-        with open(token_path, 'r') as token_file:
-            token = token_file.read()
+    with open(token_path, 'r') as token_file:
+        token = token_file.read()
 
-        for i, f_types in [(1, ["atk", "crit_ch", "crit_dmg", "pierce"]),
-                           (2, ["res", "crit_def", "crit_res", "lifesteal"]),
-                           (3, ["cc", "ult", "evade"]),
-                           (4, ["def", "hp", "reg", "rec"])]:
-            for f_type in f_types:
-                food_list: List[Image] = []
-                name = map_food(f_type)
-                for _i in range(1, 4):
-                    with ImageLib.open(f"gc/food/{f_type}_{_i}.png") as food_image:
-                        food_list.append(food_image.resize((half_img_size, half_img_size)))
-                tarot_food[i].append(Food(f_type, name, food_list))
-                logger.log(logging.INFO, f"Added food {name}")
+    for i, f_types in [(1, ["atk", "crit_ch", "crit_dmg", "pierce"]),
+                       (2, ["res", "crit_def", "crit_res", "lifesteal"]),
+                       (3, ["cc", "ult", "evade"]),
+                       (4, ["def", "hp", "reg", "rec"])]:
+        for f_type in f_types:
+            food_list: List[Image] = []
+            name = map_food(f_type)
+            for _i in range(1, 4):
+                with ImageLib.open(f"gc/food/{f_type}_{_i}.png") as food_image:
+                    food_list.append(food_image.resize((half_img_size, half_img_size)))
+            tarot_food[i].append(Food(f_type, name, food_list))
+            logger.log(logging.INFO, f"Added food {name}")
 
-        is_beta = _is_beta
+    is_beta = _is_beta
 
-        bot.run(token)
-    finally:
-        connection.close()
+    bot.run(token)
 
 
 if __name__ == '__main__':
