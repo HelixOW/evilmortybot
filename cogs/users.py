@@ -400,6 +400,20 @@ class ProfileCog(commands.Cog):
                            embed=await bot_user.create_info(ctx.guild, of.avatar_url),
                            file=await image_to_discord(await bot_user.create_all_team_image()))
 
+    @profile_cmd.command(name="code", aliases=["friendcode", "friend"])
+    async def profile_code_cmd(self, ctx: Context, of: Optional[discord.Member]):
+        if not of:
+            of = ctx.author
+
+        bot_user = await read_bot_user(of)
+
+        if not bot_user:
+            return await ctx.send(ctx.author.mention,
+                                  embed=embeds.ErrorEmbed(f"{of.display_name} didn't create a profile yet",
+                                                          description=f"Use `..profile create` to create one"))
+
+        await ctx.send(str(bot_user.friendcode))
+
     @profile_cmd.command(name="pvp")
     async def profile_pvp_cmd(self, ctx: Context, of: Optional[discord.Member], mode: str = None):
         if not of:
