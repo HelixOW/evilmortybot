@@ -139,15 +139,22 @@ async def try_getting_channel(x, bot):
         return "Can't access channel"
 
 
+def lookup_demon_info(member: discord.Member):
+    for x in demon_offer_messages:
+        if not demon_offer_messages[x]:
+            continue
+        if "claimed_by" not in demon_offer_messages[x]:
+            return
+        if demon_offer_messages[x]["creator"].id == member.id:
+            return demon_offer_messages[x]["claimed_by"]
+        if demon_offer_messages[x]["claimed_by"].id == member.id:
+            return demon_offer_messages[x]["creator"]
+    return None
+
+
 class DemonCog(commands.Cog):
     def __init__(self, _bot):
         self.bot = _bot
-
-    def mutual_guilds(self, person: discord.Member) -> List[discord.Guild]:
-        return [g for g in self.bot.guilds if g.get_member(person.id) is not None]
-
-    def shared_guilds(self, person1: discord.Member, person2: discord.Member) -> List[discord.Guild]:
-        return [x for x in self.mutual_guilds(person1) if x in self.mutual_guilds(person2)]
 
     @commands.group()
     @commands.guild_only()
@@ -293,30 +300,25 @@ class DemonCog(commands.Cog):
                 claim_friendcode: Optional[int] = await get_friendcode(user)
 
                 if author_friendcode is None and claim_friendcode is None:
-                    await ctx.send(f"{author.mention}: {user.display_name} has claimed your demons!")
+                    await author.send(f"{user.display_name} has claimed your demons! (DM me to chat with {user.display_name}. You got 5 Minutes)")
                     await user.send(
-                        f"Please contact {author.display_name} from {author.guild.name} for their friendcode")
+                        f"Please contact {author.display_name} from {author.guild.name} for their friendcode (DM me to chat with {author.display_name}. You got 5 Minutes)")
                 elif author_friendcode is None and claim_friendcode is not None:
-                    await ctx.send(
-                        f"{author.mention}: {user.mention} (Friendcode: {claim_friendcode}) has claimed your demons!")
-                    await user.send(
-                        f"Please contact {author.display_name} from {author.guild.name} for their friendcode")
-                elif author_friendcode is not None and claim_friendcode is None:
-                    await ctx.send(
-                        f"{author.mention} (Friendcode: {author_friendcode}): {user.mention} has claimed your demons!")
-                    await user.send(
-                        f"Please add {author.mention} (Friendcode: {author_friendcode}) from {author.guild.name} for your demons")
-                else:
-                    await ctx.send(
-                        f"{author.mention} (Friendcode: {author_friendcode}): {user.mention} (Friendcode: {claim_friendcode}) has claimed your demons!")
-                    await user.send(
-                        f"You claimed {author.mention}'s (Friendcode: {author_friendcode}), from {author.guild.name}, demons."
-                    )
-
-                if len(self.shared_guilds(author, user)) != 0 and added_reaction.message.guild.id != \
-                        demon_offer_messages[added_reaction.message.id]["created_in"].id:
                     await author.send(
-                        content=f"Please contact {user.mention} (from {self.shared_guilds(author, user)[0]}) for your demons")
+                        f"{user.mention} (Friendcode: {claim_friendcode}) has claimed your demons! (DM me to chat with {user.display_name}. You got 5 Minutes)")
+                    await user.send(
+                        f"Please contact {author.display_name} from {author.guild.name} for their friendcode! (DM me to chat with {author.display_name}. You got 5 Minutes)")
+                elif author_friendcode is not None and claim_friendcode is None:
+                    await author.send(
+                        f"{user.mention} has claimed your demons! (DM me to chat with {user.display_name}. You got 5 Minutes)")
+                    await user.send(
+                        f"Please add {author.mention} (Friendcode: {author_friendcode}) (DM me to chat with {author.display_name}. You got 5 Minutes)")
+                else:
+                    await author.send(
+                        f"{user.mention} (Friendcode: {claim_friendcode}) has claimed your demons! (DM me to chat with {user.display_name}. You got 5 Minutes)")
+                    await user.send(
+                        f"You claimed demons from {author.mention} (Friendcode: {author_friendcode}) (DM me to chat with {author.display_name}. You got 5 Minutes)"
+                    )
 
             for offer_id in [message_id for message_id in demon_offer_messages if
                              demon_offer_messages[message_id]["creator"].id == author.id]:
@@ -332,6 +334,12 @@ class DemonCog(commands.Cog):
                     await offer_message.clear_reactions()
                 except discord.errors.NotFound:
                     pass
+
+            await asyncio.sleep(60 * 5)
+
+            for x in demon_offer_messages:
+                if demon_offer_messages[x]["creator"].id == author.id:
+                    demon_offer_messages[x] = None
 
         except asyncio.TimeoutError:
             offer_messages: List[int] = [message_id for message_id in demon_offer_messages if
@@ -349,29 +357,22 @@ class DemonCog(commands.Cog):
                     pass
 
     @commands.Cog.listener()
-    async def on_message(self, message: discord.Message):  # if people dont share a server. reply to the offer message
-        if message.reference is None:
+    async def on_message(self, message: discord.Message):
+        if not isinstance(message.channel, discord.channel.DMChannel):
             return
 
-        demon_msg_id: int = message.reference.message_id
-
-        if demon_msg_id not in demon_offer_messages:
+        if message.author.id == self.bot.user.id:
             return
 
-        offer_data: Dict[str, Any] = demon_offer_messages[demon_msg_id]
+        partner: discord.Member = lookup_demon_info(message.channel.recipient)
 
-        if "claimed_by" not in offer_data:
-            return
+        if not partner:
+            return None
 
-        if len(self.shared_guilds(offer_data['creator'], offer_data['claimed_by'])) == 0:
-            if message.author.id == offer_data['creator'].id:
-                await offer_data['claimed_by'].send(
-                    content=f"Message from {offer_data['creator'].mention} regarding your demon offer:",
-                    embed=discord.Embed(description=message.content))
-            else:
-                await offer_data['creator'].send(
-                    content=f"Message from {offer_data['claimed_by'].mention} regarding your demon offer:",
-                    embed=discord.Embed(description=message.content))
+        await partner.send(f"Message from '{message.author.display_name}' regarding your demons", embed=discord.Embed(
+            description=message.content
+        ))
+        await message.add_reaction(emojis.OK)
 
     @demon.command(name="profile", aliases=["create", "tag"])
     async def demon_profile(self, ctx: Context, gc_id: int = 0, name: str = "main"):
