@@ -65,8 +65,8 @@ class BotUser:
                  ",".join([str(x) for x in self.demon_teams["crimson"]]),
                  ",".join([str(x) for x in self.demon_teams["bellmoth"]]),
                  self.offered_demons["bellmoth"],
-                 self.pvp_teams["ungeared"],
-                 self.pvp_teams["geared"]),
+                 ",".join([str(x) for x in self.pvp_teams["ungeared"]]),
+                 ",".join([str(x) for x in self.pvp_teams["geared"]]))
             )
 
         return self
