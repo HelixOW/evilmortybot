@@ -337,7 +337,9 @@ class DemonCog(commands.Cog):
 
             await asyncio.sleep(60 * 5)
 
-            for x in demon_offer_messages:
+            copy = demon_offer_messages.copy()
+
+            for x in copy:
                 if demon_offer_messages[x]["creator"].id == author.id:
                     del demon_offer_messages[x]
 
