@@ -339,7 +339,7 @@ class DemonCog(commands.Cog):
 
             for x in demon_offer_messages:
                 if demon_offer_messages[x]["creator"].id == author.id:
-                    demon_offer_messages[x] = None
+                    del demon_offer_messages[x]
 
         except asyncio.TimeoutError:
             offer_messages: List[int] = [message_id for message_id in demon_offer_messages if
