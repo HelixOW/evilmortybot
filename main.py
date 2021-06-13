@@ -23,6 +23,7 @@ intents.members = True
 
 initial_extensions = ['cogs.custom',
                       'cogs.demon',
+                      'cogs.draft',
                       'cogs.draws',
                       'cogs.list',
                       'cogs.pvp',
@@ -82,11 +83,6 @@ async def demon_help(ctx: Context):
 @bot_help.command(name="custom")
 async def custom_help(ctx: Context):
     await ctx.send(embed=embeds.Help.custom_help)
-
-
-@bot_help.command(name="profile")
-async def profile_help(ctx: Context):
-    await ctx.send(embed=embeds.Help.profile_help)
 
 
 @bot.command()
@@ -201,7 +197,7 @@ async def quiz_cmd(ctx: Context, mode: Optional[str] = "unit"):
                                 convert=str,
                                 convert_failed="No Unit like this found",
                                 delete_question=False,
-                                delete_awnser=False)
+                                delete_answer=False)
 
         if awnser is None or awnser in ["stop", "s", "e", "end", "interrupt", "i"]:
             return await ctx.send(ctx.author.mention, embed=embeds.ErrorEmbed("Interrupted game."))
@@ -212,7 +208,7 @@ async def quiz_cmd(ctx: Context, mode: Optional[str] = "unit"):
             return await ctx.send(ctx.author.mention, embed=embeds.SuccessEmbed("Correct!"))
 
         return await ctx.send(ctx.author.mention, embed=embeds.ErrorEmbed("Wrong!", description=f"""
-        Correct awnser was:
+        Correct answer was:
         `{unit.name}`
         """))
 

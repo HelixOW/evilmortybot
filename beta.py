@@ -1,6 +1,4 @@
 import random
-import time
-
 import aiohttp
 from discord.ext.commands import Context
 
@@ -24,6 +22,7 @@ intents.members = True
 
 initial_extensions = ['cogs.custom',
                       'cogs.demon',
+                      'cogs.draft',
                       'cogs.draws',
                       'cogs.list',
                       'cogs.pvp',
@@ -197,7 +196,7 @@ async def quiz_cmd(ctx: Context, mode: Optional[str] = "unit"):
                                 convert=str,
                                 convert_failed="No Unit like this found",
                                 delete_question=False,
-                                delete_awnser=False)
+                                delete_answer=False)
 
         if awnser is None or awnser in ["stop", "s", "e", "end", "interrupt", "i"]:
             return await ctx.send(ctx.author.mention, embed=embeds.ErrorEmbed("Interrupted game."))
@@ -208,7 +207,7 @@ async def quiz_cmd(ctx: Context, mode: Optional[str] = "unit"):
             return await ctx.send(ctx.author.mention, embed=embeds.SuccessEmbed("Correct!"))
 
         return await ctx.send(ctx.author.mention, embed=embeds.ErrorEmbed("Wrong!", description=f"""
-        Correct awnser was:
+        Correct answer was:
         `{unit.name}`
         """))
 
@@ -218,16 +217,11 @@ def start_up_bot(token_path: str = "data/bot_token.txt", _is_beta: bool = False)
     for extension in initial_extensions:
         bot.load_extension(extension)
 
-    # 0.7
-
-    print("Loading now")
-    start = time.process_time()
     loop = asyncio.new_event_loop()
     loop.run_until_complete(read_affections_from_db())
     loop.run_until_complete(read_units_from_db())
     loop.run_until_complete(read_banners_from_db())
     loop.close()
-    print("Took ", time.process_time() - start)
 
     with open(token_path, 'r') as token_file:
         token = token_file.read()

@@ -1,5 +1,5 @@
 import asyncio
-from typing import List, Pattern, Generator, Any, Dict, Tuple, Callable, TypeVar, Union
+from typing import List, Pattern, Generator, Any, Dict, Tuple, Callable, TypeVar, Union, ValuesView
 
 from discord.ext import commands
 from discord.ext.commands import Context
@@ -90,18 +90,18 @@ async def image_to_discord(img: Image, image_name: str = "image.png") -> \
     return image_file
 
 
-def chunks(lst: List[Any], n: int) -> Generator[None, List[Any], None]:
+def chunks(lst: List[Any], n: int) -> Generator[List[Any], None, None]:
     for i in range(0, len(lst), n):
         yield lst[i:i + n]
 
 
-def chunks_dict(data: Dict[Any, Any], chunk_size=10000) -> Generator[None, Dict[Any, Any], None]:
+def chunks_dict(data: Dict[Any, Any], chunk_size=10000) -> Generator[Dict[Any, Any], None, None]:
     it = iter(data)
     for _ in range(0, len(data), chunk_size):
         yield {k: data[k] for k in islice(it, chunk_size)}
 
 
-def flatten(to_flatten: List[List[Any]]) -> List[Any]:
+def flatten(to_flatten: Union[List[List[Any]], ValuesView[List[Any]]]) -> List[Any]:
     return [item for sublist in to_flatten for item in sublist]
 
 
@@ -221,33 +221,38 @@ async def ask(ctx: Context,
               timeout: int = 30,
               interrupt_check: Callable[[str], bool] = lambda x: x.lower() in ["stop", "s", "end"],
               delete_question: bool = True,
-              delete_awnser: bool = True) -> T:
+              delete_answer: bool = True,
+              asked_person: discord.Member = None,
+              additional_check: Callable[[discord.Message], bool] = lambda _: True) -> T:
+    if not asked_person:
+        asked_person = ctx.author
     if isinstance(question, str):
         asking_message: discord.Message = await ctx.send(question)
     else:
         asking_message = question
 
     try:
-        awnser_message: discord.Message = await ctx.bot.wait_for(
+        answer_message: discord.Message = await ctx.bot.wait_for(
             "message",
-            check=lambda x: x.author.id == ctx.author.id and x.channel.id == ctx.channel.id,
+            check=lambda x: x.author.id == asked_person.id and x.channel.id == ctx.channel.id and additional_check(x),
             timeout=timeout)
 
-        awnser = awnser_message.content
+        answer = answer_message.content
         if delete_question:
             await asking_message.delete()
-        if delete_awnser:
-            await awnser_message.delete()
+        if delete_answer:
+            await answer_message.delete()
 
-        if interrupt_check(awnser):
+        if interrupt_check(answer):
             return default_val
 
         try:
-            return convert(awnser)
+            return convert(answer)
         except ValueError:
             if convert_failed is not None:
                 await ctx.send(ctx.author.mention, embed=embeds.ErrorEmbed(convert_failed))
-            return await ask(ctx, question, convert, no_input, default_val, convert_failed, timeout)
+            return await ask(ctx, question, convert, no_input, default_val, convert_failed, timeout, interrupt_check,
+                             delete_question, delete_answer, asked_person)
     except asyncio.TimeoutError:
         await asking_message.delete()
         if no_input is not None:

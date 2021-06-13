@@ -4,13 +4,12 @@ from PIL import ImageDraw, Image as ImageLib
 from PIL.ImageFont import FreeTypeFont
 from PIL.Image import Image
 from typing import Tuple, List, Dict
-from utilities import img_size, link_img_size, flatten, chunks, chunks_dict, half_img_size, get_text_dimensions,\
+from utilities import img_size, flatten, chunks, chunks_dict, half_img_size, get_text_dimensions, \
     font_24, font_12, text_with_shadow
 from utilities.units import Unit, longest_named, unit_by_id
 from utilities.banners import Banner, unit_with_chance
 from utilities.tarot import tarot_units, tarot_food, tarot_name
 from utilities.materials import Food
-
 
 X_OFFSET = 5
 Y_OFFSET = 9
@@ -35,7 +34,8 @@ async def compose_team(rerolled_team: List[Unit],
     if re_units is None:
         re_units = {0: [], 1: [], 2: [], 3: []}
 
-    icons: list[Image] = [_icon.resize([img_size, img_size]) for _icon in [_unit.icon for _unit in rerolled_team] if _icon is not None]
+    icons: list[Image] = [_icon.resize([img_size, img_size]) for _icon in [_unit.icon for _unit in rerolled_team] if
+                          _icon is not None]
     longest_named_unit = get_text_dimensions(longest_named(re_units[3]).name, font_12)[0] if len(
         re_units[3]) != 0 else 0
 
@@ -105,7 +105,7 @@ async def compose_pvp(player1: discord.Member, team1: List[Unit], player2: disco
 
     text_with_shadow(draw,
                      xy=((img_size * 4) + (X_OFFSET * 3) + X_OFFSET,
-                         (img_size / 2) + name_height + Y_OFFSET
+                         int(img_size / 2) + name_height + Y_OFFSET
                          ),
                      text="vs")
 
@@ -156,8 +156,8 @@ async def compose_unit_five_multi_draw(units: List[Unit]) -> Image:
     return i
 
 
-async def compose_banner_rotation(units: Dict[Unit, int]) -> Image:
-    pull_rows: List[Dict[Unit, int]] = list(chunks_dict(units, 5))
+async def compose_banner_rotation(rotation_units: Dict[Unit, int]) -> Image:
+    pull_rows: List[Dict[Unit, int]] = list(chunks_dict(rotation_units, 5))
 
     i: Image = ImageLib.new('RGBA', (
         (img_size * 4) + (DRAW_OFFSET * 3),  # x
@@ -219,7 +219,7 @@ async def compose_unit_multi_draw(units: List[Unit], ssrs: Dict[Unit, int] = Non
 
     y += SSR_DIM[1] + Y_OFFSET
 
-    ssr_dict: Dict[int, int]
+    ssr_dict: Dict[Unit, int]
     key: Unit
     for ssr_dict in ssr_rows:
         x: int = 0
@@ -273,7 +273,10 @@ async def compose_unit_list(cus_units: List[Unit]) -> Image:
     cus_unit: Unit
     for cus_unit in cus_units:
         i.paste(await cus_unit.set_icon(), (0, y))
-        text_with_shadow(draw, xy=(5 + img_size, y + (img_size / 2) - (name_dim[1] / 2)),
+        text_with_shadow(draw,
+                         xy=(
+                             5 + img_size,
+                             y + int(img_size / 2) - int(name_dim[1] / 2)),
                          text=cus_unit.name + f" (Nr. {cus_unit.unit_id})")
         y += img_size + 5
 
@@ -288,10 +291,12 @@ async def compose_tarot_list() -> Image:
     draw: ImageDraw = ImageDraw.Draw(i)
 
     y: int = 0
-    unit_id: List[int]
+    unit_id: int
     _unit: Unit
     for unit_id in tarot_units:
-        text_with_shadow(draw, xy=(0, y + (img_size / 2)),
+        text_with_shadow(draw,
+                         xy=(0,
+                             y + int(img_size / 2)),
                          text=tarot_name(unit_id))
         x: int = X_OFFSET + WHEEL_DIM[0] + X_OFFSET
         for _unit in [unit_by_id(x) for x in tarot_units[unit_id]]:
@@ -338,14 +343,17 @@ async def compose_banner_list(b: Banner, include_all: bool = False) -> Image:
     unit_rate: float
     _unit: Unit
     for unit_list, unit_rate, ssr_only in [(b.rate_up_units, b.ssr_unit_rate_up, True),
-                                 (b.ssr_units, b.ssr_unit_rate, True),
-                                 (b.sr_units, b.sr_unit_rate, False),
-                                 (b.r_units, b.r_unit_rate, False)]:
+                                           (b.ssr_units, b.ssr_unit_rate, True),
+                                           (b.sr_units, b.sr_unit_rate, False),
+                                           (b.r_units, b.r_unit_rate, False)]:
         if not include_all and not ssr_only:
             break
         for _unit in unit_list:
             i.paste(await _unit.set_icon(), (0, y))
-            text_with_shadow(draw, xy=(5 + img_size, y + (img_size / 2) - (unit_text[1] / 2)),
+            text_with_shadow(draw,
+                             xy=(
+                                 5 + img_size,
+                                 y + int(img_size / 2) - int(unit_text[1] / 2)),
                              text=f"{_unit.name} - {unit_rate}%")
             y += img_size + 5
 
@@ -376,7 +384,7 @@ async def compose_tarot(card1: int, card2: int, card3: int, card4: int, food: in
                     (card3, (img_size * 2) + (Y_OFFSET * 2)),
                     (card4, (img_size * 3) + (Y_OFFSET * 3))]:
         x: int = X_OFFSET + get_text_dimensions(longest_name)[0] + X_OFFSET
-        text_with_shadow(draw, tarot_name(card), (X_OFFSET, y + (img_size / 2)))
+        text_with_shadow(draw, tarot_name(card), (X_OFFSET, y + int(img_size / 2)))
         for unit in [unit_by_id(x) for x in tarot_units[card]]:
             i.paste(await unit.set_icon(), (x, y))
             x += img_size + X_OFFSET
@@ -387,11 +395,30 @@ async def compose_tarot(card1: int, card2: int, card3: int, card4: int, food: in
     for _food in food:
         x = X_OFFSET + get_text_dimensions(_food.name)[0] + X_OFFSET + X_OFFSET
         text_with_shadow(draw, _food.name,
-                         (X_OFFSET, y + (half_img_size / 2) - (get_text_dimensions(_food.name)[1] / 2)))
+                         (X_OFFSET, y + int(half_img_size / 2) - int(get_text_dimensions(_food.name)[1] / 2)))
         for food_icon in _food.icons:
             i.paste(food_icon, (x, y))
             x += half_img_size + X_OFFSET + X_OFFSET
         y += half_img_size + Y_OFFSET
+
+    return i
+
+
+async def compose_draftable_units(draft_units: List[Unit], size: int = 10) -> Image:
+    rows: List[List[Unit]] = list(chunks(draft_units, size))
+
+    i: Image = ImageLib.new('RGBA', (
+        (img_size * size) + (X_OFFSET * (size - 1)),
+        (img_size * len(rows)) + (Y_OFFSET * len(rows))
+    ))
+
+    y: int = 0
+    for row in rows:
+        x = 0
+        for unit in row:
+            i.paste(await unit.set_icon(), (x, y))
+            x += X_OFFSET + img_size
+        y += Y_OFFSET + img_size
 
     return i
 
@@ -413,7 +440,7 @@ async def compose_random_select_team(possible: List[Unit]) -> Image:
         counter += 1
         text_with_shadow(draw,
                          text=f"Team: {counter}",
-                         xy=(5, y + (img_size / 2)))
+                         xy=(5, y + int(img_size / 2)))
         x: int = X_OFFSET + TEAM_DIM[0] + X_OFFSET
         for _unit in row:
             i.paste(_unit.icon, (x, y))
@@ -435,7 +462,7 @@ async def compose_awakening(materials: dict) -> Image:
     for material in materials:
         _text_with_shadow(draw,
                           x=X_OFFSET,
-                          y=y + (img_size / 2),
+                          y=y + int(img_size / 2),
                           text=str(materials[material]) + "x")
         x: int = X_OFFSET + get_text_dimensions(str(materials[material]) + "x")[0] + X_OFFSET
         i.paste(material.icon, (x, y))

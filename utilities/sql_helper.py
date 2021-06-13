@@ -1,7 +1,6 @@
 import logging
 import aiosqlite
 from typing import List, Tuple, Any, AsyncGenerator, Callable, TypeVar
-
 from utilities import database, unit_list, r_unit_list, sr_unit_list, logger
 from utilities.units import Unit, map_attribute, map_grade, map_race, map_event, map_affection, Grade, Event, \
     all_affections
@@ -24,7 +23,7 @@ async def rows(sql: str, args: Tuple[Any, ...] = ()) -> AsyncGenerator[Tuple[Any
                 yield row
 
 
-async def fetch_row(sql: str, converter: Callable[..., T], args: Tuple[Any, ...] = (), default: T = None) -> T:
+async def fetch_row(sql: str, converter: Callable[[Tuple], T], args: Tuple[Any, ...] = (), default: T = None) -> T:
     async with aiosqlite.connect(database) as db:
         async with db.cursor() as cursor:
             val = await (await cursor.execute(sql, args)).fetchone()
@@ -33,7 +32,7 @@ async def fetch_row(sql: str, converter: Callable[..., T], args: Tuple[Any, ...]
             return converter(val)
 
 
-async def fetch_rows(sql: str, converter: Callable[..., T], args: Tuple[Any, ...] = ()) -> List[T]:
+async def fetch_rows(sql: str, converter: Callable[[Tuple], T], args: Tuple[Any, ...] = ()) -> List[T]:
     async with aiosqlite.connect(database) as db:
         async with db.cursor() as cursor:
             cursor = await cursor.execute(sql, args)
@@ -89,6 +88,7 @@ async def read_units_from_db() -> None:
         )
 
         unit_list.append(u)
+
 
         logger.log(logging.INFO, f"Registering Unit: {row[1]} ({row[0]}) is JP? {row[9] == 1}")
 

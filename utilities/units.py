@@ -378,8 +378,8 @@ def unit_by_name_no_case(name: str) -> Optional[Unit]:
     return next((x for x in unit_list if name.lower() == x.name.lower()), None)
 
 
-def unit_by_vague_name(name: str) -> List[Unit]:
-    return [x for x in unit_list if (name.strip().lower() in [y.lower() for y in x.alt_names] or f" {name.strip().lower()}" in x.name.strip().lower())]
+def unit_by_vague_name(name: str, sample_list: List[Unit] = unit_list) -> List[Unit]:
+    return [x for x in sample_list if (name.strip().lower() in [y.lower() for y in x.alt_names] or f" {name.strip().lower()}" in x.name.strip().lower())]
 
 
 def unit_by_name_or_id(name_or_id: typing.Union[str, int]) -> List[Unit]:
