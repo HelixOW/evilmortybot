@@ -1,13 +1,13 @@
 import discord
 import random
 from discord.ext import commands
-from discord.ext.commands import Context
+from discord.ext.commands import Context, MemberConverter
 from typing import Dict, List, Optional
 from utilities.units import Unit, unit_by_vague_name, Event, unit_by_id
 from utilities import unit_list, flatten, ask, image_to_discord
-from utilities.sql_helper import execute, exists, fetch_item, fetch_rows, fetch_items
+from utilities.sql_helper import execute, exists, fetch_item, fetch_rows
 from utilities.embeds import SuccessEmbed, ErrorEmbed, DrawEmbed
-from utilities.image_composer import compose_draftable_units
+from utilities.image_composer import compose_draftable_units, compose_draft_trade
 
 # guild_id -> group name -> discord_user_id -> drafted units
 draft_boards: Dict[int, Dict[str, Dict[int, List[Unit]]]] = {}
@@ -64,6 +64,11 @@ async def add_draft_picks(usr: int, guild: discord.Guild, group: str, picks: Lis
                   (group, guild.id, usr, ",".join([str(x.unit_id) for x in picks])))
 
 
+async def change_draft_picks(usr: int, guild: discord.Guild, group: str, picks: List[Unit]):
+    await execute('UPDATE "draft_picks" SET picked=? WHERE guild=? AND group_name=? AND usr=?',
+                  (",".join([str(x.unit_id) for x in picks]), guild.id, group, usr))
+
+
 async def get_all_draft_picks(group: str, guild: discord.Guild) -> Dict[int, List[Unit]]:
     return {x: y for x, y in await fetch_rows('SELECT usr, picked FROM "draft_picks" WHERE group_name=? AND guild=?',
                                               lambda a: (a[0], [unit_by_id(int(b)) for b in a[1].split(",")]),
@@ -87,7 +92,7 @@ def cont_conv(x: str):
         return "stop"
 
 
-async def ask_group(ctx: Context, msg: str):
+async def ask_group(ctx: Context, msg: str, check: bool = True):
     group = await ask(ctx, msg, convert=str)
 
     if not group:
@@ -95,9 +100,10 @@ async def ask_group(ctx: Context, msg: str):
 
     group = group.strip().lower()
 
-    if not (await allowed_draft_group(group, ctx.guild)):
-        await ctx.send(ctx.author.mention, embed=ErrorEmbed("No such group found."))
-        return None
+    if check:
+        if not (await allowed_draft_group(group, ctx.guild)):
+            await ctx.send(ctx.author.mention, embed=ErrorEmbed("No such group found."))
+            return None
 
     return group
 
@@ -209,6 +215,48 @@ class DraftCog(commands.Cog):
         await ctx.send(
             embed=SuccessEmbed(f"Draft for {group} completed. Use `..draft list <group>` to see your drafted units."))
 
+    @draft.command(name="trade")
+    async def draft_trade(self, ctx: Context, wth: Optional[discord.Member] = None, *, group: Optional[str] = None):
+        if not group:
+            group = await ask_group(ctx, ctx.author.mention + ": What group draft are you in?")
+
+        if not group:
+            return
+
+        if not wth:
+            wth = await MemberConverter().convert(ctx, await ask(ctx, f"{ctx.author.mention} Who do you want to trade with?", str))
+
+        wth_picks = await get_draft_picks(wth, group)
+        have_picks = await get_draft_picks(ctx.author, group)
+
+        wanted_unit = (await ask(ctx, f"{ctx.author.mention} Which unit do you want?",
+                                 lambda x: unit_by_vague_name(x, wth_picks)))[0]
+        offered_unit = (await ask(ctx, f"{ctx.author.mention} What unit do you offer?",
+                                  lambda x: unit_by_vague_name(x, have_picks)))[0]
+
+        question = await ctx.send(f"{wth.mention}: Do you want to trade with `{ctx.author.display_name}`?",
+                                  embed=DrawEmbed(),
+                                  file=await image_to_discord(await compose_draft_trade(wanted_unit, offered_unit)))
+        cont = await ask(ctx, question, cont_conv, timeout=60 * 15, asked_person=wth)
+
+        if cont != "continue":
+            return await ctx.send(f"{ctx.author.mention}: {wth.display_name} declined your trade offer")
+
+        wth_picks.remove(wanted_unit)
+        have_picks.remove(offered_unit)
+
+        wth_picks.append(offered_unit)
+        have_picks.append(wanted_unit)
+
+        await change_draft_picks(wth.id, ctx.guild, group, wth_picks)
+        await change_draft_picks(ctx.author.id, ctx.guild, group, have_picks)
+
+        draft_boards[ctx.guild.id] = {
+            group: await get_all_draft_picks(group, ctx.guild)
+        }
+
+        await ctx.send(ctx.author.mention, embed=SuccessEmbed("Trade successful."))
+
     @draft.command(name="list")
     async def draft_list(self, ctx: Context, of: Optional[discord.Member], *, group: Optional[str] = None):
         if not of:
@@ -244,6 +292,9 @@ class DraftCog(commands.Cog):
 
         if not group:
             return
+
+        await end_draft_group(group, ctx.guild)
+        await ctx.send(ctx.author.mention, embed=SuccessEmbed("Draft ended."))
 
     @draft.command(name="order")
     async def draft_order(self, ctx: Context, *, group: Optional[str] = None):
@@ -284,7 +335,7 @@ class DraftCog(commands.Cog):
             return await ctx.send(ctx.author.mention, embed=SuccessEmbed(f"Closed draft group {group}."))
 
         if not group:
-            group = await ask_group(ctx, ctx.author.mention + ": Which group should use this channel?")
+            group = await ask_group(ctx, ctx.author.mention + ": Which group should use this channel?", check=False)
 
         if not group:
             return

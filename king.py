@@ -1,12 +1,15 @@
 import random
 import aiohttp
-from discord.ext.commands import Context
+import discord.ext.commands
+import traceback
+import sys
 
 import utilities.reactions as emojis
 from utilities import *
 from utilities.awaken import *
 from utilities.banners import create_jp_banner, create_custom_unit_banner, read_banners_from_db
 from utilities.image_composer import compose_unit_list, compose_awakening
+from utilities.paginator import Paginator, Page
 from utilities.sql_helper import *
 from utilities.tarot import *
 from utilities.units import image_to_discord, unit_by_vague_name, compose_icon, unit_by_id, unit_by_name_no_case
@@ -29,26 +32,33 @@ initial_extensions = ['cogs.custom',
                       'cogs.statistics',
                       'cogs.users']
 
-bot: KingBot = KingBot(command_prefix=get_prefix,
-                       description='..help for Help',
-                       help_command=None,
-                       intents=intents)
+king: KingBot = KingBot(command_prefix=get_prefix,
+                        description='..help for Help',
+                        help_command=None,
+                        intents=intents)
 
 
-@bot.event
+@king.event
 async def on_ready():
-    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name="..help"))
+    await king.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name="..help"))
 
-    create_custom_unit_banner()
+    await create_custom_unit_banner()
     create_jp_banner()
 
     print('Logged in as')
-    print(bot.user.name)
-    print(bot.user.id)
+    print(king.user.name)
+    print(king.user.id)
     print('--------')
 
 
-@bot.group(name="help")
+@king.event
+async def on_command_error(ctx: Context, error: discord.ext.commands.CommandError):
+    if not isinstance(error, discord.ext.commands.CommandNotFound):
+        print('Ignoring exception in command {}:'.format(ctx.command), file=sys.stderr)
+        traceback.print_exception(type(error), error, error.__traceback__, file=sys.stderr)
+
+
+@king.group(name="help")
 async def bot_help(ctx: Context):
     if ctx.invoked_subcommand is None:
         return await ctx.send(embed=embeds.Help.general_help)
@@ -84,16 +94,16 @@ async def custom_help(ctx: Context):
     await ctx.send(embed=embeds.Help.custom_help)
 
 
-@bot.command()
+@king.command()
 async def update(ctx: Context):
     await read_units_from_db()
     await read_banners_from_db()
-    create_custom_unit_banner()
+    await create_custom_unit_banner()
     create_jp_banner()
     await ctx.send(content=f"{ctx.author.mention} Updated Units & Banners")
 
 
-@bot.command(no_pm=True)
+@king.command(no_pm=True)
 async def find(ctx: Context, *, units: str = ""):
     if units.replace(" ", "") == "":
         return await ctx.send(content=f"{ctx.author.mention} -> Please provide at least 1 name `..find name1, "
@@ -121,7 +131,7 @@ async def find(ctx: Context, *, units: str = ""):
     await loading.delete()
 
 
-@bot.command()
+@king.command()
 async def icon(ctx: Context, of: Unit):
     if len(ctx.message.attachments) == 0:
         return await ctx.send(file=await image_to_discord(of.icon))
@@ -132,7 +142,7 @@ async def icon(ctx: Context, of: Unit):
                 await ctx.send(file=await image_to_discord(img))
 
 
-@bot.command(name="awake")
+@king.command(name="awake")
 async def awake_cmd(ctx: Context, _unit: Unit, start: Optional[int] = 0, to: Optional[int] = 6):
     data = calc_cost(_unit, min(max(start, 0), 6) + 1, min(max(to, 0), 6) + 1)
     await ctx.send(
@@ -141,12 +151,12 @@ async def awake_cmd(ctx: Context, _unit: Unit, start: Optional[int] = 0, to: Opt
     )
 
 
-@bot.command(name="code")
+@king.command(name="code")
 async def code_cmd(ctx: Context):
     await ctx.send(f"{ctx.author.mention}: https://github.com/WhoIsAlphaHelix/evilmortybot")
 
 
-@bot.command(name="info")
+@king.command(name="info")
 async def info_cmd(ctx: Context, include_custom: Optional[bool] = False, *, of_name: str):
     ofs: List[Unit] = unit_by_vague_name(of_name)
 
@@ -158,17 +168,15 @@ async def info_cmd(ctx: Context, include_custom: Optional[bool] = False, *, of_n
             f"No Units found who have `{of_name}` in their name!"
         ))
 
-    await send_paged_message(
-        bot,
-        ctx,
-        check_func=lambda x, y: y == ctx.author and str(x.emoji) in [emojis.LEFT_ARROW, emojis.RIGHT_ARROW],
-        timeout=15,
-        pages=[{
-            "file": await x.set_icon(),
-            "embed": (await x.info_embed()).set_thumbnail(url="attachment://image.png"),
-            "content": None
-        } for x in ofs]
-    )
+    paginator: Paginator = Paginator(king,
+                                     lambda x, y: y == ctx.author and str(x.emoji) in [emojis.LEFT_ARROW, emojis.RIGHT_ARROW],
+                                     timeout=15)
+
+    for x in ofs:
+        paginator.add_page(Page(embed=(await x.info_embed()).set_thumbnail(url="attachment://image.png"),
+                                image=await x.set_icon()))
+
+    await paginator.send(ctx)
 
 
 @info_cmd.error
@@ -178,7 +186,7 @@ async def info_error(ctx: Context, error: discord.ext.commands.CommandError):
                        embed=embeds.ErrorEmbed("No Unit name provided!").set_usage("info <unit name>"))
 
 
-@bot.command(name="quiz")
+@king.command(name="quiz")
 async def quiz_cmd(ctx: Context, mode: Optional[str] = "unit"):
     if mode in ["unit", "icon", "character"]:
         unit: Unit = unit_list[random.randint(0, len(unit_list) - 1)]
@@ -215,7 +223,7 @@ async def quiz_cmd(ctx: Context, mode: Optional[str] = "unit"):
 def start_up_bot(token_path: str = "data/bot_token.txt", _is_beta: bool = False):
     global token, is_beta
     for extension in initial_extensions:
-        bot.load_extension(extension)
+        king.load_extension(extension)
 
     loop = asyncio.new_event_loop()
     loop.run_until_complete(read_affections_from_db())
@@ -241,7 +249,7 @@ def start_up_bot(token_path: str = "data/bot_token.txt", _is_beta: bool = False)
 
     is_beta = _is_beta
 
-    bot.run(token)
+    king.run(token)
 
 
 if __name__ == '__main__':
