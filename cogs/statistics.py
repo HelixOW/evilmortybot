@@ -108,14 +108,11 @@ class TopCog(commands.Cog):
         if ctx.invoked_subcommand is not None:
             return
 
-        loading: discord.Message = await ctx.send(embed=embeds.loading())
-
-        lucky: List[Dict[str, Any]] = await self.get_top_users(ctx.guild, LeaderboardType.LUCK, 5)
-        most_ssr: List[Dict[str, Any]] = await self.get_top_users(ctx.guild, LeaderboardType.MOST_SSR, 5)
-        most_pulled: List[Dict[str, Any]] = await self.get_top_users(ctx.guild, LeaderboardType.MOST_UNITS, 5)
-        most_shafted: List[Dict[str, Any]] = await self.get_top_users(ctx.guild, LeaderboardType.MOST_SHAFTS, 5)
-
-        await loading.delete()
+        async with ctx.typing():
+            lucky: List[Dict[str, Any]] = await self.get_top_users(ctx.guild, LeaderboardType.LUCK, 5)
+            most_ssr: List[Dict[str, Any]] = await self.get_top_users(ctx.guild, LeaderboardType.MOST_SSR, 5)
+            most_pulled: List[Dict[str, Any]] = await self.get_top_users(ctx.guild, LeaderboardType.MOST_UNITS, 5)
+            most_shafted: List[Dict[str, Any]] = await self.get_top_users(ctx.guild, LeaderboardType.MOST_SHAFTS, 5)
 
         if len(lucky) == 0:
             return await ctx.send(embed=embeds.Stats.no_summon_embed)
@@ -150,9 +147,8 @@ class TopCog(commands.Cog):
 
     @top.command(name="luck", aliases=["lucky", "luckiness"])
     async def top_luck(self, ctx: Context):
-        loading: discord.Message = await ctx.send(embed=embeds.loading())
-        top_users: List[Dict[str, Any]] = await self.get_top_users(ctx.guild, LeaderboardType.LUCK)
-        await loading.delete()
+        async with ctx.typing():
+            top_users: List[Dict[str, Any]] = await self.get_top_users(ctx.guild, LeaderboardType.LUCK)
         if len(top_users) == 0:
             return await ctx.send(embed=embeds.Stats.no_summon_embed)
 
@@ -174,9 +170,8 @@ class TopCog(commands.Cog):
 
     @top.command(name="ssrs", aliases=["ssr"])
     async def top_ssrs(self, ctx: Context):
-        loading: discord.Message = await ctx.send(embed=embeds.loading())
-        top_users: List[Dict[str, Any]] = await self.get_top_users(ctx.guild, LeaderboardType.MOST_SSR)
-        await loading.delete()
+        async with ctx.typing():
+            top_users: List[Dict[str, Any]] = await self.get_top_users(ctx.guild, LeaderboardType.MOST_SSR)
         if len(top_users) == 0:
             return await ctx.send(embed=embeds.Stats.no_summon_embed)
         await ctx.send(
@@ -194,9 +189,8 @@ class TopCog(commands.Cog):
 
     @top.command(name="units", aliases=["unit"])
     async def top_units(self, ctx: Context):
-        loading: discord.Message = await ctx.send(embed=embeds.loading())
-        top_users: List[Dict[str, Any]] = await self.get_top_users(ctx.guild, LeaderboardType.MOST_UNITS)
-        await loading.delete()
+        async with ctx.typing():
+            top_users: List[Dict[str, Any]] = await self.get_top_users(ctx.guild, LeaderboardType.MOST_UNITS)
         if len(top_users) == 0:
             return await ctx.send(embed=embeds.Stats.no_summon_embed)
         await ctx.send(
@@ -213,9 +207,8 @@ class TopCog(commands.Cog):
 
     @top.command(name="shafts", aliases=["shaft"])
     async def top_shafts(self, ctx: Context):
-        loading: discord.Message = await ctx.send(embed=embeds.loading())
-        top_users: List[Dict[str, Any]] = await self.get_top_users(ctx.message.guild, LeaderboardType.MOST_SHAFTS)
-        await loading.delete()
+        async with ctx.typing():
+            top_users: List[Dict[str, Any]] = await self.get_top_users(ctx.message.guild, LeaderboardType.MOST_SHAFTS)
         if len(top_users) == 0:
             return await ctx.send(embed=embeds.Stats.no_summon_embed)
         return await ctx.send(

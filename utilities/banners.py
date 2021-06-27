@@ -1,11 +1,14 @@
+import PIL.Image as ImageLib
 import discord
 import random as ra
 import logging
 
 from enum import Enum
-from typing import List, Optional, Dict, Any
-from utilities import sr_unit_list, r_unit_list, all_banner_list, unit_list, logger, flatten
-from utilities.units import Unit, Grade, Event, unit_by_id
+from PIL import ImageDraw
+from typing import List, Optional, Dict, Any, Tuple
+from utilities import sr_unit_list, r_unit_list, all_banner_list, unit_list, logger, flatten, chunks, \
+    get_text_dimensions, img_size, x_offset, y_offset, text_with_shadow
+from utilities.units import Unit, Grade, Event, unit_by_id, longest_named
 from utilities.sql_helper import execute, fetch_row, fetch_item, rows, fetch_items
 
 
@@ -63,6 +66,7 @@ class Banner:
         self.r_units: List[Unit] = [x for x in self.units if x.grade == Grade.R]
         self.sr_units: List[Unit] = [x for x in self.units if x.grade == Grade.SR]
         self.ssr_units: List[Unit] = [x for x in self.units if x.grade == Grade.SSR and x not in self.rate_up_units]
+        self.all_ssr_units: List[Unit] = [x for x in self.units if x.grade == Grade.SSR]
         self.all_units: List[Unit] = self.units + self.rate_up_units
 
         self.ssr_chance: float = (self.ssr_unit_rate_up * len(self.rate_up_units)) + (
@@ -77,6 +81,8 @@ class Banner:
 
         self.loyality: int = loyality
 
+        self.unit_list_image: Tuple[ImageLib.Image, ...] = self._compose_banner_unit_list()
+
     def __repr__(self) -> str:
         return "Banner: " + ", ".join([f"{x}: {self.__getattribute__(x)} " for x in dir(self)])
 
@@ -85,6 +91,55 @@ class Banner:
 
     def contains_any_unit(self, possible_units: List[Unit]):
         return len([a for a in possible_units if a.unit_id in [b.unit_id for b in self.all_units]]) != 0
+
+    def get_unit_rate(self, unit: Unit) -> float:
+        if unit in self.rate_up_units:
+            return self.ssr_unit_rate_up
+        elif unit in self.ssr_units:
+            return self.ssr_unit_rate
+        elif unit in self.sr_units:
+            return self.sr_unit_rate
+        elif unit in self.r_units:
+            return self.r_unit_rate
+        return -1
+
+    async def load_custom_units(self):
+        for unit in self.all_units:
+            await unit.set_icon()
+
+        self.unit_list_image: Tuple[ImageLib.Image, ...] = self._compose_banner_unit_list()
+
+    def _compose_banner_unit_list(self) -> Tuple[ImageLib.Image, ...]:
+        if len(self.ssr_units + self.rate_up_units) == 0:
+            return ImageLib.new('RGBA', (0, 0))
+
+        chunked_units: List[List[Unit]] = list(
+            chunks(self.all_units, 5))
+
+        banner_unit_list = []
+
+        for units in chunked_units:
+            unit_text: Tuple[int, int] = get_text_dimensions(longest_named(units).name + " - 99.9999%")
+            i: ImageLib.Image = ImageLib.new('RGBA', (
+                img_size + unit_text[0] + x_offset,
+                (img_size * len(units)) + (y_offset * (len(units) - 1))
+            ))
+            draw: ImageDraw = ImageDraw.Draw(i)
+
+            y: int = 0
+            for _unit in units:
+                if _unit.icon:
+                    i.paste(_unit.icon, (0, y))
+                text_with_shadow(draw,
+                                 xy=(
+                                     x_offset + img_size,
+                                     y + int(img_size / 2) - int(unit_text[1] / 2)),
+                                 text=f"{_unit.name} - {self.get_unit_rate(_unit)}%")
+                y += img_size + 5
+
+            banner_unit_list.append(i)
+
+        return tuple(banner_unit_list)
 
 
 def find_banner_containing_unit(u: Unit) -> Banner:
@@ -110,23 +165,26 @@ def banners_by_name(names: List[str]) -> List[Banner]:
     return found
 
 
-def create_custom_unit_banner() -> None:
+async def create_custom_unit_banner() -> None:
     cus_units: List[Unit] = [x for x in unit_list if x.event == Event.CUS]
     ssrs: List[Unit] = [x for x in cus_units if x.grade == Grade.SSR]
     srs: List[Unit] = [x for x in cus_units if x.grade == Grade.SR]
     rs: List[Unit] = [x for x in cus_units if x.grade == Grade.R]
     if banner_by_name("custom") is not None:
         all_banner_list.remove(banner_by_name("custom"))
-    all_banner_list.append(
-        Banner(name=["customs", "custom"],
-               pretty_name="Custom Created Units",
-               units=cus_units,
-               ssr_unit_rate=(3 / len(ssrs)) if len(ssrs) > 0 else -1,
-               sr_unit_rate=((100 - 3 - (6.6667 * len(rs))) / len(srs)) if len(srs) > 0 else -1,
-               includes_all_r=False,
-               includes_all_sr=False,
-               bg_url="https://raw.githubusercontent.com/WhoIsAlphaHelix/evilmortybot/master/gc/banners/A9619A31-B793-4E12-8DF6-D0FCC706DEF2_1_105_c.jpeg")
-    )
+
+    b: Banner = Banner(name=["customs", "custom"],
+                       pretty_name="Custom Created Units",
+                       units=cus_units,
+                       ssr_unit_rate=(3 / len(ssrs)) if len(ssrs) > 0 else -1,
+                       sr_unit_rate=((100 - 3 - (6.6667 * len(rs))) / len(srs)) if len(srs) > 0 else -1,
+                       includes_all_r=False,
+                       includes_all_sr=False,
+                       bg_url="https://raw.githubusercontent.com/WhoIsAlphaHelix/evilmortybot/master/gc/banners/custom.png")
+
+    await b.load_custom_units()
+
+    all_banner_list.append(b)
 
 
 def create_jp_banner() -> None:
@@ -140,7 +198,8 @@ def create_jp_banner() -> None:
                pretty_name="JP/KR exclusive draw",
                units=jp_units,
                ssr_unit_rate=(4 / len(ssrs)) if len(ssrs) > 0 else -1,
-               sr_unit_rate=((100 - 4 - (6.6667 * len(r_unit_list))) / len(sr_unit_list)) if len(sr_unit_list) > 0 else -1,
+               sr_unit_rate=((100 - 4 - (6.6667 * len(r_unit_list))) / len(sr_unit_list)) if len(
+                   sr_unit_list) > 0 else -1,
                includes_all_r=True,
                includes_all_sr=True,
                bg_url="https://raw.githubusercontent.com/WhoIsAlphaHelix/evilmortybot/master/gc/banners/A9619A31-B793-4E12-8DF6-D0FCC706DEF2_1_105_c.jpeg")

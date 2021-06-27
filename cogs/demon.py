@@ -27,7 +27,7 @@ async def add_raid_channel(by: discord.Message) -> None:
     await execute('INSERT INTO "raid_channels" VALUES (?, ?)', (by.guild.id, by.channel.id))
 
 
-async def get_friendcode(of: discord.Member) -> Optional[int]:
+async def get_friendcode(of: Union[discord.Member, discord.User]) -> Optional[int]:
     return await fetch_item('SELECT gc_id FROM "users" WHERE discord_id=?', (of.id,))
 
 
@@ -261,7 +261,7 @@ class DemonCog(commands.Cog):
                                 (f"Bellmoths: `{belmos}` \n" if belmos != 0 else "") +
                                 (f"\n {additional_message} \n" if additional_message != "" else "") +
                                 "\nClick 🆗 to claim them." +
-                                "\nMake sure to have a empty spot in your friends list!",
+                                "\nMake sure to have a empty spot in your friends list.",
                     color=discord.Color.green()
                 ).set_thumbnail(url=author.avatar_url)
             )
@@ -413,8 +413,7 @@ class DemonCog(commands.Cog):
             await add_raid_channel(ctx.message)
             return await ctx.send(f"{ctx.author.mention} added demon channel!")
 
-        channels: List[discord.TextChannel] = [await try_getting_channel(x, self.bot) async for x in
-                                               get_raid_channels()]
+        channels: List[str] = [await try_getting_channel(x, self.bot) async for x in get_raid_channels()]
         await ctx.author.send("\n".join(channels))
 
     @demon.command(name="role")

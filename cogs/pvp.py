@@ -82,14 +82,13 @@ class PvPCog(commands.Cog):
             if player not in in_pvp:
                 in_pvp.append(player)
 
-            loading_message: discord.Message = await ctx.send(embed=embeds.loading())
-            team_message: discord.Message = await ctx.send(
-                file=await image_to_discord(await compose_team(
-                    rerolled_team=proposed_team_p1 if player == player1 else proposed_team_p2,
-                    re_units=changed_units)),
-                content=f"{player.mention} please check if you have those units",
-                embed=embeds.DrawEmbed())
-            await loading_message.delete()
+            async with ctx.typing():
+                team_message: discord.Message = await ctx.send(
+                    file=await image_to_discord(await compose_team(
+                        rerolled_team=proposed_team_p1 if player == player1 else proposed_team_p2,
+                        re_units=changed_units)),
+                    content=f"{player.mention} please check if you have those units",
+                    embed=embeds.DrawEmbed())
 
             for emoji in team_reroll_emojis:
                 await team_message.add_reaction(emoji)
@@ -169,16 +168,15 @@ class PvPCog(commands.Cog):
         if amount > 1:
             amount: int = min(amount, 15)
 
-            loading: discord.Message = await ctx.send(content=ctx.author.mention, embed=embeds.loading())
-            possible: List[Unit] = [get_random_unit_from_dict(attr) for _ in range(amount * 4)]
-            teams: List[List[Unit]] = [[possible[i + 0], possible[i + 1], possible[i + 2], possible[i + 3]] for i in
-                                       range(0, amount * 4, 4)]
-            for i, ele in enumerate(teams):
-                replace_duplicates_in_team(attr, ele)
-            possible: List[Unit] = [item for sublist in teams for item in sublist]
-            await ctx.send(ctx.author.mention,
-                           file=await image_to_discord(await compose_random_select_team(possible)))
-            return await loading.delete()
+            async with ctx.typing():
+                possible: List[Unit] = [get_random_unit_from_dict(attr) for _ in range(amount * 4)]
+                teams: List[List[Unit]] = [[possible[i + 0], possible[i + 1], possible[i + 2], possible[i + 3]] for i in
+                                           range(0, amount * 4, 4)]
+                for i, ele in enumerate(teams):
+                    replace_duplicates_in_team(attr, ele)
+                possible: List[Unit] = [item for sublist in teams for item in sublist]
+                await ctx.send(ctx.author.mention,
+                               file=await image_to_discord(await compose_random_select_team(possible)))
 
         try:
             proposed_team: List[Unit] = [
@@ -202,13 +200,12 @@ class PvPCog(commands.Cog):
                 if last_team_message is not None:
                     await last_team_message.delete()
 
-                loading_message: discord.Message = await ctx.send(embed=embeds.loading())
-                team_message: discord.Message = await ctx.send(
-                    file=await image_to_discord(await compose_team(
-                        rerolled_team=proposed_team, re_units=changed_units)),
-                    content=f"{ctx.author.mention} this is your team",
-                    embed=embeds.DrawEmbed())
-                await loading_message.delete()
+                async with ctx.typing():
+                    team_message: discord.Message = await ctx.send(
+                        file=await image_to_discord(await compose_team(
+                            rerolled_team=proposed_team, re_units=changed_units)),
+                        content=f"{ctx.author.mention} this is your team",
+                        embed=embeds.DrawEmbed())
 
                 if ctx.author.id not in team_time_check:
                     team_time_check[ctx.author.id] = {}
@@ -269,11 +266,10 @@ class PvPCog(commands.Cog):
             while any(_units.count(element) > 1 for element in _units):
                 _units: List[int] = [ra.randint(1, 22) for _ in range(4)]
 
-            loading: discord.Message = await ctx.send(content=ctx.author.mention, embed=embeds.loading())
-            msg: discord.Message = await ctx.send(
-                file=await image_to_discord(await compose_tarot(_units[0], _units[1], _units[2], _units[3], _food)),
-                content=ctx.author.mention)
-            await loading.delete()
+            async with ctx.typing():
+                msg: discord.Message = await ctx.send(
+                    file=await image_to_discord(await compose_tarot(_units[0], _units[1], _units[2], _units[3], _food)),
+                    content=ctx.author.mention)
 
             for emoji in [emojis.NO_1, emojis.NO_2, emojis.NO_3, emojis.NO_4]:
                 await msg.add_reaction(emoji)

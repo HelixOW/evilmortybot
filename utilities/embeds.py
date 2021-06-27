@@ -537,10 +537,6 @@ You **__don't__** need to provide criteria if you don't want to edit it!```
         return ErrorEmbed(f"Unit '{unit_name}' exists already!")
 
     @staticmethod
-    def not_existing(unit_name: str):
-        return ErrorEmbed(f"Unit '{unit_name}' doesn't exist!")
-
-    @staticmethod
     def no_units(owner: str):
         return ErrorEmbed(f"{owner} didn't create any custom units yet!")
 
@@ -565,8 +561,3 @@ You **__don't__** need to provide criteria if you don't want to edit it!```
         @staticmethod
         def success(unit_name: str):
             return SuccessEmbed(f"Removed Unit `{unit_name}` successfully")
-
-
-def loading(title: str = "Loading..."):
-    return DefaultEmbed(title="\u200b", description=f"**{title}**").set_thumbnail(
-        url="https://raw.githubusercontent.com/WhoIsAlphaHelix/evilmortybot/master/data/images/loading.gif")

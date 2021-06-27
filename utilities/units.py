@@ -32,6 +32,13 @@ class Type(Enum):
     GRE = "green"
     BLUE = "blue"
 
+    def to_discord_color(self) -> discord.Color:
+        if self.value == "red":
+            return discord.Color.red()
+        if self.value == "blue":
+            return discord.Color.blue()
+        return discord.Color.green()
+
 
 class Race(Enum):
     DEMON = "demon"
@@ -588,21 +595,6 @@ def parse_arguments(given_args: str, list_seperator: str = "&") -> Dict[str, Any
         "owner": parsed_owner,
         "jp": jp,
         "unparsed": unparsed
-    }
-
-
-def parse_custom_unit_args(arg: str) -> Dict[str, Any]:
-    all_parsed: Dict[str, Any] = parse_arguments(arg)
-
-    return {
-        "name": all_parsed["name"][0] if len(all_parsed["name"]) > 0 else "",
-        "updated_name": all_parsed["updated_name"],
-        "owner": all_parsed["owner"],
-        "url": all_parsed["url"],
-        "race": all_parsed["race"][0] if len(all_parsed["race"]) > 0 else Race.UNKNOWN,
-        "grade": all_parsed["grade"][0] if len(all_parsed["grade"]) > 0 else None,
-        "type": all_parsed["type"][0] if len(all_parsed["type"]) > 0 else None,
-        "affection": all_parsed["affection"][0] if len(all_parsed["affection"]) > 0 else "none"
     }
 
 

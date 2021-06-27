@@ -2,10 +2,12 @@ import discord
 import math
 import asyncio
 import utilities.reactions as emojis
+
 from discord.ext import commands
 from discord.ext.commands import Context
 from typing import Optional, Dict, Any, List
-from utilities import all_banner_list, send_paged_message, embeds
+from utilities import all_banner_list, embeds
+from utilities.paginator import Paginator, Page
 from utilities.units import parse_arguments, Unit, get_units_matching, image_to_discord
 from utilities.image_composer import compose_paged_unit_list, compose_tarot_list, compose_paged_tarot_list
 from utilities.tarot import tarot_name
@@ -23,29 +25,25 @@ class ListCog(commands.Cog):
 
     @cmd_list.command(name="unit", aliases=["units"])
     async def list_units(self, ctx: Context, units_per_page: Optional[int] = 5, *, criteria: str = "event: custom"):
-        loading: discord.Message = await ctx.send(content=f"{ctx.author.mention} -> Loading Units",
-                                                  embed=embeds.loading())
-        attr: Dict[str, Any] = parse_arguments(criteria)
-        matching_units: List[Unit] = get_units_matching(races=attr["race"],
-                                                        grades=attr["grade"],
-                                                        types=attr["type"],
-                                                        events=attr["event"],
-                                                        affections=attr["affection"],
-                                                        names=attr["name"],
-                                                        jp=attr["jp"])
-        paged_unit_list: List[Image] = await compose_paged_unit_list(matching_units, units_per_page)
-        max_pages: float = math.ceil(len(matching_units) / units_per_page) - 1
-        await loading.delete()
+        async with ctx.typing():
+            attr: Dict[str, Any] = parse_arguments(criteria)
+            matching_units: List[Unit] = get_units_matching(races=attr["race"],
+                                                            grades=attr["grade"],
+                                                            types=attr["type"],
+                                                            events=attr["event"],
+                                                            affections=attr["affection"],
+                                                            names=attr["name"],
+                                                            jp=attr["jp"])
+            paged_unit_list: List[Image] = await compose_paged_unit_list(matching_units, units_per_page)
+            max_pages: float = math.ceil(len(matching_units) / units_per_page) - 1
 
         async def display(page: int):
-            _loading: discord.Message = await ctx.send(content=f"{ctx.author.mention} -> Loading Units",
-                                                       embed=embeds.loading())
-            message: discord.Message = await ctx.send(file=await image_to_discord(paged_unit_list[page]),
-                                                      embed=embeds.DrawEmbed(
-                                                          title=f"Units matching {criteria} ({page + 1}/{max_pages + 1})"
-                                                      ),
-                                                      content=ctx.author.mention)
-            await _loading.delete()
+            async with ctx.typing():
+                message: discord.Message = await ctx.send(file=await image_to_discord(paged_unit_list[page]),
+                                                          embed=embeds.DrawEmbed(
+                                                              title=f"Units matching {criteria} ({page + 1}/{max_pages + 1})"
+                                                          ),
+                                                          content=ctx.author.mention)
 
             if page != 0:
                 await message.add_reaction(emojis.LEFT_ARROW)
@@ -72,35 +70,32 @@ class ListCog(commands.Cog):
 
     @cmd_list.command(name="banner", aliases=["banners"])
     async def list_banners(self, ctx: Context):
-        loading: discord.Message = await ctx.send(content=f"{ctx.author.mention} -> Loading Banners",
-                                                  embed=embeds.loading())
-        await ctx.send(content=ctx.author.mention,
-                       embed=embeds.DefaultEmbed(title="All Banners",
-                                                 description="\n\n".join(
-                                                     [f"**{x.name[0]}**: `{x.pretty_name}`" for x in all_banner_list])))
-        await loading.delete()
+        async with ctx.typing():
+            await ctx.send(content=ctx.author.mention,
+                           embed=embeds.DefaultEmbed(title="All Banners",
+                                                     description="\n\n".join(
+                                                         [f"**{x.name[0]}**: `{x.pretty_name}`" for x in all_banner_list])))
 
     @cmd_list.command(name="tarot")
     async def list_tarot(self, ctx: Context, paged: str = "paged"):
-        loading: discord.Message = await ctx.send(content=f"{ctx.author.mention} -> Loading Tarot Cards",
-                                                  embed=embeds.loading())
         if paged != "paged":
-            await ctx.send(content=ctx.author.mention,
-                           file=await image_to_discord(await compose_tarot_list()),
-                           embed=embeds.DrawEmbed()
-                           )
-            return await loading.delete()
+            async with ctx.typing():
+                await ctx.send(content=ctx.author.mention,
+                               file=await image_to_discord(await compose_tarot_list()),
+                               embed=embeds.DrawEmbed()
+                               )
 
-        await send_paged_message(self.bot, ctx,
-                                 check_func=lambda x, y: y == ctx.author and str(x.emoji) in [emojis.LEFT_ARROW,
-                                                                                              emojis.RIGHT_ARROW],
-                                 timeout=15,
-                                 pages=[{
-                                     "file": await compose_paged_tarot_list(x+1),
-                                     "content": ctx.author.mention,
-                                     "embed": embeds.DrawEmbed(title=tarot_name(x+1))
-                                 } for x in range(22)],
-                                 after_message=await loading.delete())
+        paginator: Paginator = Paginator(self.bot,
+                                         lambda rea, usr: usr == ctx.author and str(rea.emoji) in [emojis.LEFT_ARROW,
+                                                                                                   emojis.RIGHT_ARROW])
+
+        for x in range(22):
+            paginator.add_page(Page(
+                embed=embeds.DrawEmbed(title=tarot_name(x + 1)),
+                image=await compose_paged_tarot_list(x + 1)
+            ))
+
+        await paginator.send(ctx)
 
 
 def setup(_bot):

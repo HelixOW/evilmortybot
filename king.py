@@ -45,6 +45,8 @@ async def on_ready():
     await create_custom_unit_banner()
     create_jp_banner()
 
+    utilities.unit_list = sorted(utilities.unit_list, key=lambda x: x.grade.to_int())
+
     print('Logged in as')
     print(king.user.name)
     print(king.user.id)
@@ -124,11 +126,10 @@ async def find(ctx: Context, *, units: str = ""):
     if len(found) == 0:
         return await ctx.send(content=f"{ctx.author.mention} -> No units found!")
 
-    loading: discord.Message = await ctx.send(content=f"{ctx.author.mention} -> Loading Units",
-                                              embed=embeds.loading())
-    await ctx.send(file=await image_to_discord(await compose_unit_list(found), "units.png"),
-                   embed=embeds.DefaultEmbed().set_image(url="attachment://units.png"))
-    await loading.delete()
+    async with ctx.typing():
+        await ctx.send(file=await image_to_discord(await compose_unit_list(found), "units.png"),
+                       embed=embeds.DefaultEmbed().set_image(url="attachment://units.png"))
+
 
 
 @king.command()

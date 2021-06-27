@@ -7,7 +7,7 @@ from utilities.units import Unit, unit_by_vague_name, Event, unit_by_id
 from utilities import unit_list, flatten, ask, image_to_discord
 from utilities.sql_helper import execute, exists, fetch_item, fetch_rows
 from utilities.embeds import SuccessEmbed, ErrorEmbed, DrawEmbed
-from utilities.image_composer import compose_draftable_units, compose_draft_trade
+from utilities.image_composer import compose_draftable_units, compose_draft_trade, compose_drafted_units
 
 # guild_id -> group name -> discord_user_id -> drafted units
 draft_boards: Dict[int, Dict[str, Dict[int, List[Unit]]]] = {}
@@ -25,64 +25,77 @@ def get_draftable_units(group: str, guild: discord.Guild):
 
 
 async def allowed_draft_group(group: str, guild: discord.Guild):
-    return await exists('SELECT * FROM "draft_groups" WHERE group_name=? AND guild=?', (group, guild.id))
+    return await exists('SELECT * FROM "draft_groups" WHERE group_name=? AND guild=?', (group.lower(), guild.id))
 
 
 async def register_usr(usr: discord.Member, group: str):
     await execute('INSERT OR IGNORE INTO "draft_users" (group_name, guild, usr) VALUES (?, ?, ?)',
-                  (group, usr.guild.id, usr.id))
+                  (group.lower(), usr.guild.id, usr.id))
 
 
 async def register_group(group: str, rounds: int, channel: discord.TextChannel):
     await execute(
         'INSERT OR IGNORE INTO "draft_groups" (group_name, guild, channel, closed, rounds) VALUES (?, ?, ?, 0, ?)',
-        (group, channel.guild.id, channel.id, rounds))
+        (group.lower(), channel.guild.id, channel.id, rounds))
 
 
 async def close_group(group: str, guild: discord.Guild):
     await execute('UPDATE "draft_groups" SET closed=1 WHERE guild=? AND group_name=?',
-                  (guild.id, group))
+                  (guild.id, group.lower()))
 
 
 async def is_closed_group(group: str, guild: discord.Guild):
     return (await fetch_item('SELECT closed FROM "draft_groups" WHERE group_name=? AND guild=?',
-                             (group, guild.id))) == 1
+                             (group.lower(), guild.id))) == 1
 
 
 async def get_group_usrs(group: str, guild: discord.Guild) -> List[int]:
     return await fetch_rows('SELECT usr FROM "draft_users" WHERE group_name=? AND guild=?',
                             lambda x: x[0],
-                            (group, guild.id))
+                            (group.lower(), guild.id))
 
 
 async def get_group_rotations(group: str, guild: discord.Guild):
-    return await fetch_item('SELECT rounds FROM "draft_groups" WHERE guild=? AND group_name=?', (guild.id, group))
+    return await fetch_item('SELECT rounds FROM "draft_groups" WHERE guild=? AND group_name=?', (guild.id, group.lower()))
 
 
 async def add_draft_picks(usr: int, guild: discord.Guild, group: str, picks: List[Unit]):
     await execute('INSERT OR IGNORE INTO "draft_picks" (group_name, guild, usr, picked) VALUES (?, ?, ?, ?)',
-                  (group, guild.id, usr, ",".join([str(x.unit_id) for x in picks])))
+                  (group.lower(), guild.id, usr, ",".join([str(x.unit_id) for x in picks])))
 
 
 async def change_draft_picks(usr: int, guild: discord.Guild, group: str, picks: List[Unit]):
     await execute('UPDATE "draft_picks" SET picked=? WHERE guild=? AND group_name=? AND usr=?',
-                  (",".join([str(x.unit_id) for x in picks]), guild.id, group, usr))
+                  (",".join([str(x.unit_id) for x in picks]), guild.id, group.lower(), usr))
 
 
 async def get_all_draft_picks(group: str, guild: discord.Guild) -> Dict[int, List[Unit]]:
     return {x: y for x, y in await fetch_rows('SELECT usr, picked FROM "draft_picks" WHERE group_name=? AND guild=?',
                                               lambda a: (a[0], [unit_by_id(int(b)) for b in a[1].split(",")]),
-                                              (group, guild.id))}
+                                              (group.lower(), guild.id))}
 
 
 async def get_draft_picks(usr: discord.Member, group: str) -> List[Unit]:
     return [unit_by_id(int(x)) for x in
             (await fetch_item('SELECT picked FROM "draft_picks" WHERE usr=? AND group_name=? AND guild=?',
-                              (usr.id, group, usr.guild.id))).split(",")]
+                              (usr.id, group.lower(), usr.guild.id))).split(",")]
+
+
+async def get_draft_picks_with_guild(usr: discord.Member, group: str, guild: discord.Guild) -> List[Unit]:
+    return [unit_by_id(int(x)) for x in
+           (await get_text(usr, group.lower(), guild)).split(",") if x.strip() != ""]
+
+
+async def get_text(usr: discord.Member, group: str, guild: discord.Guild):
+    re = await fetch_item('SELECT picked FROM "draft_picks" WHERE usr=? AND group_name=? AND guild=?',
+                          (usr.id, group.lower(), guild.id))
+    if not re:
+        return ""
+    return re
 
 
 async def end_draft_group(group: str, guild: discord.Guild):
-    await execute('DELETE FROM "draft_groups" WHERE guild=? AND group_name=?', (guild.id, group))
+    await execute('DELETE FROM "draft_groups" WHERE guild=? AND group_name=?', (guild.id, group.lower()))
 
 
 def cont_conv(x: str):
@@ -108,6 +121,10 @@ async def ask_group(ctx: Context, msg: str, check: bool = True):
     return group
 
 
+async def create_draft_board(guild: discord.Guild) -> List[str]:
+    return await fetch_rows('SELECT group_name FROM "draft_groups" WHERE guild=?', lambda x: x[0], (guild.id, ))
+
+
 class DraftCog(commands.Cog):
     def __init__(self, _bot):
         self.bot = _bot
@@ -115,8 +132,19 @@ class DraftCog(commands.Cog):
     async def usrs_from_draft_board(self, guild: discord.Guild, group: str):
         return [(await self.bot.fetch_user(x)).display_name for x in draft_boards[guild.id][group]]
 
+    async def draft_board_convert(self, guild: discord.Guild, group: str):
+        return {await self.bot.fetch_user(x): draft_boards[guild.id][group][x] for x in draft_boards[guild.id][group]}
+
     @commands.group()
     async def draft(self, ctx: Context):
+        draft_boards[ctx.guild.id] = {
+            group.lower(): {
+                usr: [u for u in await get_draft_picks_with_guild(await self.bot.fetch_user(usr), group, ctx.guild)]
+                for usr in await get_group_usrs(group, ctx.guild)
+            }
+            for group in await create_draft_board(ctx.guild)
+        }
+
         if ctx.invoked_subcommand:
             return
 
@@ -142,9 +170,17 @@ class DraftCog(commands.Cog):
         await ctx.send(ctx.author.mention, embed=SuccessEmbed(f"Draft {group} is ready to draft"))
 
         rounds = await get_group_rotations(group, ctx.guild)
+        forward: bool = True
 
         for i in range(rounds):
-            for usr in [await self.bot.fetch_user(u) for u in usrs]:
+            li = [await self.bot.fetch_user(u) for u in usrs]
+
+            if not forward:
+                li = reversed(li)
+
+            forward = not forward
+
+            for usr in li:
                 draftable_units = get_draftable_units(group, ctx.guild)
                 question = await ctx.send(f"{usr.mention}: Please select your unit",
                                           embed=DrawEmbed(title="Available Units"),
@@ -284,6 +320,16 @@ class DraftCog(commands.Cog):
                        file=await image_to_discord(
                            await compose_draftable_units(draft_boards[ctx.guild.id][group][of.id],
                                                          await get_group_rotations(group, ctx.guild))))
+
+    @draft.command(name="export")
+    async def draft_export(self, ctx: Context, *, group: Optional[str] = None):
+        if not group:
+            group = await ask_group(ctx, ctx.author.mention + ": What draft group do you want to export?")
+
+        if not group:
+            return
+
+        await ctx.send(file=await image_to_discord(await compose_drafted_units(self.draft_board_convert(ctx.guild, group))))
 
     @draft.command(name="end")
     async def draft_end(self, ctx: Context, *, group: Optional[str] = None):

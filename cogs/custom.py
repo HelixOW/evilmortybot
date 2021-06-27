@@ -1,18 +1,19 @@
 from io import BytesIO
-from typing import Dict, Any, Optional, List, AsyncGenerator
+from typing import List, AsyncGenerator, Tuple
 
 import PIL.Image as ImageLib
 import aiohttp
 import discord
 from PIL.Image import Image
 from discord.ext import commands
-from discord.ext.commands import Context
+from discord.ext.commands import Context, MemberConverter
 
-from utilities import embeds
+from utilities import embeds, ask, image_to_discord
 from utilities.banners import create_custom_unit_banner
 from utilities.image_composer import compose_unit_list
-from utilities.units import parse_custom_unit_args, compose_icon, image_to_discord, Type, Race, Affection, Grade, \
-    Unit, unit_list, Event, unit_by_name, unit_by_id, all_affections
+from utilities.units import compose_icon, Type, Race, Affection, Grade, \
+    Unit, unit_list, Event, unit_by_id, all_affections, map_affection, map_race, map_grade, \
+    map_attribute, unit_by_vague_name
 from utilities.sql_helper import fetch_item, execute, rows, exists
 
 
@@ -33,7 +34,7 @@ async def add_custom_unit(name: str, creator: int, type_enum: Type, grade: Grade
                    icon_path=url)
 
     unit_list.append(u)
-    create_custom_unit_banner()
+    await create_custom_unit_banner()
 
     await execute(
         'INSERT INTO "units" (unit_id, name, simple_name, type, grade, race, event, affection, icon_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
@@ -51,7 +52,7 @@ async def parse_custom_unit_ids(owner: int) -> AsyncGenerator[int, None]:
 
 
 async def edit_custom_unit(to_set: str, values: List[str]) -> None:
-    await execute('UPDATE "custom_units" SET ' + to_set + ' WHERE name=?', tuple(values))
+    await execute('UPDATE "units" SET ' + to_set + ' WHERE name=?', tuple(values))
 
 
 async def unit_exists(name: str) -> bool:
@@ -82,6 +83,14 @@ async def remove_affection(name: str) -> None:
     await execute('DELETE FROM "affections" WHERE name=?', (name.lower(),))
 
 
+async def convert_url_to_image(url: str) -> Tuple[Image, str]:
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as resp:
+            with BytesIO(await resp.read()) as image_bytes:
+                cop = ImageLib.open(image_bytes).copy()
+    return cop, url
+
+
 class CustomCog(commands.Cog):
     def __init__(self, _bot):
         self.bot = _bot
@@ -93,141 +102,191 @@ class CustomCog(commands.Cog):
             await embeds.Custom.send_help(ctx, ctx.author.mention)
 
     @custom.command(name="add", aliases=["create", "+"])
-    async def custom_create(self, ctx: Context, *, args: Optional[str] = ""):
-        data: Dict[str, Any] = parse_custom_unit_args(args)
+    async def custom_create(self, ctx: Context):
+        name = await ask(ctx,
+                         "What do you want to name your unit?",
+                         convert=str,
+                         no_input="You need to provide a name for your unit.",
+                         timeout=180)
 
-        if data["url"] == "" or data["name"] == "" or data["type"] is None or data["grade"] is None:
-            return await ctx.send(content=ctx.author.mention,
-                                  embed=embeds.Custom.missing(", ".join([x for x in data.keys() if (data[x] == "" or data[x] is None)])))
+        if name is None:
+            return
 
-        if await unit_exists(data["name"]):
-            await ctx.reply(embed=embeds.Custom.already_exist(data["name"]))
-            return await ctx.send(content=f"{ctx.author.mention}: {data['name']} exists already!")
+        url: Tuple[Image, str] = await ask(ctx,
+                                           "Please send a link to a image.",
+                                           convert=convert_url_to_image,
+                                           convert_failed="Did not provide a valid image url.",
+                                           no_input="Your unit needs a icon.",
+                                           timeout=180)
 
-        async with aiohttp.ClientSession() as session:
-            async with session.get(data["url"]) as resp:
-                with BytesIO(await resp.read()) as image_bytes:
-                    _icon: Image = await compose_icon(attribute=data["type"], grade=data["grade"],
-                                                      background=ImageLib.open(image_bytes))
+        if url is None:
+            return
 
-                    await ctx.send(
-                        file=await image_to_discord(img=_icon, image_name="unit.png"),
-                        content=f"{ctx.author.mention} this is your created unit",
-                        embed=discord.Embed(
-                            title=data["name"],
-                            color=discord.Color.red() if data["type"] == Type.RED
-                            else discord.Color.blue() if data["type"] == Type.BLUE
-                            else discord.Color.green()
-                        ).set_image(url="attachment://unit.png"))
+        race = await ask(ctx,
+                         "What race is your unit?",
+                         convert=map_race,
+                         default_val=Race.UNKNOWN,
+                         no_input="No race provided, assuming Unknown",
+                         timeout=120)
 
-                    if data["race"] is None:
-                        data["race"]: Race = Race.UNKNOWN
+        if race is None:
+            race = Race.UNKNOWN
 
-                    if data["affection"] is None:
-                        data["affection"]: str = Affection.NONE.value
+        grade = await ask(ctx,
+                          "What grade is your unit? `R, SR, SSR, UR [WIP]`",
+                          convert=map_grade,
+                          default_val=Grade.SSR,
+                          no_input="No grade provided, assuming SSR",
+                          timeout=120)
 
-                    await add_custom_unit(name=data["name"],
-                                          type_enum=data["type"],
-                                          grade=data["grade"],
-                                          race=data["race"],
-                                          affection_str=data["affection"],
-                                          url=data["url"],
-                                          creator=ctx.author.id)
+        if grade is None:
+            grade = Grade.SSR
+
+        _type = await ask(ctx,
+                          "What type is your unit? `(Red, Green, Blue)`",
+                          convert=map_attribute,
+                          default_val=Type.RED,
+                          no_input="No type provided, assuming Red",
+                          timeout=120)
+
+        if _type is None:
+            _type = Type.RED
+
+        affection = await ask(ctx,
+                              "What affection does your unit have? `affection list`",
+                              convert=map_affection,
+                              no_input="No affection provided, assuming no affection",
+                              timeout=120)
+
+        if affection is None:
+            affection = Affection.NONE.value
+
+        if await unit_exists(name):
+            await ctx.reply(embed=embeds.Custom.already_exist(name))
+            return await ctx.send(content=f"{ctx.author.mention}: {name} exists already!")
+
+        with url[0] as img:
+            _icon: Image = await compose_icon(attribute=_type, grade=grade, background=img)
+
+        await ctx.send(
+            file=await image_to_discord(img=_icon, image_name="unit.png", quality=200),
+            content=f"{ctx.author.mention} this is your created unit",
+            embed=discord.Embed(
+                title=name,
+                color=_type.to_discord_color()
+            ).set_image(url="attachment://unit.png"))
+
+        await add_custom_unit(name=name,
+                              type_enum=_type,
+                              grade=grade,
+                              race=race,
+                              affection_str=affection,
+                              url=url[1],
+                              creator=ctx.author.id)
 
     @custom.command(name="remove", aliases=["delete", "-"])
-    async def custom_remove(self, ctx: Context, *, args: Optional[str] = ""):
-        data: Dict[str, Any] = parse_custom_unit_args(args)
-        if data["name"] == "":
-            return await ctx.send(content=ctx.author.mention, embed=embeds.Custom.missing("name"))
-
-        edit_unit: Unit = unit_by_name(data["name"])
+    async def custom_remove(self, ctx: Context):
+        edit_unit: Unit = (await ask(ctx,
+                                     "Which unit would you like to remove?",
+                                     convert=unit_by_vague_name,
+                                     convert_failed=lambda x: f"Unit '{x}' doesn't exist!",
+                                     timeout=180,
+                                     no_input="No unit provided."))[0]
 
         if edit_unit is None:
-            return await ctx.reply(embed=embeds.Custom.not_existing(data["name"]))
+            return
 
         if int(edit_unit.simple_name) != ctx.author.id:
             return await ctx.send(content=ctx.author.mention, embed=embeds.Custom.wrong_owner(edit_unit.name))
 
-        await remove_custom_unit(data["name"])
+        await remove_custom_unit(edit_unit.name)
         unit_list.remove(edit_unit)
-        create_custom_unit_banner()
+        await create_custom_unit_banner()
         return await ctx.send(content=ctx.author.mention, embed=embeds.Custom.Remove.success(edit_unit.name))
 
     @custom.command(name="list")
-    async def custom_list(self, ctx: Context, *, args: Optional[str] = ""):
-        data: Dict[str, Any] = parse_custom_unit_args(args)
-        if data["owner"] == 0:
-            return await ctx.send(ctx.author.mention, embed=embeds.Custom.no_units(data["owner"]))
+    async def custom_list(self, ctx: Context, owner: discord.Member = None):
+        if not owner:
+            owner = ctx.author
 
         owners_units: List[Unit] = [
             unit_by_id(unit_id)
-            async for unit_id in parse_custom_unit_ids(data["owner"])
+            async for unit_id in parse_custom_unit_ids(owner.id)
         ]
 
-        loading: discord.Message = await ctx.send(content=f"{ctx.author.mention} -> Loading Units",
-                                                  embed=embeds.loading())
-        await ctx.send(file=await image_to_discord(await compose_unit_list(owners_units), "units.png"),
-                       embed=discord.Embed().set_image(url="attachment://units.png"))
-        await loading.delete()
+        if len(owners_units) == 0:
+            return await ctx.send(ctx.author.mention, embed=embeds.Custom.no_units(owner.display_name))
+
+        with ctx.typing():
+            await ctx.send(file=await image_to_discord(await compose_unit_list(owners_units)),
+                           embed=embeds.DrawEmbed())
 
     @custom.command(name="edit")
-    async def custom_edit(self, ctx: Context, *, args: Optional[str] = ""):
-        data: Dict[str, Any] = parse_custom_unit_args(args)
-        if data["name"] == "":
-            return await ctx.send(content=ctx.author.mention, embed=embeds.Custom.missing("name"))
-
-        edit_unit: Unit = unit_by_name(data["name"])
-
-        if edit_unit is None:
-            return await ctx.reply(embed=embeds.Custom.not_existing(data["name"]))
+    async def custom_edit(self, ctx: Context):
+        edit_unit: Unit = (await ask(ctx,
+                                     "Which unit would you like to edit?",
+                                     convert=unit_by_vague_name,
+                                     convert_failed=lambda a: f"Unit '{a}' doesn't exist!",
+                                     timeout=180,
+                                     no_input="No unit provided."))[0]
 
         if int(edit_unit.simple_name) != ctx.author.id:
             return await ctx.send(content=ctx.author.mention, embed=embeds.Custom.wrong_owner(edit_unit.name))
+
+        old_name: str = edit_unit.name
 
         to_set: List[str] = []
         values: List[str] = []
         changed: List[str] = []
-        if data["grade"] is not None:
-            edit_unit.grade = data["grade"]
-            to_set.append("grade=?")
-            values.append(data["grade"].value)
-            changed.append("Grade")
-        if data["owner"] != 0:
-            to_set.append("creator=?")
-            values.append(data["owner"])
-            changed.append("Owner")
-        if data["type"] is not None:
-            edit_unit.type = data["type"]
-            to_set.append("type=?")
-            values.append(data["type"].value)
-            changed.append("Type")
-        if data["updated_name"] != "":
-            edit_unit.name = data["updated_name"]
-            to_set.append("name=?")
-            values.append(data["updated_name"])
-            changed.append("Name")
-        if data["url"] != "":
-            edit_unit.icon_path = data["url"]
-            to_set.append("url=?")
-            values.append(data["url"])
-            changed.append("Icon")
-        if data["race"] is not None:
-            edit_unit.race = data["race"]
-            to_set.append("race=?")
-            values.append(data["race"].value)
-            changed.append("Race")
-        if data["affection"] is not None:
-            edit_unit.affection = data["affection"]
-            to_set.append("affection=?")
-            values.append(data["affection"])
-            changed.append("Affection")
+
+        for attr, sql, change, question, conversion, post in [("grade", "grade", "Grade",
+                                                               "What's the grade of your unit? `R, SR, SSR, UR [WIP]`",
+                                                               map_grade, lambda a: a.value),
+                                                              ("simple_name", "creator", "Owner",
+                                                               "Who do you want to transfer Ownership to?",
+                                                               str, None),
+                                                              ("type", "type", "Type",
+                                                               "What's the type of your unit? `(Red, Green, Blue)`",
+                                                               map_attribute, lambda a: a.value),
+                                                              ("name", "name", "Name",
+                                                               "What's the name of your unit?", str, None),
+                                                              ("icon_path", "url", "Icon",
+                                                               "Please provide a link to a image. (Used for icon)",
+                                                               convert_url_to_image, None),
+                                                              ("race", "race", "Race",
+                                                               "What's the race of your unit?",
+                                                               map_race, lambda a: a.value),
+                                                              ("affection", "affection", "Affection",
+                                                               "What's the affection of your unit? (`list affection`)",
+                                                               map_affection)]:
+            x = await ask(ctx,
+                          question,
+                          convert=conversion)
+
+            if isinstance(x, Tuple):
+                if x[2]:
+                    continue
+                elif x[1]:
+                    break
+
+            if attr == "simple_name":
+                x = await MemberConverter().convert(ctx, x)
+
+            edit_unit.__setattr__(attr, x)
+
+            if post:
+                x = post(x)
+
+            to_set.append(sql + "=?")
+            values.append(x)
+            changed.append(change)
 
         if len(to_set) == 0:
             return await ctx.send(content=ctx.author.mention, embed=embeds.Custom.Edit.nothing_changed(edit_unit.name))
 
         to_set: str = ", ".join(to_set)
 
-        values.append(data["name"])
+        values.append(old_name)
         await edit_custom_unit(to_set, values)
 
         await edit_unit.refresh_icon()
