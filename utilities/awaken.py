@@ -10,7 +10,7 @@ COSTS = {
         5: 300,
         6: 400
     },
-    Type.BLUE: {
+    Type.blue: {
         1: {
             find_material(3): 2,
             find_material(4): 3,
@@ -42,7 +42,7 @@ COSTS = {
             find_material(35): 15
         }
     },
-    Type.RED: {
+    Type.red: {
         1: {
             find_material(6): 2,
             find_material(5): 3,
@@ -74,7 +74,7 @@ COSTS = {
             find_material(37): 15
         }
     },
-    Type.GRE: {
+    Type.gre: {
         1: {
             find_material(8): 2,
             find_material(7): 3,
@@ -110,9 +110,9 @@ COSTS = {
 
 
 def calc_cost(u: Unit, start: int, end: int):
-    blood_amount: int = (3 if u.grade == Grade.SSR else 2 if u.grade == Grade.SR else 1)
+    blood_amount: int = (3 if u.grade == Grade.ssr else 2 if u.grade == Grade.sr else 1)
 
-    if u.affection == Affection.SIN:
+    if u.affection == Affection.sin:
         total_costs = {
             find_material(100 + i): blood_amount for i in range(start, end)
         }

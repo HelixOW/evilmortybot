@@ -15,9 +15,9 @@ from io import BytesIO
 
 
 class Grade(Enum):
-    R = "r"
-    SR = "sr"
-    SSR = "ssr"
+    r = "r"
+    sr = "sr"
+    ssr = "ssr"
 
     def to_int(self) -> int:
         if self.value == "ssr":
@@ -28,9 +28,9 @@ class Grade(Enum):
 
 
 class Type(Enum):
-    RED = "red"
-    GRE = "green"
-    BLUE = "blue"
+    red = "red"
+    gre = "green"
+    blue = "blue"
 
     def to_discord_color(self) -> discord.Color:
         if self.value == "red":
@@ -41,149 +41,153 @@ class Type(Enum):
 
 
 class Race(Enum):
-    DEMON = "demon"
-    GIANT = "giant"
-    HUMAN = "human"
-    FAIRY = "fairy"
-    GODDESS = "goddess"
-    UNKNOWN = "unknown"
+    demon = "demon"
+    giant = "giant"
+    human = "human"
+    fairy = "fairy"
+    goddess = "goddess"
+    unknown = "unknown"
 
 
 class Event(Enum):
-    GC = "gc"
-    SLI = "slime"
-    AOT = "aot"
-    KOF = "kof"
-    NEY = "newyear"
-    HAL = "halloween"
-    FES = "festival"
-    VAL = "valentine"
-    REZ = "rezero"
+    base_game = "gc"
+    slime = "slime"
+    aot = "aot"
+    kof = "kof"
+    new_year = "newyear"
+    halloween = "halloween"
+    festival = "festival"
+    valentine = "valentine"
+    rezero = "rezero"
     stranger = "stranger"
-    CUS = "custom"
+    ragnarok = "ragnarok"
+    custom = "custom"
 
 
 class Affection(Enum):
-    SIN = "sins"
-    COMMANDMENTS = "commandments"
-    KNIGHT = "holyknights"
-    CATASTROPHE = "catastrophes"
-    ANGEL = "archangels"
-    NONE = "none"
+    sin = "sins"
+    commandments = "commandments"
+    knight = "holyknights"
+    catastrophe = "catastrophes"
+    angel = "archangels"
+    none = "none"
 
 
-all_races: List[Race] = [Race.DEMON, Race.GIANT, Race.HUMAN, Race.FAIRY, Race.GODDESS, Race.UNKNOWN]
-all_grades: List[Grade] = [Grade.R, Grade.SR, Grade.SSR]
-all_types: List[Type] = [Type.RED, Type.GRE, Type.BLUE]
-all_events: List[Event] = [Event.GC, Event.SLI, Event.AOT, Event.KOF, Event.FES, Event.NEY, Event.VAL, Event.HAL, Event.REZ, Event.stranger]
-all_affections: List[str] = [Affection.SIN.value, Affection.COMMANDMENTS.value, Affection.CATASTROPHE.value,
-                             Affection.ANGEL.value, Affection.KNIGHT.value, Affection.NONE.value]
+all_races: List[Race] = [Race.demon, Race.giant, Race.human, Race.fairy, Race.goddess, Race.unknown]
+all_grades: List[Grade] = [Grade.r, Grade.sr, Grade.ssr]
+all_types: List[Type] = [Type.red, Type.gre, Type.blue]
+all_events: List[Event] = [Event.base_game, Event.slime, Event.aot, Event.kof, Event.festival, Event.new_year,
+                           Event.valentine, Event.halloween, Event.rezero, Event.stranger, Event.ragnarok]
+all_affections: List[str] = [Affection.sin.value, Affection.commandments.value, Affection.catastrophe.value,
+                             Affection.angel.value, Affection.knight.value, Affection.none.value]
 
 frames: Dict[Type, Dict[Grade, Img]] = {
-    Type.BLUE: {
-        Grade.R: ImageLib.open("gc/frames/blue_r_frame.png").resize((img_size, img_size)).convert("RGBA"),
-        Grade.SR: ImageLib.open("gc/frames/blue_sr_frame.png").resize((img_size, img_size)).convert("RGBA"),
-        Grade.SSR: ImageLib.open("gc/frames/blue_ssr_frame.png").resize((img_size, img_size)).convert("RGBA")
+    Type.blue: {
+        Grade.r: ImageLib.open("gc/frames/blue_r_frame.png").resize((img_size, img_size)).convert("RGBA"),
+        Grade.sr: ImageLib.open("gc/frames/blue_sr_frame.png").resize((img_size, img_size)).convert("RGBA"),
+        Grade.ssr: ImageLib.open("gc/frames/blue_ssr_frame.png").resize((img_size, img_size)).convert("RGBA")
     },
-    Type.RED: {
-        Grade.R: ImageLib.open("gc/frames/red_r_frame.png").resize((img_size, img_size)).convert("RGBA"),
-        Grade.SR: ImageLib.open("gc/frames/red_sr_frame.png").resize((img_size, img_size)).convert("RGBA"),
-        Grade.SSR: ImageLib.open("gc/frames/red_ssr_frame.png").resize((img_size, img_size)).convert("RGBA")
+    Type.red: {
+        Grade.r: ImageLib.open("gc/frames/red_r_frame.png").resize((img_size, img_size)).convert("RGBA"),
+        Grade.sr: ImageLib.open("gc/frames/red_sr_frame.png").resize((img_size, img_size)).convert("RGBA"),
+        Grade.ssr: ImageLib.open("gc/frames/red_ssr_frame.png").resize((img_size, img_size)).convert("RGBA")
     },
-    Type.GRE: {
-        Grade.R: ImageLib.open("gc/frames/green_r_frame.png").resize((img_size, img_size)).convert("RGBA"),
-        Grade.SR: ImageLib.open("gc/frames/green_sr_frame.png").resize((img_size, img_size)).convert("RGBA"),
-        Grade.SSR: ImageLib.open("gc/frames/green_ssr_frame.png").resize((img_size, img_size)).convert("RGBA")
+    Type.gre: {
+        Grade.r: ImageLib.open("gc/frames/green_r_frame.png").resize((img_size, img_size)).convert("RGBA"),
+        Grade.sr: ImageLib.open("gc/frames/green_sr_frame.png").resize((img_size, img_size)).convert("RGBA"),
+        Grade.ssr: ImageLib.open("gc/frames/green_ssr_frame.png").resize((img_size, img_size)).convert("RGBA")
     }
 }
 frame_backgrounds: Dict[Grade, Img] = {
-    Grade.R: ImageLib.open("gc/frames/r_frame_background.png").resize((img_size, img_size)).convert("RGBA"),
-    Grade.SR: ImageLib.open("gc/frames/sr_frame_background.png").resize((img_size, img_size)).convert("RGBA"),
-    Grade.SSR: ImageLib.open("gc/frames/ssr_frame_background.png").resize((img_size, img_size)).convert("RGBA")
+    Grade.r: ImageLib.open("gc/frames/r_frame_background.png").resize((img_size, img_size)).convert("RGBA"),
+    Grade.sr: ImageLib.open("gc/frames/sr_frame_background.png").resize((img_size, img_size)).convert("RGBA"),
+    Grade.ssr: ImageLib.open("gc/frames/ssr_frame_background.png").resize((img_size, img_size)).convert("RGBA")
 }
 
 
 def map_attribute(raw_att: str) -> Optional[Type]:
     raw_att: str = raw_att.lower()
     if raw_att in ["blue", "speed", "b"]:
-        return Type.BLUE
+        return Type.blue
     if raw_att in ["red", "strength", "r"]:
-        return Type.RED
+        return Type.red
     if raw_att in ["green", "hp", "g"]:
-        return Type.GRE
+        return Type.gre
     return None
 
 
 def map_grade(raw_grade: str) -> Optional[Grade]:
     raw_grade: str = raw_grade.lower()
     if raw_grade == "r":
-        return Grade.R
+        return Grade.r
     if raw_grade == "sr":
-        return Grade.SR
+        return Grade.sr
     if raw_grade == "ssr":
-        return Grade.SSR
+        return Grade.ssr
     return None
 
 
 def map_race(raw_race: str) -> Optional[Race]:
     raw_race: str = raw_race.lower()
     if raw_race in ["demon", "demons"]:
-        return Race.DEMON
+        return Race.demon
     if raw_race in ["giant", "giants"]:
-        return Race.GIANT
+        return Race.giant
     if raw_race in ["fairy", "fairies"]:
-        return Race.FAIRY
+        return Race.fairy
     if raw_race in ["human", "humans"]:
-        return Race.HUMAN
+        return Race.human
     if raw_race in ["goddess", "god", "gods"]:
-        return Race.GODDESS
+        return Race.goddess
     if raw_race in ["unknown"]:
-        return Race.UNKNOWN
+        return Race.unknown
     return None
 
 
 def map_event(raw_event: str) -> Event:
     raw_event: str = raw_event.replace(" ", "").lower()
     if raw_event in ["slime", "tensura"]:
-        return Event.SLI
+        return Event.slime
     if raw_event in ["aot", "attackontitan", "titan"]:
-        return Event.AOT
+        return Event.aot
     if raw_event in ["kof", "kingoffighter", "kingoffighters"]:
-        return Event.KOF
+        return Event.kof
     if raw_event in ["valentine", "val"]:
-        return Event.VAL
+        return Event.valentine
     if raw_event in ["newyears", "newyear", "ny"]:
-        return Event.NEY
+        return Event.new_year
     if raw_event in ["halloween", "hal", "hw"]:
-        return Event.HAL
+        return Event.halloween
     if raw_event in ["festival", "fes", "fest"]:
-        return Event.FES
+        return Event.festival
     if raw_event in ["rezero", "re", "zero"]:
-        return Event.REZ
+        return Event.rezero
     if raw_event in ["custom"]:
-        return Event.CUS
+        return Event.custom
     if raw_event in ["stranger", "stranger things", "things", "st"]:
         return Event.stranger
-    return Event.GC
+    if raw_event in ["ragnarok", "ragna"]:
+        return Event.ragnarok
+    return Event.base_game
 
 
 def map_affection(raw_affection: str) -> str:
     raw_affection: str = raw_affection.replace(" ", "").lower()
     if raw_affection in ["sins", "sin"]:
-        return Affection.SIN.value
+        return Affection.sin.value
     if raw_affection in ["holyknight", "holyknights", "knights", "knight"]:
-        return Affection.KNIGHT.value
+        return Affection.knight.value
     if raw_affection in ["commandments", "commandment", "command"]:
-        return Affection.COMMANDMENTS.value
+        return Affection.commandments.value
     if raw_affection in ["catastrophes", "catastrophes"]:
-        return Affection.CATASTROPHE.value
+        return Affection.catastrophe.value
     if raw_affection in ["arcangels", "angels", "angel", "arcangel"]:
-        return Affection.ANGEL.value
+        return Affection.angel.value
     if raw_affection in ["none", "no"]:
-        return Affection.NONE.value
+        return Affection.none.value
     if raw_affection in all_affections:
         return raw_affection
-    return Affection.NONE.value
+    return Affection.none.value
 
 
 async def compose_icon(attribute: Type, grade: Grade, background: Optional[Img] = None) -> \
@@ -207,8 +211,8 @@ class Unit:
                  type_enum: Type,
                  grade: Grade,
                  race: Race,
-                 event: Event = Event.GC,
-                 affection_str: str = Affection.NONE.value,
+                 event: Event = Event.base_game,
+                 affection_str: str = Affection.none.value,
                  icon_path: str = "gc/icons/{}.png",
                  alt_names: Optional[List[str]] = None,
                  is_jp: bool = False,
@@ -268,8 +272,9 @@ class Unit:
         )
         if len(self.alt_names) != 0:
             embed._fields = [
-                {'inline': True, 'name': "Alternative names", 'value': "```" + ",\n".join(self.alt_names) + "```"}
-            ] + embed._fields
+                                {'inline': True, 'name': "Alternative names",
+                                 'value': "```" + ",\n".join(self.alt_names) + "```"}
+                            ] + embed._fields
         return embed
 
     def display_alt_names(self) -> str:
@@ -292,11 +297,11 @@ class Unit:
         return self.icon
 
     def discord_color(self) -> discord.Color:
-        if self.type == Type.RED:
+        if self.type == Type.red:
             return discord.Color.red()
-        if self.type == Type.GRE:
+        if self.type == Type.gre:
             return discord.Color.green()
-        if self.type == Type.BLUE:
+        if self.type == Type.blue:
             return discord.Color.blue()
         return discord.Color.gold()
 
@@ -386,7 +391,8 @@ def unit_by_name_no_case(name: str) -> Optional[Unit]:
 
 
 def unit_by_vague_name(name: str, sample_list: List[Unit] = unit_list) -> List[Unit]:
-    return [x for x in sample_list if (name.strip().lower() in [y.lower() for y in x.alt_names] or f" {name.strip().lower()}" in x.name.strip().lower())]
+    return [x for x in sample_list if (name.strip().lower() in [y.lower() for y in
+                                                                x.alt_names] or f" {name.strip().lower()}" in x.name.strip().lower())]
 
 
 def unit_by_name_or_id(name_or_id: typing.Union[str, int]) -> List[Unit]:
@@ -481,12 +487,12 @@ def parse_arguments(given_args: str, list_seperator: str = "&") -> Dict[str, Any
     parsed_races: List[Race] = []
     parsed_names: List[str] = []
     parsed_race_count: Dict[Race, int] = {
-        Race.HUMAN: 0,
-        Race.FAIRY: 0,
-        Race.GIANT: 0,
-        Race.UNKNOWN: 0,
-        Race.DEMON: 0,
-        Race.GODDESS: 0
+        Race.human: 0,
+        Race.fairy: 0,
+        Race.giant: 0,
+        Race.unknown: 0,
+        Race.demon: 0,
+        Race.goddess: 0
     }
     parsed_grades: List[Grade] = []
     parsed_types: List[Type] = []
@@ -601,12 +607,12 @@ def parse_arguments(given_args: str, list_seperator: str = "&") -> Dict[str, Any
 def replace_duplicates_in_team(criteria: Dict[str, Any], team_to_deduplicate: List[Unit]) -> None:
     team_simple_names: List[str] = ["", "", "", ""]
     team_races: Dict[Race, int] = {
-        Race.HUMAN: 0,
-        Race.FAIRY: 0,
-        Race.GIANT: 0,
-        Race.UNKNOWN: 0,
-        Race.DEMON: 0,
-        Race.GODDESS: 0
+        Race.human: 0,
+        Race.fairy: 0,
+        Race.giant: 0,
+        Race.unknown: 0,
+        Race.demon: 0,
+        Race.goddess: 0
     }
     max_races: Dict[Race, int] = criteria["max race count"]
 

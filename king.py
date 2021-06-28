@@ -131,16 +131,15 @@ async def find(ctx: Context, *, units: str = ""):
                        embed=embeds.DefaultEmbed().set_image(url="attachment://units.png"))
 
 
-
 @king.command()
 async def icon(ctx: Context, of: Unit):
     if len(ctx.message.attachments) == 0:
-        return await ctx.send(file=await image_to_discord(of.icon))
+        return await ctx.send(file=await image_to_discord(of.icon, quality=100))
     async with aiohttp.ClientSession() as session:
         async with session.get(ctx.message.attachments[0].url) as resp:
             with BytesIO(await resp.read()) as a:
                 img: Image = await compose_icon(attribute=of.type, grade=of.grade, background=ImageLib.open(a))
-                await ctx.send(file=await image_to_discord(img))
+                await ctx.send(file=await image_to_discord(img, quality=100))
 
 
 @king.command(name="awake")
@@ -162,7 +161,7 @@ async def info_cmd(ctx: Context, include_custom: Optional[bool] = False, *, of_n
     ofs: List[Unit] = unit_by_vague_name(of_name)
 
     if not include_custom:
-        ofs = [x for x in ofs if x not in [y for y in unit_list if y.event == Event.CUS]]
+        ofs = [x for x in ofs if x not in [y for y in unit_list if y.event == Event.custom]]
 
     if len(ofs) == 0:
         return await ctx.send(ctx.author.mention, embed=embeds.ErrorEmbed(
@@ -192,7 +191,7 @@ async def quiz_cmd(ctx: Context, mode: Optional[str] = "unit"):
     if mode in ["unit", "icon", "character"]:
         unit: Unit = unit_list[random.randint(0, len(unit_list) - 1)]
 
-        while unit.event == Event.CUS:
+        while unit.event == Event.custom:
             unit: Unit = unit_list[random.randint(0, len(unit_list) - 1)]
 
         question: discord.Message = await ctx.send(ctx.author.mention,

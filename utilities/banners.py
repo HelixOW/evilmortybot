@@ -63,10 +63,10 @@ class Banner:
 
         self.banner_type: BannerType = banner_type
 
-        self.r_units: List[Unit] = [x for x in self.units if x.grade == Grade.R]
-        self.sr_units: List[Unit] = [x for x in self.units if x.grade == Grade.SR]
-        self.ssr_units: List[Unit] = [x for x in self.units if x.grade == Grade.SSR and x not in self.rate_up_units]
-        self.all_ssr_units: List[Unit] = [x for x in self.units if x.grade == Grade.SSR]
+        self.r_units: List[Unit] = [x for x in self.units if x.grade == Grade.r]
+        self.sr_units: List[Unit] = [x for x in self.units if x.grade == Grade.sr]
+        self.ssr_units: List[Unit] = [x for x in self.units if x.grade == Grade.ssr and x not in self.rate_up_units]
+        self.all_ssr_units: List[Unit] = [x for x in self.units if x.grade == Grade.ssr]
         self.all_units: List[Unit] = self.units + self.rate_up_units
 
         self.ssr_chance: float = (self.ssr_unit_rate_up * len(self.rate_up_units)) + (
@@ -166,10 +166,10 @@ def banners_by_name(names: List[str]) -> List[Banner]:
 
 
 async def create_custom_unit_banner() -> None:
-    cus_units: List[Unit] = [x for x in unit_list if x.event == Event.CUS]
-    ssrs: List[Unit] = [x for x in cus_units if x.grade == Grade.SSR]
-    srs: List[Unit] = [x for x in cus_units if x.grade == Grade.SR]
-    rs: List[Unit] = [x for x in cus_units if x.grade == Grade.R]
+    cus_units: List[Unit] = [x for x in unit_list if x.event == Event.custom]
+    ssrs: List[Unit] = [x for x in cus_units if x.grade == Grade.ssr]
+    srs: List[Unit] = [x for x in cus_units if x.grade == Grade.sr]
+    rs: List[Unit] = [x for x in cus_units if x.grade == Grade.r]
     if banner_by_name("custom") is not None:
         all_banner_list.remove(banner_by_name("custom"))
 
@@ -189,7 +189,7 @@ async def create_custom_unit_banner() -> None:
 
 def create_jp_banner() -> None:
     jp_units: List[Unit] = [x for x in unit_list if x.is_jp]
-    ssrs: List[Unit] = [x for x in jp_units if x.grade == Grade.SSR]
+    ssrs: List[Unit] = [x for x in jp_units if x.grade == Grade.ssr]
     if banner_by_name("jp") is not None:
         all_banner_list.remove(banner_by_name("jp"))
     all_banner_list.append(
@@ -254,7 +254,7 @@ async def unit_with_chance(from_banner: Banner, user: discord.Member) -> Unit:
         u: Unit = from_banner.r_units[ra.randint(0, len(from_banner.r_units) - 1)]
 
     if user is not None:
-        await add_user_pull(user, u.grade == Grade.SSR)
+        await add_user_pull(user, u.grade == Grade.ssr)
         await add_unit_to_box(user, u)
     await u.set_icon()
     return u

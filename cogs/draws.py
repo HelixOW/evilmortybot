@@ -221,7 +221,7 @@ class DrawCog(commands.Cog):
 
         unit_to_draw: List[Unit] = [a for a in unit_by_vague_name(unit_name)
                                     if a.unit_id in [b.unit_id for b in from_banner.all_units]] \
-            if unit_name is not None else [a for a in from_banner.all_units if a.grade == Grade.SSR]
+            if unit_name is not None else [a for a in from_banner.all_units if a.grade == Grade.ssr]
 
         async with ctx.typing():
             rang: int = 11 if from_banner.banner_type == BannerType.ELEVEN else 5
@@ -230,7 +230,7 @@ class DrawCog(commands.Cog):
                 for u in drawn:
                     if u in unit_to_draw:
                         if unit_ssr:
-                            if u.grade == Grade.SSR:
+                            if u.grade == Grade.ssr:
                                 return True
                         else:
                             return True
@@ -240,7 +240,7 @@ class DrawCog(commands.Cog):
             drawn_units: List[Unit] = [await unit_with_chance(from_banner, person) for _ in range(rang)]
             drawn_ssrs: Dict[Unit, int] = {}
             for x in drawn_units:
-                if x.grade == Grade.SSR:
+                if x.grade == Grade.ssr:
                     if x not in drawn_ssrs:
                         drawn_ssrs[x] = 1
                     else:
@@ -250,7 +250,7 @@ class DrawCog(commands.Cog):
                 i += 1
                 drawn_units: List[Unit] = [await unit_with_chance(from_banner, person) for _ in range(rang)]
                 for x in drawn_units:
-                    if x.grade == Grade.SSR:
+                    if x.grade == Grade.ssr:
                         if x not in drawn_ssrs:
                             drawn_ssrs[x] = 1
                         else:

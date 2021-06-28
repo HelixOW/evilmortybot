@@ -92,8 +92,8 @@ async def read_units_from_db() -> None:
 
         logger.log(logging.INFO, f"Registering Unit: {row[1]} ({row[0]}) is JP? {row[9] == 1}")
 
-    r_unit_list.extend([x for x in unit_list if x.grade == Grade.R and x.event == Event.GC])
-    sr_unit_list.extend([x for x in unit_list if x.grade == Grade.SR and x.event == Event.GC])
+    r_unit_list.extend([x for x in unit_list if x.grade == Grade.r and x.event == Event.base_game])
+    sr_unit_list.extend([x for x in unit_list if x.grade == Grade.sr and x.event == Event.base_game])
 
 
 async def read_affections_from_db() -> None:

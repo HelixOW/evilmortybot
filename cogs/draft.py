@@ -21,7 +21,7 @@ def add_drafted_unit(group: str, drafted_unit: Unit, user: discord.Member):
 
 def get_draftable_units(group: str, guild: discord.Guild):
     return [x for x in unit_list if
-            x not in flatten(draft_boards[guild.id][group].values()) and not x.is_jp and x.event != Event.CUS]
+            x not in flatten(draft_boards[guild.id][group].values()) and not x.is_jp and x.event != Event.custom]
 
 
 async def allowed_draft_group(group: str, guild: discord.Guild):

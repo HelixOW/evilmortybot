@@ -28,7 +28,7 @@ async def add_custom_unit(name: str, creator: int, type_enum: Type, grade: Grade
                    type_enum=type_enum,
                    grade=grade,
                    race=race,
-                   event=Event.CUS,
+                   event=Event.custom,
                    affection_str=affection_str,
                    simple_name=str(creator),
                    icon_path=url)
@@ -125,32 +125,32 @@ class CustomCog(commands.Cog):
         race = await ask(ctx,
                          "What race is your unit?",
                          convert=map_race,
-                         default_val=Race.UNKNOWN,
+                         default_val=Race.unknown,
                          no_input="No race provided, assuming Unknown",
                          timeout=120)
 
         if race is None:
-            race = Race.UNKNOWN
+            race = Race.unknown
 
         grade = await ask(ctx,
                           "What grade is your unit? `R, SR, SSR, UR [WIP]`",
                           convert=map_grade,
-                          default_val=Grade.SSR,
+                          default_val=Grade.ssr,
                           no_input="No grade provided, assuming SSR",
                           timeout=120)
 
         if grade is None:
-            grade = Grade.SSR
+            grade = Grade.ssr
 
         _type = await ask(ctx,
                           "What type is your unit? `(Red, Green, Blue)`",
                           convert=map_attribute,
-                          default_val=Type.RED,
+                          default_val=Type.red,
                           no_input="No type provided, assuming Red",
                           timeout=120)
 
         if _type is None:
-            _type = Type.RED
+            _type = Type.red
 
         affection = await ask(ctx,
                               "What affection does your unit have? `affection list`",
@@ -159,7 +159,7 @@ class CustomCog(commands.Cog):
                               timeout=120)
 
         if affection is None:
-            affection = Affection.NONE.value
+            affection = Affection.none.value
 
         if await unit_exists(name):
             await ctx.reply(embed=embeds.Custom.already_exist(name))
@@ -301,9 +301,9 @@ class CustomCog(commands.Cog):
 
     @affection.command(name="add", aliases=["create", "plus", "+"])
     async def affection_add(self, ctx: Context, *, name: str):
-        if name.lower in [Affection.SIN.value, Affection.KNIGHT.value, Affection.NONE.value, Affection.ANGEL.value,
-                          Affection.CATASTROPHE.value,
-                          Affection.COMMANDMENTS.value]:
+        if name.lower in [Affection.sin.value, Affection.knight.value, Affection.none.value, Affection.angel.value,
+                          Affection.catastrophe.value,
+                          Affection.commandments.value]:
             return await ctx.send(content=ctx.author.mention, embed=embeds.Affection.unmutable(name))
 
         if await affection_exist(name.lower()):

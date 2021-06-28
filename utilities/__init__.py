@@ -86,7 +86,10 @@ class KingBot(commands.Bot):
 async def image_to_discord(img: Image, image_name: str = "image.png", quality: int = 10) -> \
         discord.File:
     with BytesIO() as image_bin:
-        img.save(image_bin, 'webp', quality=quality, optimize=True)
+        if quality == 100:
+            img.save(image_bin, 'png')
+        else:
+            img.save(image_bin, 'webp', quality=quality, optimize=True)
         image_bin.seek(0)
         image_file = discord.File(fp=image_bin, filename=image_name)
     return image_file
