@@ -169,7 +169,7 @@ class CustomCog(commands.Cog):
             _icon: Image = await compose_icon(attribute=_type, grade=grade, background=img)
 
         await ctx.send(
-            file=await image_to_discord(img=_icon, image_name="unit.png", quality=200),
+            file=await image_to_discord(img=_icon, image_name="unit.png", quality=100),
             content=f"{ctx.author.mention} this is your created unit",
             embed=discord.Embed(
                 title=name,

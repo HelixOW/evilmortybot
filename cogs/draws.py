@@ -69,7 +69,7 @@ class DrawCog(commands.Cog):
 
                 return await ctx.send(
                     file=await image_to_discord(await compose_banner_rotation(
-                        dict(sorted(units.keys(), key=lambda u: u[0].grade.to_int())))),
+                        dict(sorted(units.items(), key=lambda u: u[0].grade.to_int())))),
                     content=f"{person.display_name} those are the units you pulled in 1 rotation" if person is ctx.author
                     else f"{person.display_name} those are the units you pulled in 1 rotation coming from {ctx.author.display_name}",
                     embed=embeds.DrawEmbed(

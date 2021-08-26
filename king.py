@@ -30,7 +30,8 @@ initial_extensions = ['cogs.custom',
                       'cogs.list',
                       'cogs.pvp',
                       'cogs.statistics',
-                      'cogs.users']
+                      'cogs.users',
+                      'cogs.calc']
 
 king: KingBot = KingBot(command_prefix=get_prefix,
                         description='..help for Help',
