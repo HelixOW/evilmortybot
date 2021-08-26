@@ -1,4 +1,6 @@
 import random
+import time
+
 import aiohttp
 import discord.ext.commands
 import traceback
@@ -12,7 +14,8 @@ from utilities.image_composer import compose_unit_list, compose_awakening
 from utilities.paginator import Paginator, Page
 from utilities.sql_helper import *
 from utilities.tarot import *
-from utilities.units import image_to_discord, unit_by_vague_name, compose_icon, unit_by_id, unit_by_name_no_case
+from utilities.units import image_to_discord, unit_by_vague_name, compose_icon, unit_by_id, unit_by_name_no_case, \
+    unit_by_name_or_id
 
 token: int = 0
 is_beta: bool = False
@@ -97,15 +100,6 @@ async def custom_help(ctx: Context):
     await ctx.send(embed=embeds.Help.custom_help)
 
 
-@king.command()
-async def update(ctx: Context):
-    await read_units_from_db()
-    await read_banners_from_db()
-    await create_custom_unit_banner()
-    create_jp_banner()
-    await ctx.send(content=f"{ctx.author.mention} Updated Units & Banners")
-
-
 @king.command(no_pm=True)
 async def find(ctx: Context, *, units: str = ""):
     if units.replace(" ", "") == "":
@@ -134,13 +128,7 @@ async def find(ctx: Context, *, units: str = ""):
 
 @king.command()
 async def icon(ctx: Context, of: Unit):
-    if len(ctx.message.attachments) == 0:
-        return await ctx.send(file=await image_to_discord(of.icon, quality=100))
-    async with aiohttp.ClientSession() as session:
-        async with session.get(ctx.message.attachments[0].url) as resp:
-            with BytesIO(await resp.read()) as a:
-                img: Image = await compose_icon(attribute=of.type, grade=of.grade, background=ImageLib.open(a))
-                await ctx.send(file=await image_to_discord(img, quality=100))
+    return await ctx.send(file=await image_to_discord(of.icon, quality=100))
 
 
 @king.command(name="awake")
@@ -170,7 +158,8 @@ async def info_cmd(ctx: Context, include_custom: Optional[bool] = False, *, of_n
         ))
 
     paginator: Paginator = Paginator(king,
-                                     lambda x, y: y == ctx.author and str(x.emoji) in [emojis.LEFT_ARROW, emojis.RIGHT_ARROW],
+                                     lambda x, y: y == ctx.author and str(x.emoji) in [emojis.LEFT_ARROW,
+                                                                                       emojis.RIGHT_ARROW],
                                      timeout=15)
 
     for x in ofs:
@@ -221,15 +210,57 @@ async def quiz_cmd(ctx: Context, mode: Optional[str] = "unit"):
         """))
 
 
+def check_for_helix(ctx: Context):
+    return ctx.guild.id == 812695655852015628 and ctx.author.id == author_id
+
+
+@king.group()
+@commands.check(check_for_helix)
+async def admin(ctx: Context):
+    pass
+
+
+@admin.command(name="icon")
+async def admin_icon(ctx: Context, of: Unit):
+    async with aiohttp.ClientSession() as session:
+        async with session.get(ctx.message.attachments[0].url) as resp:
+            with BytesIO(await resp.read()) as a:
+                img: Image = await compose_icon(attribute=of.type, grade=of.grade, background=ImageLib.open(a))
+                await ctx.send(file=await image_to_discord(img, quality=100))
+
+
+@admin.command(name="update")
+async def admin_update(ctx: Context):
+    with ctx.typing():
+        await read_units_from_db()
+        await read_banners_from_db()
+        await create_custom_unit_banner()
+        create_jp_banner()
+        await ctx.send(content=f"{ctx.author.mention} Updated Units & Banners")
+
+
+@admin.command(name="banner")
+async def admin_banner(ctx: Context, banner: str, *, team: str):
+    await ctx.send(f"\n".join(
+        [f"{banner}, {unit_by_name_or_id(x)[0].unit_id}" for x in [y.strip() for y in team.split(",")] if
+         len(unit_by_name_or_id(x)) != 0]))
+
+
+def measure_time(action):
+    start = time.time()
+    action()
+    return time.time() - start
+
+
 def start_up_bot(token_path: str = "data/bot_token.txt", _is_beta: bool = False):
     global token, is_beta
     for extension in initial_extensions:
         king.load_extension(extension)
 
     loop = asyncio.new_event_loop()
-    loop.run_until_complete(read_affections_from_db())
-    loop.run_until_complete(read_units_from_db())
-    loop.run_until_complete(read_banners_from_db())
+    print("Affection read took ", measure_time(lambda: loop.run_until_complete(read_affections_from_db())))
+    print("Unit read took ", measure_time(lambda: loop.run_until_complete(read_units_from_db())))
+    print("Banner read took", measure_time(lambda: loop.run_until_complete(read_banners_from_db())))
     loop.close()
 
     with open(token_path, 'r') as token_file:

@@ -21,7 +21,8 @@ class PvPCog(commands.Cog):
 
     @commands.command(name="show", aliases=["emoji", "emote"])
     async def show_cmd(self, ctx: Context, *, team: str):
-        await ctx.send(" ".join([unit_by_name_or_id(x)[0].emoji for x in [y.strip() for y in team.split(",")] if len(unit_by_name_or_id(x)) != 0]))
+        with ctx.typing():
+            await ctx.send(" ".join([unit_by_name_or_id(x)[0].emoji for x in [y.strip() for y in team.split(",")] if len(unit_by_name_or_id(x)) != 0]))
 
     @commands.command()
     @commands.guild_only()

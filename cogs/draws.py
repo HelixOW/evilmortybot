@@ -177,7 +177,7 @@ class DrawCog(commands.Cog):
             person: discord.Member = ctx.author
 
         if unit_name in banner_starting_names():
-            banner_name = unit_name + (banner_name if banner_name else "")
+            banner_name = unit_name + " " + (banner_name if banner_name else "")
             unit_name = None
 
         if banner_name is None:
