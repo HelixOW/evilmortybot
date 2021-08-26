@@ -448,23 +448,3 @@ async def compose_random_select_team(possible: List[Unit]) -> Image:
         y += img_size + 9
 
     return i
-
-
-async def compose_awakening(materials: dict) -> Image:
-    i: Image = ImageLib.new('RGBA', (
-        img_size + x_offset + get_text_dimensions("15")[0],
-        (img_size * len(materials)) + (y_offset * (len(materials) - 1))
-    ))
-    draw: ImageDraw = ImageDraw.Draw(i)
-
-    y: int = 0
-    for material in materials:
-        _text_with_shadow(draw,
-                          x=x_offset,
-                          y=y + int(img_size / 2),
-                          text=str(materials[material]) + "x")
-        x: int = x_offset + get_text_dimensions(str(materials[material]) + "x")[0] + x_offset
-        i.paste(material.icon, (x, y))
-        y += img_size + y_offset
-
-    return i

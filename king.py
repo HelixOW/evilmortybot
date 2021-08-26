@@ -1,5 +1,6 @@
 import random
 import time
+from typing import Optional
 
 import aiohttp
 import discord.ext.commands
@@ -8,9 +9,9 @@ import sys
 
 import utilities.reactions as emojis
 from utilities import *
-from utilities.awaken import *
 from utilities.banners import create_jp_banner, create_custom_unit_banner, read_banners_from_db
-from utilities.image_composer import compose_unit_list, compose_awakening
+from utilities.image_composer import compose_unit_list, ImageLib
+from utilities.materials import map_food, Food
 from utilities.paginator import Paginator, Page
 from utilities.sql_helper import *
 from utilities.tarot import *
@@ -129,15 +130,6 @@ async def find(ctx: Context, *, units: str = ""):
 @king.command()
 async def icon(ctx: Context, of: Unit):
     return await ctx.send(file=await image_to_discord(of.icon, quality=100))
-
-
-@king.command(name="awake")
-async def awake_cmd(ctx: Context, _unit: Unit, start: Optional[int] = 0, to: Optional[int] = 6):
-    data = calc_cost(_unit, min(max(start, 0), 6) + 1, min(max(to, 0), 6) + 1)
-    await ctx.send(
-        file=await image_to_discord(await compose_awakening(data)),
-        content=f"To awaken *{_unit.name}* from **{start}*** to **{to}*** it takes:"
-    )
 
 
 @king.command(name="code")
