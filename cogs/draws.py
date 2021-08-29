@@ -46,7 +46,8 @@ class DrawCog(commands.Cog):
             person: discord.Member = ctx.author
 
         if isinstance(amount, str) and amount not in ["rotation", "rot"]:
-            banner_name = amount + (banner_name if banner_name else "")
+            banner_name = amount + ((" " + banner_name) if banner_name else "")
+            amount = 1
 
         if not banner_name:
             banner_name = "banner one"

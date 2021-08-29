@@ -9,7 +9,7 @@ import sys
 
 import utilities.reactions as emojis
 from utilities import *
-from utilities.banners import create_jp_banner, create_custom_unit_banner, read_banners_from_db
+from utilities.banners import create_jp_banner, create_custom_unit_banner, read_banners_from_db, load_banners
 from utilities.image_composer import compose_unit_list, ImageLib
 from utilities.materials import map_food, Food
 from utilities.paginator import Paginator, Page
@@ -49,6 +49,7 @@ async def on_ready():
 
     await create_custom_unit_banner()
     create_jp_banner()
+    load_banners()
 
     utilities.unit_list = sorted(utilities.unit_list, key=lambda x: x.grade.to_int())
 
@@ -181,19 +182,19 @@ async def quiz_cmd(ctx: Context, mode: Optional[str] = "unit"):
                                                                           description="Enter the **__full name__**."),
                                                    file=await image_to_discord(await unit.set_icon()))
 
-        awnser: str = await ask(ctx,
+        answer: str = await ask(ctx,
                                 question=question,
                                 convert=str,
                                 convert_failed="No Unit like this found",
                                 delete_question=False,
                                 delete_answer=False)
 
-        if awnser is None or awnser in ["stop", "s", "e", "end", "interrupt", "i"]:
+        if answer is None or answer in ["stop", "s", "e", "end", "interrupt", "i"]:
             return await ctx.send(ctx.author.mention, embed=embeds.ErrorEmbed("Interrupted game."))
 
-        awnser: Unit = unit_by_name_no_case(awnser)
+        answer: Unit = unit_by_name_no_case(answer)
 
-        if awnser is not None and awnser.unit_id == unit.unit_id:
+        if answer is not None and answer.unit_id == unit.unit_id:
             return await ctx.send(ctx.author.mention, embed=embeds.SuccessEmbed("Correct!"))
 
         return await ctx.send(ctx.author.mention, embed=embeds.ErrorEmbed("Wrong!", description=f"""
@@ -228,14 +229,20 @@ async def admin_update(ctx: Context):
         await read_banners_from_db()
         await create_custom_unit_banner()
         create_jp_banner()
+        load_banners()
         await ctx.send(content=f"{ctx.author.mention} Updated Units & Banners")
 
 
 @admin.command(name="banner")
 async def admin_banner(ctx: Context, banner: str, *, team: str):
-    await ctx.send(f"\n".join(
+    await ctx.send("\n".join(
         [f"{banner}, {unit_by_name_or_id(x)[0].unit_id}" for x in [y.strip() for y in team.split(",")] if
          len(unit_by_name_or_id(x)) != 0]))
+
+
+@admin.command(name="servers")
+async def admin_servers(ctx: Context):
+    await ctx.send("\n".join([f"{x.name}" for x in king.guilds]))
 
 
 def measure_time(action):

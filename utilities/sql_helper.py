@@ -84,13 +84,13 @@ async def read_units_from_db() -> None:
             affection_str=map_affection(row[7]),
             icon_path=row[8] if row[0] < 0 else "gc/icons/{}.png",
             is_jp=row[9] == 1,
-            emoji_id=row[10]
+            emoji_id=row[10],
+            home_banners=row[12].split(",") if row[12] else None
         )
 
         unit_list.append(u)
 
-
-        logger.log(logging.INFO, f"Registering Unit: {row[1]} ({row[0]}) is JP? {row[9] == 1}")
+        logger.log(logging.INFO, f"Registering Unit: {row[1]} ({row[0]}) is JP? {row[9] == 1} || {row[12]}")
 
     r_unit_list.extend([x for x in unit_list if x.grade == Grade.r and x.event == Event.base_game])
     sr_unit_list.extend([x for x in unit_list if x.grade == Grade.sr and x.event == Event.base_game])

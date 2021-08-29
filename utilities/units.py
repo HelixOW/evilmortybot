@@ -216,10 +216,13 @@ class Unit:
                  icon_path: str = "gc/icons/{}.png",
                  alt_names: Optional[List[str]] = None,
                  is_jp: bool = False,
-                 emoji_id: str = None) -> None:
+                 emoji_id: str = None,
+                 home_banners: Optional[List[str]] = None) -> None:
 
-        if alt_names is None:
+        if not alt_names:
             alt_names: List[str] = []
+        if not home_banners:
+            home_banners: List[str] = []
 
         self.unit_id: int = unit_id
         self.name: str = name
@@ -233,6 +236,7 @@ class Unit:
         self.icon_path: str = icon_path
         self.is_jp: bool = is_jp
         self.emoji: str = f"<:{self.unit_id if self.unit_id > 9 else '0' + str(self.unit_id)}:{emoji_id}>"
+        self.home_banners: List[str] = home_banners.copy()
 
         if unit_id > 0:
             img: Img = ImageLib.new('RGBA', (img_size, img_size))

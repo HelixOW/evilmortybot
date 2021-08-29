@@ -89,7 +89,17 @@ class Banner:
     def __str__(self) -> str:
         return f"Banner: {self.name}"
 
-    def contains_any_unit(self, possible_units: List[Unit]):
+    def reload(self, new_units: List[Unit]) -> None:
+        self.units: List[Unit] = new_units
+        self.r_units: List[Unit] = [x for x in self.units if x.grade == Grade.r]
+        self.sr_units: List[Unit] = [x for x in self.units if x.grade == Grade.sr]
+        self.ssr_units: List[Unit] = [x for x in self.units if x.grade == Grade.ssr and x not in self.rate_up_units]
+        self.all_ssr_units: List[Unit] = [x for x in self.units if x.grade == Grade.ssr]
+        self.all_units: List[Unit] = sorted(self.units + self.rate_up_units, key=lambda k: k.grade.to_int())
+
+        self.unit_list_image: Tuple[ImageLib.Image, ...] = self._compose_banner_unit_list()
+
+    def contains_any_unit(self, possible_units: List[Unit]) -> bool:
         return len([a for a in possible_units if a.unit_id in [b.unit_id for b in self.all_units]]) != 0
 
     def get_unit_rate(self, unit: Unit) -> float:
@@ -204,6 +214,15 @@ def create_jp_banner() -> None:
                includes_all_sr=True,
                bg_url="https://raw.githubusercontent.com/WhoIsAlphaHelix/evilmortybot/master/gc/banners/A9619A31-B793-4E12-8DF6-D0FCC706DEF2_1_105_c.jpeg")
     )
+
+
+def load_banners() -> None:
+    banner_by_name("part 1").reload([x for x in unit_list if "part 1" in x.home_banners or (x.grade != Grade.ssr and x.event == Event.base_game)])
+    banner_by_name("part 2").reload([x for x in unit_list if "part 2" in x.home_banners or (x.grade != Grade.ssr and x.event == Event.base_game)])
+    banner_by_name("part 3").reload([x for x in unit_list if "part 3" in x.home_banners or (x.grade != Grade.ssr and x.event == Event.base_game)])
+    banner_by_name("race 1").reload([x for x in unit_list if "race 1" in x.home_banners])
+    banner_by_name("race 2").reload([x for x in unit_list if "race 2" in x.home_banners])
+    banner_by_name("human").reload([x for x in unit_list if "human" in x.home_banners])
 
 
 async def add_unit_to_box(user: discord.Member, unit_to_add: Unit) -> None:
